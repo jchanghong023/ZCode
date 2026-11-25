@@ -1,3 +1,4 @@
+import { DEFAULT_AIREQ_THEME } from "@/useTheme.js";
 import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { useEffect, useState } from "react";
 import { LucideProvider } from "lucide-react";
@@ -69,6 +70,7 @@ export function AIReqApplication(props: AIReqApplicationProps) {
             >
               <PlatformProvider platform={props.platform}>
                 <StoreProvider
+                  initialTheme={DEFAULT_AIREQ_THEME}
                   broadcastService={props.services.broadcastService}
                   initialUser={{
                     id: identity.employeeId,
@@ -83,10 +85,7 @@ export function AIReqApplication(props: AIReqApplicationProps) {
                         className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-2 text-destructive"
                       >
                         读取失败：{error}
-                        <Button
-                          variant="outline"
-                          onClick={() => setAttempt((value) => value + 1)}
-                        >
+                        <Button variant="outline" onClick={() => setAttempt((value) => value + 1)}>
                           重试
                         </Button>
                       </div>

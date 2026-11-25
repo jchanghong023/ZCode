@@ -276,7 +276,7 @@ Web 回读和补丁均排除桌面数据目录 `dataBaseDir` 和首次设置同�
 
 Web 回读和补丁均排除旧端点覆盖字段 `zcodeEndpointOrigin`。AIReq 的 WebSocket 地址由启动配置提供，`/chat` 使用同源 `/ws/chat`；连接地址不归设置服务管理。
 
-严格 patch 全部验证后一次合并，partial 不补默认，混合非法输入原子失败。语言沿 locale/localePreference，外观沿正式 theme 与 12—20 整数字号 uiFontSizePx。该服务不改变浏览器本地 store owner，也不自动发送广播。`state:theme` 只同步会话内外观。当前页面已有主动选择时，该选择优先于广播。新页面固定从动效主题启动。
+严格 patch 全部验证后一次合并，partial 不补默认，混合非法输入原子失败。语言沿 locale/localePreference，外观沿正式 theme 与 12—20 整数字号 uiFontSizePx。该服务不改变浏览器本地 store owner，也不自动发送广播。`state:theme` 只同步会话内外观。当前页面已有主动选择时，该选择优先于广播。AIReq 新页面固定从钴蓝日间主题启动。外观设置和账号菜单还可选择浅蓝灰、双区电光、极光深夜及已支持的主题。
 
 Web 的 `broadcast.send` 只接收一个含 `channel` 和 `payload` 的对象，事件 `broadcast.onMessage` 返回同一形状。额外实参、`sourceWindowId` 及其他额外字段在广播前拒绝，不产生事件。来源由服务端按连接确定，不向接收端下发；发送连接不接收自己的广播。
 

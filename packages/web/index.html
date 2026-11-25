@@ -1,15 +1,15 @@
 <!doctype html>
 <html
   lang="zh-CN"
-  class="dark theme-zai-dark theme-zai-motion"
-  data-zcode-browser-theme-surface="dark"
-  style="color-scheme: dark"
+  class="theme-zai-light theme-aireq-cobalt theme-aireq-color"
+  data-zcode-browser-theme-surface="light"
+  style="color-scheme: light"
 >
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#161616" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#f2f6fd" />
+    <meta name="color-scheme" content="light" />
     <!-- Bugfix: Chrome dev 下可能不发 favicon 网络请求；内嵌小尺寸 App 图标，避免标签页回退到默认图标。 -->
     <link
       rel="icon"
@@ -29,12 +29,7 @@
 
       body {
         color: var(--color-foreground, #e2e8f0);
-        font-family:
-          Inter,
-          -apple-system,
-          BlinkMacSystemFont,
-          "Segoe UI",
-          sans-serif;
+        font-family: var(--font-sans, Inter, system-ui, "Microsoft YaHei UI", sans-serif);
       }
 
       html[data-zcode-browser-theme-surface="light"] body {
@@ -52,7 +47,7 @@
       html[data-zcode-browser-theme-surface="light"],
       html[data-zcode-browser-theme-surface="light"] body,
       html[data-zcode-browser-theme-surface="light"] #root {
-        background: var(--color-background, #f8f8f8) !important;
+        background: var(--color-background, #f2f6fd) !important;
       }
 
       .zcode-boot-loading {

@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { AIREQ_THEMES, DEFAULT_AIREQ_THEME } from "@zcode/shared";
 import type { WebBroadcastMessage, WebBroadcastService } from "@zcode/services";
 import { createZCodeStore } from "../../packages/ui/src/store/index.js";
 
@@ -33,6 +34,7 @@ function openBrowser(saved: string | null = null) {
   vi.stubGlobal("getComputedStyle", () => ({ getPropertyValue: () => "" }));
   return {
     localStorage,
+    classes,
     appearance: () => ({
       scheme: root.style.colorScheme,
       motion: classes.has("theme-zai-motion"),
@@ -59,11 +61,25 @@ function connection() {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("browser theme preference", () => {
-  it("starts the browser surface in the motion theme before React loads", () => {
+  it("starts the AIReq browser surface in Cobalt Day before React loads", () => {
     const root = html.match(/<html\b[^>]*>/)?.[0];
-    expect(root).toContain('class="dark theme-zai-dark theme-zai-motion"');
-    expect(root).toContain('data-zcode-browser-theme-surface="dark"');
-    expect(root).toContain('style="color-scheme: dark');
+    expect(root).toContain('class="theme-zai-light theme-aireq-cobalt theme-aireq-color"');
+    expect(root).toContain('data-zcode-browser-theme-surface="light"');
+    expect(root).toContain('style="color-scheme: light');
+  });
+
+  it("applies only the chosen AIReq palette and restores the default on a fresh load", () => {
+    const browser = openBrowser();
+    const options = { initialTheme: DEFAULT_AIREQ_THEME };
+    const store = createZCodeStore(connection().service, options);
+    expect(store.getState().theme).toBe("aireq-cobalt");
+    for (const theme of AIREQ_THEMES) {
+      store.getState().setTheme(theme);
+      expect(AIREQ_THEMES.filter((name) => browser.classes.has(`theme-${name}`))).toEqual([theme]);
+      expect(browser.appearance().scheme).toBe(theme === "aireq-aurora" ? "dark" : "light");
+    }
+    expect(createZCodeStore(connection().service, options).getState().theme).toBe("aireq-cobalt");
+    expect(browser.classes.has("theme-aireq-aurora")).toBe(false);
   });
 
   it.each([null, "light", "zai-dark", "system"])(

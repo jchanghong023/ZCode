@@ -1,3 +1,4 @@
+import type { AppTheme } from "./appearance-theme.js";
 import type { RemoteAssetInstallMode } from "./remoteAssetInstallMode.js";
 import type { RemoteResourcePackageSelection } from "./remoteResourcePackages.js";
 import type { ProviderFamilyDomain } from "./model-provider-family.js";
@@ -248,7 +249,7 @@ export interface ResourceUsageSnapshot {
 
 export interface AppSettings {
   /** 浏览器外观偏好；不改变会话执行配置。 */
-  theme?: "light" | "dark" | "zai-light" | "zai-dark" | "zai-motion" | "system";
+  theme?: AppTheme;
   /** 界面字号基准 px，整数 12—20，不改变根 rem。 */
   uiFontSizePx?: number;
   /** 当前 App/Host 不再显示提交前体验套餐推荐；不改变任何入口的模型选择。 */

@@ -185,6 +185,7 @@ export function AIReqProposalTable() {
   }, [currentPage, releaseId, search, filters, sort]);
   return (
     <main
+      data-aireq-themed-page
       aria-label={zh ? "需求共创" : "Co-creation"}
       className="@container/conversation h-full min-h-0 min-w-0 flex-1 overflow-hidden bg-background text-ui-base"
     >
@@ -198,7 +199,10 @@ export function AIReqProposalTable() {
           aria-label={zh ? "需求列表" : "Requirements list"}
           className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-card-border bg-card text-foreground"
         >
-          <div className="shrink-0 border-b border-border/60 px-3 py-3 @min-[760px]/conversation:px-4">
+          <div
+            data-aireq-theme-filters
+            className="shrink-0 border-b border-border/60 px-3 py-3 @min-[760px]/conversation:px-4"
+          >
             <AIReqProposalFilters
               query={query}
               applied={applied}

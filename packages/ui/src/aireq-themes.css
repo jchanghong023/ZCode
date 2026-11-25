@@ -1,0 +1,229 @@
+/* Prefer the same Zai light/dark base for unoverridden components and document rendering. */
+:root.theme-aireq-cobalt {
+  --aireq-canvas: #f2f6fd;
+  --aireq-sidebar: #e7effc;
+  --aireq-panel: #ffffff;
+  --aireq-text: #15233a;
+  --aireq-muted: #45566c;
+  --aireq-line: #ccd9ed;
+  --aireq-accent: #1d4ed8;
+  --aireq-accent-ink: #1e40af;
+  --aireq-accent-on: #ffffff;
+  --aireq-selection: #e1ebff;
+  --aireq-heading-wash: #e1ebfd;
+  --aireq-heading-other: #eee6fc;
+}
+
+:root.theme-aireq-slate {
+  --aireq-canvas: #f3f7f9;
+  --aireq-sidebar: #e4edf1;
+  --aireq-panel: #ffffff;
+  --aireq-text: #182e3a;
+  --aireq-muted: #425866;
+  --aireq-line: #c9d8df;
+  --aireq-accent: #126582;
+  --aireq-accent-ink: #174f64;
+  --aireq-accent-on: #ffffff;
+  --aireq-selection: #deedf3;
+  --aireq-heading-wash: #e7f1f4;
+  --aireq-heading-other: #f3f7f9;
+}
+
+:root.theme-aireq-violet {
+  --aireq-canvas: #f8f5ff;
+  --aireq-sidebar: #211835;
+  --aireq-panel: #ffffff;
+  --aireq-text: #241e36;
+  --aireq-muted: #514865;
+  --aireq-line: #dacfea;
+  --aireq-accent: #6433cb;
+  --aireq-accent-ink: #5324b0;
+  --aireq-accent-on: #ffffff;
+  --aireq-selection: #eee4ff;
+  --aireq-heading-wash: #e8dbff;
+  --aireq-heading-other: #f0dcfa;
+}
+
+:root.theme-aireq-aurora {
+  --aireq-canvas: #0a1626;
+  --aireq-sidebar: #0d1c30;
+  --aireq-panel: #102137;
+  --aireq-text: #edf5ff;
+  --aireq-muted: #b8cce3;
+  --aireq-line: #2b4964;
+  --aireq-accent: #58d8f2;
+  --aireq-accent-ink: #a4f1ff;
+  --aireq-accent-on: #092235;
+  --aireq-selection: #183b55;
+  --aireq-heading-wash: #133b54;
+  --aireq-heading-other: #30244a;
+}
+
+:root.theme-aireq-color {
+  --color-background: var(--aireq-canvas);
+  --color-background-win-alt: var(--aireq-sidebar);
+  --color-background-alt: var(--aireq-canvas);
+  --color-sidebar: var(--aireq-sidebar);
+  --color-card: var(--aireq-panel);
+  --color-card-border: var(--aireq-line);
+  --color-card-selected: var(--aireq-selection);
+  --color-border: var(--aireq-line);
+  --color-border-hover: color-mix(in srgb, var(--aireq-accent) 40%, var(--aireq-line));
+  --color-header: var(--aireq-panel);
+  --color-panel: var(--aireq-panel);
+  --color-surface: var(--aireq-canvas);
+  --color-surface-hover: var(--aireq-selection);
+  --color-hover: color-mix(in srgb, var(--aireq-selection) 55%, var(--aireq-panel));
+  --color-selected: var(--aireq-selection);
+  --color-accent: var(--aireq-selection);
+  --color-accent-foreground: var(--aireq-accent-ink);
+  --color-primary: var(--aireq-accent);
+  --color-primary-foreground: var(--aireq-accent-on);
+  --color-secondary: var(--aireq-selection);
+  --color-secondary-foreground: var(--aireq-accent-ink);
+  --color-brand: var(--aireq-accent);
+  --color-input: var(--aireq-panel);
+  --color-input-focused: var(--aireq-panel);
+  --color-input-border: var(--aireq-line);
+  --color-input-border-hover: var(--color-border-hover);
+  --color-input-border-focused: var(--aireq-accent);
+  --color-ring: var(--aireq-accent);
+  --color-foreground: var(--aireq-text);
+  --color-foreground-subtle: var(--aireq-muted);
+  --color-foreground-subtlest: var(--aireq-muted);
+  --color-remote-foreground-muted: var(--aireq-muted);
+  --color-placeholder: var(--aireq-muted);
+  --color-menu: var(--aireq-panel);
+  --color-menu-hover: var(--aireq-selection);
+  --color-popover: var(--aireq-panel);
+  --color-popover-foreground: var(--aireq-text);
+  --color-popover-border: var(--aireq-line);
+  --color-tooltip: var(--aireq-canvas);
+  --color-tooltip-foreground: var(--aireq-text);
+  --color-toast: var(--aireq-panel);
+  --color-tab: var(--aireq-canvas);
+  --color-tab-active: var(--aireq-panel);
+  --color-tab-border: var(--aireq-line);
+  --font-sans:
+    Inter, system-ui, "Microsoft YaHei UI", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+}
+
+.theme-aireq-color [data-aireq-themed-page] {
+  background:
+    linear-gradient(125deg, var(--aireq-heading-wash), transparent 20rem), var(--aireq-canvas);
+}
+
+.theme-aireq-violet [data-aireq-themed-page],
+.theme-aireq-aurora [data-aireq-themed-page] {
+  background:
+    radial-gradient(ellipse 34rem 12rem at 98% 0%, var(--aireq-heading-other), transparent),
+    linear-gradient(135deg, var(--aireq-heading-wash), transparent 21rem), var(--aireq-canvas);
+}
+
+.theme-aireq-color [data-aireq-theme-filters] {
+  background: linear-gradient(
+    105deg,
+    var(--aireq-heading-wash),
+    var(--aireq-panel) 52%,
+    var(--aireq-heading-other)
+  );
+}
+
+.theme-aireq-color [data-aireq-theme-sync] {
+  background-color: var(--aireq-accent);
+  color: var(--aireq-accent-on);
+  border-color: var(--aireq-accent);
+}
+
+.theme-aireq-color [data-aireq-theme-sync]:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--aireq-accent) 82%, var(--aireq-text));
+}
+
+.theme-aireq-color [data-aireq-theme-discuss] {
+  color: var(--aireq-accent-ink);
+}
+
+.theme-aireq-color [data-aireq-motion-nav][aria-current="page"] {
+  color: var(--aireq-accent-ink);
+}
+
+.theme-aireq-violet [data-testid="aireq-workflow-root"] {
+  --color-foreground: #f4edff;
+  --color-foreground-subtle: #d0c2eb;
+  --color-remote-foreground-muted: #d0c2eb;
+  --color-placeholder: #d0c2eb;
+  --color-selected: #4a2d74;
+  --color-hover: #392951;
+  --color-border: #594574;
+  --color-background: #312348;
+  --aireq-accent-ink: #e6d4ff;
+  color: var(--color-foreground);
+}
+
+.theme-aireq-color [data-aireq-theme-stage] {
+  display: inline-block;
+  padding: 0.125rem 0.4375rem;
+  border-radius: 0.375rem;
+  background-color: var(--aireq-selection);
+  color: var(--aireq-accent-ink);
+  font-weight: 500;
+}
+
+.theme-aireq-color [data-aireq-theme-stage="分析"] {
+  color: #5b21b6;
+  background-color: #f0e7ff;
+}
+.theme-aireq-color [data-aireq-theme-stage="开发"] {
+  color: #1e40af;
+  background-color: #e0ebff;
+}
+.theme-aireq-color [data-aireq-theme-stage="测试"] {
+  color: #85420c;
+  background-color: #fff0c4;
+}
+.theme-aireq-color [data-aireq-theme-stage="完成"] {
+  color: #166534;
+  background-color: #dcfce7;
+}
+.theme-aireq-aurora [data-aireq-theme-stage="分析"] {
+  color: #e9dcff;
+  background-color: #402c61;
+}
+.theme-aireq-aurora [data-aireq-theme-stage="开发"] {
+  color: #b7dcff;
+  background-color: #17436e;
+}
+.theme-aireq-aurora [data-aireq-theme-stage="测试"] {
+  color: #ffe4a4;
+  background-color: #553a18;
+}
+.theme-aireq-aurora [data-aireq-theme-stage="完成"] {
+  color: #a4f2d7;
+  background-color: #174b46;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .theme-aireq-color [data-aireq-color-motion] [data-aireq-theme-chip] {
+    animation: aireq-filter-arrive 150ms ease-out both;
+  }
+
+  .theme-aireq-color [data-aireq-color-motion] [data-aireq-motion-nav],
+  .theme-aireq-color [data-aireq-color-motion] [data-aireq-theme-sync],
+  .theme-aireq-color [data-aireq-color-motion] [data-aireq-theme-discuss] {
+    transition:
+      background-color 160ms ease-out,
+      color 160ms ease-out,
+      border-color 160ms ease-out;
+  }
+}
+
+@keyframes aireq-filter-arrive {
+  from {
+    opacity: 0.6;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

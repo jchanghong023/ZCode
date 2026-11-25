@@ -15,6 +15,7 @@ import {
 import { useStore } from "zustand";
 import type { UserInfo } from "@zcode/shared";
 import type { WebBroadcastService } from "@zcode/services";
+import type { Theme } from "../useTheme.js";
 import { createZCodeStore, type ZCodeStore, type ZCodeState } from "./index.js";
 
 // 导出 Context 供测试直接注入已构造的 store 实例（如跨窗口广播抑制用例）。
@@ -23,10 +24,12 @@ export const StoreContext = createContext<ZCodeStore | null>(null);
 export function StoreProvider({
   broadcastService,
   initialUser = null,
+  initialTheme,
   children,
 }: {
   broadcastService: WebBroadcastService;
   initialUser?: UserInfo | null;
+  initialTheme?: Theme;
   children: ReactNode;
 }) {
   // Store 保持稳定；连接重建只替换广播绑定，避免继续调用已释放的 ChannelClient。
@@ -34,6 +37,7 @@ export function StoreProvider({
   if (!storeRef.current) {
     storeRef.current = createZCodeStore(broadcastService, {
       initialUser,
+      initialTheme,
     });
   }
   const store = storeRef.current;

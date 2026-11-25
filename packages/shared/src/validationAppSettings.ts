@@ -1,5 +1,6 @@
 /* oxlint-disable eslint(max-lines) -- AppSettings schema 聚合历史迁移、默认值和 patch 校验，拆分会削弱设置迁移的单一入口。 */
 import { z } from "zod";
+import { APP_THEMES } from "./appearance-theme.js";
 import {
   appToolSearchModeSchema,
   DEFAULT_APP_TOOL_SEARCH_MODE,
@@ -43,7 +44,7 @@ export const localeSchema = z.enum(SUPPORTED_LOCALES);
 export const localePreferenceSchema = z.enum(["system", ...SUPPORTED_LOCALES]);
 const zcodeInteractionBehaviorSchema = z.enum(["queue", "guide"]);
 const desktopZoomLevelSchema = z.number().int().min(-3).max(5);
-const appThemeSchema = z.enum(["light", "dark", "zai-light", "zai-dark", "zai-motion", "system"]);
+const appThemeSchema = z.enum(APP_THEMES);
 const appUiFontSizeSchema = z.number().int().min(12).max(20);
 const desktopWindowSizeSchema = z.object({
   width: z.number().int().min(480),

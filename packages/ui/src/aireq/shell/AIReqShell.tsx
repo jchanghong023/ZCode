@@ -2,6 +2,7 @@ import { AIReqSidePaneProvider } from "../side-pane/AIReqSidePaneContext.js";
 import { AIReqSidePaneHost } from "../side-pane/AIReqSidePaneHost.js";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button.js";
+import { useZCodeStore } from "@/store/StoreProvider.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   readLastSettingsSectionPreference,
@@ -60,6 +61,7 @@ export function AIReqShell(props: { onLogout(): void }) {
 }
 function AIReqShellContent({ onLogout }: { onLogout(): void }) {
   const motionRoot = useRef<HTMLDivElement>(null);
+  const performanceMode = useZCodeStore((state) => state.performanceMode);
   const mainContent = useRef<HTMLDivElement>(null);
   const ai = useAIReq()!;
   const { locale } = useZCodeIntl();
@@ -241,6 +243,7 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
   return (
     <div
       ref={motionRoot}
+      data-aireq-color-motion={performanceMode ? undefined : ""}
       className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background-win-alt"
     >
       <AIReqMotion rootRef={motionRoot} />

@@ -73,6 +73,7 @@ export function AIReqProposalListActions({ zh }: { zh: boolean }) {
           type="button"
           variant="outline"
           size="lg"
+          data-aireq-theme-sync
           disabled={!!action}
           onClick={() => void run("sync")}
           title={

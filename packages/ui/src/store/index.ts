@@ -140,6 +140,7 @@ export function createZCodeStore(
   broadcastService: WebBroadcastService,
   options: {
     initialUser?: UserInfo | null;
+    initialTheme?: Theme;
   } = {},
 ) {
   /** 标记：正在应用来自广播的更新，此时不再重复广播（防止循环） */
@@ -161,7 +162,7 @@ export function createZCodeStore(
       writeSafeLocalStorage(INTERFACE_MODE_STORAGE_KEY, interfaceMode);
       set({ interfaceMode });
     },
-    theme: DEFAULT_THEME,
+    theme: options.initialTheme ?? DEFAULT_THEME,
     setTheme: (theme: Theme) => {
       const normalizedTheme = normalizeThemePreference(theme);
       if (!applyingBroadcast) {

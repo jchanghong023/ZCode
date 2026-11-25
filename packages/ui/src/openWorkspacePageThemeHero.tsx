@@ -16,6 +16,7 @@ interface ThemeHeroPalette {
 
 function getThemeHeroPalette(theme: Theme): ThemeHeroPalette {
   switch (theme) {
+    case "aireq-cobalt":
     case "light":
       return {
         meshBase: "#eff6ff",
@@ -27,6 +28,8 @@ function getThemeHeroPalette(theme: Theme): ThemeHeroPalette {
         heading: "text-slate-900",
         description: "text-slate-700/80",
       };
+    case "aireq-slate":
+    case "aireq-violet":
     case "zai-light":
       return {
         meshBase: "#f8f8f8",
@@ -50,6 +53,7 @@ function getThemeHeroPalette(theme: Theme): ThemeHeroPalette {
         heading: "text-[#F8F8F8]",
         description: "text-[#ADADAD]",
       };
+    case "aireq-aurora":
     case "dark":
     case "system":
     default:

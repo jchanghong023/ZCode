@@ -20,7 +20,7 @@ import { Maximize, Palette, Settings, User, ZoomIn, ZoomOut } from "lucide-react
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { formatCommandShortcutLabel } from "@/lib/keyboardShortcuts.js";
-import type { Theme } from "@/useTheme.js";
+import { AIREQ_THEMES, type Theme } from "@/useTheme.js";
 
 interface WorkspaceSidebarFooterProps {
   theme: Theme;
@@ -52,6 +52,11 @@ function WorkspaceSidebarFooterThemeMenu({
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent className="w-48">
         <DropdownMenuRadioGroup value={theme} onValueChange={onThemeChange}>
+          {AIREQ_THEMES.map((mode) => (
+            <DropdownMenuRadioItem key={mode} value={mode}>
+              {intl.formatMessage({ id: `settings.themeMode.${mode}` })}
+            </DropdownMenuRadioItem>
+          ))}
           <DropdownMenuRadioItem value="zai-motion">
             {intl.formatMessage({ id: "sidebar.settings.theme.zai-motion" })}
           </DropdownMenuRadioItem>

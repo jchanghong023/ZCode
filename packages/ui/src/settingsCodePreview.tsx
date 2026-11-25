@@ -1,7 +1,6 @@
-import type { Theme } from "@/useTheme.js";
 import { useState } from "react";
 import { Monitor, Moon, Sun, WandSparkles } from "lucide-react";
-import { resolveTheme } from "@/useTheme.js";
+import { AIREQ_THEMES, resolveTheme, type Theme } from "@/useTheme.js";
 import { Card, CardContent } from "@/components/ui/card.js";
 import { Input } from "@/components/ui/input.js";
 import { Switch } from "@/components/ui/switch.js";
@@ -24,6 +23,7 @@ import type { CodePreviewSettings } from "@/store/index.js";
 import { MAX_UI_FONT_SIZE_PX, MIN_UI_FONT_SIZE_PX } from "@/lib/uiFontSize.js";
 
 const THEME_MODES: Array<{ mode: Theme; icon: typeof Sun }> = [
+  ...AIREQ_THEMES.map((mode) => ({ mode, icon: WandSparkles })),
   { mode: "zai-motion", icon: WandSparkles },
   { mode: "system", icon: Monitor },
   { mode: "zai-dark", icon: Moon },
@@ -139,9 +139,7 @@ export function AppearanceSectionContent({
                       <SelectItem key={mode} value={mode}>
                         <div className="flex items-center gap-2">
                           <Icon className="size-4" />
-                          {intl.formatMessage({
-                            id: `settings.themeMode.${mode}`,
-                          })}
+                          {intl.formatMessage({ id: `settings.themeMode.${mode}` })}
                         </div>
                       </SelectItem>
                     ))}

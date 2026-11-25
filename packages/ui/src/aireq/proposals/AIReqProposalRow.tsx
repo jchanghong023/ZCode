@@ -146,6 +146,7 @@ export function AIReqProposalRow({
             type="button"
             variant="secondary"
             data-aireq-proposal-entry={item.id}
+            data-aireq-theme-discuss
             data-aireq-agent="requirements"
             aria-label={`${requirementsLabel} · ${item.title}`}
             className="@max-[620px]/conversation:hidden"
@@ -323,7 +324,11 @@ function RequirementCell({
       );
     }
     case "process":
-      return item.process ? proposalProcessLabel(item.process, zh) : "—";
+      return item.process ? (
+        <span data-aireq-theme-stage={item.process}>{proposalProcessLabel(item.process, zh)}</span>
+      ) : (
+        "—"
+      );
     case "dwellTime": {
       const elapsed = proposalDwellTime(item, now);
       if (elapsed === undefined) return "—";

@@ -391,3 +391,10 @@ export {
 export * from "./request-security-edition/verification-policy.js";
 
 export { splitMarkdownFrontmatter, parseAgentFrontmatter } from "./subagent-profile-frontmatter.js";
+
+export {
+  AIREQ_THEMES,
+  APP_THEMES,
+  DEFAULT_AIREQ_THEME,
+  type AppTheme,
+} from "./appearance-theme.js";

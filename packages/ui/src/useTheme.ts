@@ -1,6 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
+import { AIREQ_THEMES, APP_THEMES, type AppTheme } from "@zcode/shared";
 
-export type Theme = "light" | "dark" | "zai-light" | "zai-dark" | "zai-motion" | "system";
+export type Theme = AppTheme;
+export { AIREQ_THEMES, DEFAULT_AIREQ_THEME } from "@zcode/shared";
+const appThemes = new Set<string>(APP_THEMES);
+const aireqThemes = new Set<Theme>(AIREQ_THEMES);
 export type ResolvedTheme = "light" | "dark";
 export const DEFAULT_THEME = "zai-motion";
 
@@ -15,7 +19,12 @@ export function resolveTheme(theme: Theme): ResolvedTheme {
     return getSystemTheme();
   }
 
-  return theme === "dark" || theme === "zai-dark" || theme === "zai-motion" ? "dark" : "light";
+  return theme === "dark" ||
+    theme === "zai-dark" ||
+    theme === "zai-motion" ||
+    theme === "aireq-aurora"
+    ? "dark"
+    : "light";
 }
 
 export function normalizeThemePreference(theme: Theme): Theme {
@@ -64,28 +73,27 @@ export function applyTheme(theme: Theme) {
         : "zai-light"
       : normalizeThemePreference(theme);
   document.documentElement.classList.toggle("dark", resolved === "dark");
-  document.documentElement.classList.toggle("theme-zai-light", appliedTheme === "zai-light");
-  document.documentElement.classList.toggle(
-    "theme-zai-dark",
-    appliedTheme === "zai-dark" || appliedTheme === "zai-motion",
-  );
+  const custom = isAIReqTheme(appliedTheme);
+  document.documentElement.classList.toggle("theme-zai-light", resolved === "light");
+  document.documentElement.classList.toggle("theme-zai-dark", resolved === "dark");
   document.documentElement.classList.toggle("theme-zai-motion", appliedTheme === "zai-motion");
+  for (const variant of AIREQ_THEMES) {
+    document.documentElement.classList.toggle(`theme-${variant}`, appliedTheme === variant);
+  }
+  document.documentElement.classList.toggle("theme-aireq-color", custom);
   syncBrowserThemeSurface(resolved);
 }
 
 export function isTheme(value: unknown): value is Theme {
-  return (
-    value === "light" ||
-    value === "dark" ||
-    value === "zai-light" ||
-    value === "zai-dark" ||
-    value === "zai-motion" ||
-    value === "system"
-  );
+  return typeof value === "string" && appThemes.has(value);
 }
 
-export function useTheme() {
-  const [theme, setThemeState] = useState<Theme>(DEFAULT_THEME);
+export function isAIReqTheme(theme: Theme): boolean {
+  return aireqThemes.has(theme);
+}
+
+export function useTheme(initialTheme: Theme = DEFAULT_THEME) {
+  const [theme, setThemeState] = useState<Theme>(initialTheme);
 
   const setTheme = useCallback((t: Theme) => {
     const normalizedTheme = normalizeThemePreference(t);

@@ -16,6 +16,7 @@ export function AIReqProjectDocumentsPage({
   const zh = locale === "zh-CN";
   return (
     <main
+      data-aireq-themed-page
       className="h-full min-h-0 min-w-0 overflow-y-auto bg-background text-ui-base [scrollbar-gutter:stable_both-edges]"
       data-testid="aireq-project-progress"
     >

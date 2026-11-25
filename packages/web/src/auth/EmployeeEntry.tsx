@@ -5,7 +5,7 @@ import { Input } from "@zcode/ui/input";
 import { Label } from "@zcode/ui/label";
 import { Alert, AlertDescription } from "@zcode/ui/alert";
 import { ThemeHeroVisual } from "@zcode/ui/theme-hero";
-import { useTheme } from "@zcode/ui/useTheme";
+import { DEFAULT_AIREQ_THEME, useTheme } from "@zcode/ui/useTheme";
 import { TriangleAlertIcon, UserRound } from "lucide-react";
 import type { EmployeeEntryContract } from "./contract.js";
 
@@ -123,7 +123,7 @@ function EmployeeLoginScreen({
   const [value, setValue] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const { theme } = useTheme();
+  const { theme } = useTheme(DEFAULT_AIREQ_THEME);
   const inputRef = useRef<HTMLInputElement>(null);
   const submitRef = useRef<HTMLButtonElement>(null);
   const connectionStatus = connection?.status;

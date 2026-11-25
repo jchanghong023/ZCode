@@ -3,6 +3,7 @@
 @import "shadcn/tailwind.css";
 @import "katex/dist/katex.min.css";
 @import "./nativeMediaControls.css";
+@import "./aireq-themes.css";
 @source "../../../node_modules/streamdown/dist/*.js"; /* 感觉这行也是不好使呢*/
 
 @plugin "@tailwindcss/typography";

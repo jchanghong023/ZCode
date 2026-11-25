@@ -143,7 +143,10 @@ function FilterChip({
 }) {
   const summary = `${label}${zh ? "：" : ": "}${value}`;
   return (
-    <div className="inline-flex h-8 max-w-[min(100%,28rem)] min-w-0 items-center gap-1 rounded-lg bg-secondary pl-2.5 text-ui-caption text-secondary-foreground">
+    <div
+      data-aireq-theme-chip
+      className="inline-flex h-8 max-w-[min(100%,28rem)] min-w-0 items-center gap-1 rounded-lg bg-secondary pl-2.5 text-ui-caption text-secondary-foreground"
+    >
       {onEdit ? (
         <button
           type="button"

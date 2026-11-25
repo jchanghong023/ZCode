@@ -1,3 +1,4 @@
+import { isTheme } from "@/useTheme.js";
 import { AIReqOnlinePresence } from "./AIReqOnlinePresence.js";
 import { useRef } from "react";
 import { CircleHelp, LogOut, UserRound } from "lucide-react";
@@ -33,13 +34,7 @@ export function AIReqWorkspaceFooter({
       <WorkspaceSidebarFooter
         theme={theme}
         onThemeChange={(value) => {
-          if (
-            value === "system" ||
-            value === "zai-dark" ||
-            value === "zai-light" ||
-            value === "zai-motion"
-          )
-            setTheme(value);
+          if (isTheme(value)) setTheme(value);
         }}
         onSettingsButtonClick={onOpenSettings}
         profileTriggerRef={menuTriggerRef}
