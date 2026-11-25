@@ -1,4 +1,5 @@
 import type { IAIReqService } from "./contract.js";
+import type { AIReqDocumentFormats } from "./document-formats.js";
 import type { AIReqIdentity } from "./types.js";
 
 /** Reconnect reads facts and all-project document counts in one call; it never repeats a mutation. */
@@ -16,22 +17,18 @@ export function subscribeAIReqProjection(service: IAIReqService, invalidate: () 
   });
 }
 
-/** Explicit save only: caller retains the same operation ID/baseline for a retry. No AI starts. */
-export function createAIReqProposal(
+/** 编辑基线来自开始编辑时的视图；重试同一次保存时保留原操作编号和基线。 */
+export function saveAIReqDocumentFormats(
   service: IAIReqService,
   identity: AIReqIdentity,
-  projectId: string,
-  releaseId: string,
-  originalText: string,
+  documentFormats: AIReqDocumentFormats,
   operationId: string,
   expectedRevision: number,
 ) {
   return service.call(identity, "command", [
     {
-      type: "createProposal",
-      projectId,
-      releaseId,
-      originalText,
+      type: "saveDocumentFormats",
+      documentFormats,
       operationId,
     },
     {},

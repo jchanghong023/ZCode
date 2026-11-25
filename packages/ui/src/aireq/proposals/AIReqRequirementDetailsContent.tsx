@@ -22,6 +22,7 @@ import { formatUserFacingError } from "@/lib/errorMessage.js";
 import {
   AIREQ_CLOUD_PROPOSAL_COLUMNS,
   AIREQ_REQUIREMENT_COMMENT_MAX_LENGTH,
+  type AIReqDataSource,
   type AIReqRequirementComment,
   type AIReqRequirementDetails,
 } from "../contract.js";
@@ -29,7 +30,7 @@ import { useAIReqDataSource } from "../data-source.js";
 import { AIReqMarkdownDocument } from "./AIReqMarkdownDocument.js";
 import { proposalColumns } from "./proposalColumns.js";
 
-type ReadResult = { attempt: number } & (
+type ReadResult = { source: AIReqDataSource; attempt: number } & (
   | { detail: AIReqRequirementDetails; error?: never }
   | { error: unknown; detail?: never }
 );
@@ -61,22 +62,21 @@ const fieldLabels: Record<string, readonly [zh: string, en: string]> = {
   attachment: ["附件", "Attachments"],
 };
 
-export function AIReqRequirementDetailsContent({
-  projectId,
-  irId,
-  zh,
-}: {
-  projectId: string;
-  irId: string;
-  zh: boolean;
-}) {
+type DetailsProps = { projectId: string; irId: string; zh: boolean };
+
+export function AIReqRequirementDetailsContent(props: DetailsProps) {
+  // effect 清理前也不能展示上一条 IR；按请求目标整体重建描述和评论状态。
+  return <RequirementDetails key={JSON.stringify([props.projectId, props.irId])} {...props} />;
+}
+
+function RequirementDetails({ projectId, irId, zh }: DetailsProps) {
   const source = useAIReqDataSource();
   const description = useRef<HTMLElement>(null);
   const commentList = useRef<HTMLElement>(null);
   const [attempt, setAttempt] = useState(0);
-  const [result, setResult] = useState<ReadResult>();
+  const [read, setRead] = useState<ReadResult>();
+  const result = read?.source === source && read.attempt === attempt ? read : undefined;
   const detail = result?.detail;
-  const pending = result?.attempt !== attempt;
   const retry = () => setAttempt((previous) => previous + 1);
   const retryLabel = zh ? "重试" : "Retry";
   const descriptionLabel = zh ? "描述" : "Description";
@@ -87,10 +87,10 @@ export function AIReqRequirementDetailsContent({
     let active = true;
     void source.readRequirementDetails({ projectId, irId }).then(
       (detail) => {
-        if (active) setResult({ attempt, detail });
+        if (active) setRead({ source, attempt, detail });
       },
       (error: unknown) => {
-        if (active) setResult({ attempt, error });
+        if (active) setRead({ source, attempt, error });
       },
     );
     return () => {
@@ -101,7 +101,7 @@ export function AIReqRequirementDetailsContent({
   if (!detail) {
     return (
       <div className="flex items-center gap-3 px-6 py-4">
-        {pending ? (
+        {!result ? (
           <p role="status">{zh ? "正在加载需求详情…" : "Loading requirement details…"}</p>
         ) : (
           <>
@@ -149,12 +149,7 @@ export function AIReqRequirementDetailsContent({
         </section>
         <section ref={commentList} tabIndex={-1} aria-label={commentsLabel} className="space-y-3">
           <h2 className="text-ui-lg font-semibold">{commentsLabel}</h2>
-          <RequirementComments
-            key={JSON.stringify([projectId, irId])}
-            projectId={projectId}
-            irId={irId}
-            zh={zh}
-          />
+          <RequirementComments projectId={projectId} irId={irId} zh={zh} />
         </section>
       </div>
       <aside
@@ -196,6 +191,16 @@ export function AIReqRequirementDetailsContent({
   );
 }
 
+type CommentWrite = "add" | "delete";
+type CommentFeedback = { operation: CommentWrite } & (
+  | { status: "success" }
+  | { status: "failed"; cause: unknown }
+);
+
+function commentLabel(index: number, zh: boolean) {
+  return zh ? `评论 ${index + 1}` : `Comment ${index + 1}`;
+}
+
 function RequirementComments({
   projectId,
   irId,
@@ -209,47 +214,69 @@ function RequirementComments({
   const [attempt, setAttempt] = useState(0);
   const [read, setRead] = useState<{
     items?: AIReqRequirementComment[];
-    error?: string;
+    failure?: { cause: unknown };
     pending: boolean;
   }>({ pending: true });
   const [body, setBody] = useState("");
-  const [writing, setWriting] = useState<"add" | "delete">();
-  const [message, setMessage] = useState<{ text: string; error?: boolean }>();
-  const [deleting, setDeleting] = useState<{ id: string; label: string }>();
+  const [writing, setWriting] = useState<CommentWrite>();
+  const [feedback, setFeedback] = useState<CommentFeedback>();
+  const [deleting, setDeleting] = useState<{ id: string; index: number }>();
   const deleteTrigger = useRef<HTMLButtonElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
   const restoreComposer = useRef(false);
   const busy = Boolean(writing) || read.pending;
+  const writeUnconfirmed = feedback?.status === "failed";
+  const needsReload = Boolean(read.failure) || writeUnconfirmed;
+  const writeBlocked = busy || needsReload;
+  const message =
+    feedback &&
+    (feedback.status === "failed"
+      ? formatUserFacingError(
+          feedback.cause,
+          feedback.operation === "add"
+            ? zh
+              ? "评论提交未确认，请先重新加载评论。"
+              : "The post could not be confirmed. Reload the comments to check."
+            : zh
+              ? "评论删除未确认，请先重新加载评论。"
+              : "The deletion could not be confirmed. Reload the comments to check.",
+        )
+      : feedback.operation === "add"
+        ? zh
+          ? "评论已发布。"
+          : "Comment posted."
+        : zh
+          ? "评论已删除。"
+          : "Comment deleted.");
+  const deleteLabel = deleting && commentLabel(deleting.index, zh);
 
+  // 语言只影响呈现；切换语言不能发起一次可能覆盖写入结果的回读。
   useEffect(() => {
     let active = true;
     void source.readRequirementComments({ projectId, irId }).then(
       (items) => {
-        if (active) setRead({ items, pending: false });
+        if (!active) return;
+        setRead({ items, pending: false });
+        setFeedback((previous) => (previous?.status === "failed" ? undefined : previous));
       },
       (cause: unknown) => {
-        if (!active) return;
-        const error = formatUserFacingError(
-          cause,
-          zh ? "评论加载失败。" : "Could not load comments.",
-        );
-        setRead((previous) => ({ ...previous, error, pending: false }));
+        if (active) setRead((previous) => ({ ...previous, failure: { cause }, pending: false }));
       },
     );
     return () => {
       active = false;
     };
-  }, [source, projectId, irId, zh, attempt]);
+  }, [source, projectId, irId, attempt]);
 
   function reloadComments() {
-    setRead((previous) => ({ items: previous.items, pending: true }));
+    setRead((previous) => ({ ...previous, pending: true }));
     setAttempt((previous) => previous + 1);
   }
 
   async function publish() {
-    if (busy || !body.trim() || body.length > AIREQ_REQUIREMENT_COMMENT_MAX_LENGTH) return;
+    if (writeBlocked || !body.trim() || body.length > AIREQ_REQUIREMENT_COMMENT_MAX_LENGTH) return;
     setWriting("add");
-    setMessage(undefined);
+    setFeedback(undefined);
     try {
       const added = await source.addRequirementComment({ projectId, irId }, body);
       setRead((current) => ({
@@ -260,28 +287,21 @@ function RequirementComments({
         ],
       }));
       setBody("");
-      setMessage({ text: zh ? "评论已发布。" : "Comment posted." });
+      setFeedback({ operation: "add", status: "success" });
       reloadComments();
       composer.current?.focus({ preventScroll: true });
     } catch (cause) {
-      setMessage({
-        text: formatUserFacingError(
-          cause,
-          zh
-            ? "评论提交未确认，请先重新加载评论。"
-            : "The post could not be confirmed. Reload the comments to check.",
-        ),
-        error: true,
-      });
+      // 写入未确认时保留草稿，必须成功回读后才能由用户再次发起写入。
+      setFeedback({ operation: "add", status: "failed", cause });
     } finally {
       setWriting(undefined);
     }
   }
 
   async function confirmDelete() {
-    if (!deleting || busy) return;
+    if (!deleting || writeBlocked) return;
     setWriting("delete");
-    setMessage(undefined);
+    setFeedback(undefined);
     try {
       await source.deleteRequirementComment({ projectId, irId }, deleting.id);
       setRead((current) => ({
@@ -289,18 +309,10 @@ function RequirementComments({
         items: current.items?.filter(({ id }) => id !== deleting.id),
       }));
       restoreComposer.current = true;
-      setMessage({ text: zh ? "评论已删除。" : "Comment deleted." });
+      setFeedback({ operation: "delete", status: "success" });
       reloadComments();
     } catch (cause) {
-      setMessage({
-        text: formatUserFacingError(
-          cause,
-          zh
-            ? "评论删除未确认，请先重新加载评论。"
-            : "The deletion could not be confirmed. Reload the comments to check.",
-        ),
-        error: true,
-      });
+      setFeedback({ operation: "delete", status: "failed", cause });
     } finally {
       setDeleting(undefined);
       setWriting(undefined);
@@ -331,33 +343,33 @@ function RequirementComments({
           <div className="min-w-0 text-ui-caption">
             {message && (
               <p
-                role={message.error ? "alert" : "status"}
-                className={message.error ? "text-destructive" : "text-foreground-subtle"}
+                role={writeUnconfirmed ? "alert" : "status"}
+                className={writeUnconfirmed ? "text-destructive" : "text-foreground-subtle"}
               >
-                {message.text}
+                {message}
               </p>
             )}
-            {read.error && (
+            {read.failure && (
               <p role="alert" className="text-destructive">
-                {read.error}
+                {formatUserFacingError(
+                  read.failure.cause,
+                  zh ? "评论加载失败。" : "Could not load comments.",
+                )}
               </p>
             )}
-            {(read.error || message?.error) && (
+            {needsReload && (
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 disabled={busy}
-                onClick={() => {
-                  setMessage(undefined);
-                  reloadComments();
-                }}
+                onClick={reloadComments}
               >
                 {zh ? "重新加载评论" : "Reload comments"}
               </Button>
             )}
           </div>
-          <Button type="submit" className="ml-auto" disabled={busy || !body.trim()}>
+          <Button type="submit" className="ml-auto" disabled={writeBlocked || !body.trim()}>
             {writing === "add" ? (zh ? "发布中…" : "Posting…") : zh ? "发表评论" : "Post comment"}
           </Button>
         </div>
@@ -370,7 +382,7 @@ function RequirementComments({
       {!!read.items?.length && (
         <ol className="space-y-3">
           {read.items.map(({ id, body: text, author, createdAt }, index) => {
-            const label = zh ? `评论 ${index + 1}` : `Comment ${index + 1}`;
+            const label = commentLabel(index, zh);
             return (
               <li key={id ?? `no-id-${index}`}>
                 <TextSection
@@ -387,11 +399,11 @@ function RequirementComments({
                         className="text-foreground-subtle hover:text-destructive"
                         aria-label={zh ? `删除${label}` : `Delete ${label}`}
                         title={zh ? "删除评论" : "Delete comment"}
-                        disabled={busy}
+                        disabled={writeBlocked}
                         onClick={(event) => {
                           deleteTrigger.current = event.currentTarget;
                           restoreComposer.current = false;
-                          setDeleting({ id, label });
+                          setDeleting({ id, index });
                         }}
                       >
                         <Trash2 aria-hidden="true" />
@@ -404,7 +416,7 @@ function RequirementComments({
           })}
         </ol>
       )}
-      {!read.pending && read.items?.length === 0 && (
+      {!read.pending && !needsReload && read.items?.length === 0 && (
         <p className="text-foreground-subtle">{zh ? "暂无评论" : "No comments"}</p>
       )}
       <AlertDialog
@@ -419,7 +431,7 @@ function RequirementComments({
           onCloseAutoFocus={(event) => {
             event.preventDefault();
             const previous = deleteTrigger.current;
-            (restoreComposer.current || !previous?.isConnected
+            (restoreComposer.current || !previous?.isConnected || previous.disabled
               ? composer.current
               : previous
             )?.focus();
@@ -429,8 +441,8 @@ function RequirementComments({
             <AlertDialogTitle>{zh ? "删除评论？" : "Delete comment?"}</AlertDialogTitle>
             <AlertDialogDescription>
               {zh
-                ? `「${deleting?.label ?? ""}」将从该 IR 移除，删除后无法恢复。`
-                : `${deleting?.label ?? "This comment"} will be removed from this IR. This cannot be undone.`}
+                ? `「${deleteLabel ?? ""}」将从该 IR 移除，删除后无法恢复。`
+                : `${deleteLabel ?? "This comment"} will be removed from this IR. This cannot be undone.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -440,7 +452,7 @@ function RequirementComments({
             <Button
               type="button"
               variant="destructive"
-              disabled={Boolean(writing)}
+              disabled={writeBlocked}
               onClick={() => void confirmDelete()}
             >
               {writing === "delete"

@@ -52,27 +52,6 @@
   --aireq-motion-ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* 版本卡片用边框和底色提示悬停，保持卡片位置。 */
-@media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  .theme-zai-motion [data-aireq-motion-active] [data-testid="project-release-group"],
-  .theme-zai-motion [data-aireq-motion-active] [data-testid="project-release-group"] article {
-    transition:
-      border-color 120ms var(--aireq-motion-ease),
-      background-color 120ms var(--aireq-motion-ease);
-  }
-
-  .theme-zai-motion [data-aireq-motion-active] [data-testid="project-release-group"]:hover {
-    border-color: color-mix(in srgb, var(--color-foreground) 18%, var(--color-card-border));
-    transition-duration: 200ms;
-  }
-
-  .theme-zai-motion [data-aireq-motion-active] [data-testid="project-release-group"] article:hover {
-    border-color: color-mix(in srgb, var(--color-foreground) 35%, var(--color-card-border));
-    background-color: color-mix(in srgb, var(--color-foreground) 4%, var(--color-card));
-    transition-duration: 200ms;
-  }
-}
-
 .theme-zai-motion .aireq-motion-surface,
 .theme-zai-motion .aireq-motion-navigation {
   position: relative;

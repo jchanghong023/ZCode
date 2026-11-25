@@ -2,25 +2,23 @@
 
 ## 系统范围
 
-AIReq 是面向电脑浏览器的纯 Web 应用。需求共创以两个 Agent 讨论需求和方案，在平台内查阅、评审和确认文档版本。开发可通过[项目目录软链接查看最新文档](specs/aireq/proposals.md#在开发仓库中查看最新文档)。Sketch 仍用于草稿附件。
+AIReq 面向芯片团队，使用电脑浏览器。业务在黄区澄清 IR，开发和测试在红区结合代码做方案。两区的需求、交接和定版规则统一见[需求共创](specs/aireq/proposals.md)。
 
-用户填写工号即可进入，工号用来记录消息发送人和实际操作者。需求会话对全员开放，方案会话对所属项目的开发和测试开放。详见[连接身份](specs/aireq/connection-identity.md#1-身份来源)。
-
-`/chat` 是支持电脑和手机浏览器的免登录 [Web Agent 聊天入口](specs/web-agent-chat.md)，使用独立的内存会话空间和原型 Agent。
+`/chat` 是独立的个人入口，方便用户用手机或电脑浏览器远程与自己电脑上的 Agent 做基本聊天。当前原型支持的操作见[Web Agent 聊天](specs/web-agent-chat.md)。
 
 当前阶段在单进程内存原型上开发和验证业务，重启会重新初始化。正式产品的聊天使用 OMP 原生 Agent，见[会话产品要求与原型范围](specs/aireq/conversation.md#会话产品要求与原型范围)。模型执行、Git 托管、数据库持久化和宿主业务文件写入见[发布边界](specs/aireq/contract-design.md#发布边界)。启动与部署见[快速开始](../README.md)。
 
 ## 产品与交互
 
-- [业务背景与使用场景](briefings/business-context-and-usage.md)记录业务环境、参与角色和使用流程，并持续补充真实场景。
-- [从一句业务诉求到确认版本](briefings/requirements-collaboration.md)介绍两个 Agent、按需评审和版本确认。
+- [业务背景与 FDTH 案例](briefings/business-context-and-usage.md)。
 - [项目／版本／导航](specs/aireq/section-navigation.md)。
-- [需求共创](specs/aireq/proposals.md)、[黄区需求澄清与云龙命令](specs/aireq/proposals.md#黄区需求澄清与云龙对接)、[原生会话](specs/aireq/conversation.md)。
-- [AI 配置与 Agent 角色](specs/aireq/tools-settings.md#agent-角色)、[文档格式](specs/aireq/tools-settings.md#文档格式)、[右侧工作区与材料](specs/aireq/unified-side-pane.md)、[动效主题](../DESIGN.md#默认动效主题)。
+- [原生会话](specs/aireq/conversation.md)。
+- [AI 配置与 Agent 角色](specs/aireq/tools-settings.md#agent-角色)、[文档格式](specs/aireq/tools-settings.md#文档格式)、[右侧工作区与材料](specs/aireq/unified-side-pane.md)、[主题与动效](../DESIGN.md#主题与动效)。
 
 ## 架构与工程维护
 
 - [服务端与后端替换边界](architecture/mock-backend.md)。
+- [云龙 CLI 实现参考](architecture/clouddragon-cli.md)包含命令用法、返回示例、字段类型和门户字段目录。
 - [公开接口](specs/aireq/contract-design.md)、[连接身份与二进制协议](specs/aireq/connection-identity.md)。
 - [模块所有权](architecture/pure-web-module-ownership.md)、[构建与依赖](../README.md#依赖与清理)。
 - [前端 UT 与后端 ST](testing/unit-test-quality.md)。

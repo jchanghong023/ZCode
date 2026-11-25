@@ -20,7 +20,6 @@ import type {
   AIReqWorkflowTarget,
 } from "@zcode/services/aireq";
 import { config, requireConfig } from "./config.js";
-import { requireCreatedThisRun } from "./resources.js";
 
 export function unique(label = "st"): string {
   return `${label}-${crypto.randomUUID()}`;
@@ -56,12 +55,13 @@ async function bounded<T>(
     clearTimeout(timer);
   }
 }
-export function wsUrl(identity: AIReqIdentity, token = config.token): string {
+export function wsUrl(identity: AIReqIdentity, token = config.token, pageId?: string): string {
   const url = new URL("/ws", config.baseUrl);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   url.searchParams.set("employeeId", identity.employeeId);
   url.searchParams.set("clientId", identity.clientId);
   if (token) url.searchParams.set("token", token);
+  if (pageId !== undefined) url.searchParams.set("pageId", pageId);
   return url.toString();
 }
 export async function stFetch(path: string, init: RequestInit = {}): Promise<Response> {
@@ -98,6 +98,7 @@ type RpcProbe = (
 export interface STClient {
   services: RemoteServiceAccess;
   identity: AIReqIdentity;
+  pageId: string;
   probeRpc: RpcProbe;
   bootstrap(): ReturnType<RemoteServiceAccess["aiReqService"]["bootstrap"]>;
   read(target?: AIReqWorkflowTarget): Promise<AIReqRemoteResult<"readWorkflow">>;
@@ -254,18 +255,21 @@ export function connectChatST(clientId = crypto.randomUUID()) {
 export async function connectST(
   employeeId = config.employeeId,
   clientId = unique("client"),
+  // 独立连接默认读取独立页面快照；重连用例显式复用同一 pageId。
+  pageId = crypto.randomUUID(),
 ): Promise<STClient> {
   const identity = {
     employeeId: requireConfig(employeeId, "ST_EMPLOYEE_ID"),
     clientId,
   };
   const { guardedServices, services, close, rpc, probeRpc, isClosing } = await connectSTTransport(
-    wsUrl(identity),
+    wsUrl(identity, config.token, pageId),
     connectViaWebSocket,
   );
   const client: STClient = {
     services: guardedServices,
     identity,
+    pageId,
     probeRpc,
     bootstrap: () => rpc(services.aiReqService.bootstrap(identity)),
     read: (selection = {}) =>
@@ -274,8 +278,6 @@ export async function connectST(
       if (isClosing()) throw new Error("ST 客户端已关闭");
       if (path === "command") {
         const action = args[0] as AIReqAction;
-        if (action.type === "deleteRequirement")
-          requireCreatedThisRun(action.projectId, action.irId);
         return rpc(services.aiReqService.call(identity, path, args)).catch((error) => {
           throw new Error(`ST command ${action.type}: ${error.message}`, { cause: error });
         });

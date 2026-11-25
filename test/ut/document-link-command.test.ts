@@ -17,7 +17,5 @@ it("uses a PowerShell directory junction for a Windows working directory", () =>
   expect(documentLinkCommand(directory)).toBe(
     "New-Item -ItemType Junction -Path '.\\docs\\areq' -Target 'C:\\team''s files\\project\\docs\\areq' -ErrorAction Stop",
   );
-  expect(
-    validateRepository("project", "https://example.invalid/repo.git", "main", directory),
-  ).toEqual({});
+  expect(validateRepository("https://example.invalid/repo.git", "main", directory)).toEqual({});
 });

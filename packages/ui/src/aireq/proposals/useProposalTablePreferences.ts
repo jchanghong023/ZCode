@@ -20,20 +20,23 @@ export function useProposalTablePreferences(zh: boolean) {
 
   useEffect(() => {
     let active = true;
+    const request = saveSequence.current;
+    // 重连回读可能晚于用户的新保存，旧结果不能覆盖已作出的编辑。
+    const isCurrent = () => active && request === saveSequence.current;
     void source
       .readProposalTablePreferences()
       .then(async (saved) => {
-        if (saved || !active) return saved;
+        if (saved || !isCurrent()) return saved;
         const legacy = readLegacyProposalPreferences(legacyKey);
         return legacy
           ? source.saveProposalTablePreferences(migrateCompactPreferences(legacy), true)
           : defaultProposalPreferences;
       })
       .then((saved) => {
-        if (active && saved) setPreferences(migrateCompactPreferences(saved));
+        if (isCurrent() && saved) setPreferences(migrateCompactPreferences(saved));
       })
       .catch((cause: unknown) => {
-        if (active) setError({ cause, operation: "read" });
+        if (isCurrent()) setError({ cause, operation: "read" });
       });
     return () => {
       active = false;
@@ -74,7 +77,7 @@ export function useProposalTablePreferences(zh: boolean) {
       ),
     save,
     retry() {
-      if (preferences) save(preferences);
+      if (error?.operation === "save" && preferences) save(preferences);
       else {
         setError(undefined);
         setLoadingAttempt((attempt) => attempt + 1);

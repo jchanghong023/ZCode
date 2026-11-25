@@ -26,7 +26,7 @@ import { AIReqNativeBusiness } from "./native-business.js";
 import { withAIReqIdentity, validateAIReqIdentity, currentIdentity } from "./identity.js";
 import { PROTOTYPE_BACKEND } from "./backend.js";
 import {
-  getPrototypeWorkflow,
+  readPrototypeWorkflow,
   readPrototypeRequirementDetails,
   requirePrototypeCatalogueRequirement,
   readPrototypeCatalogue,
@@ -37,7 +37,6 @@ import {
   readPrototypeWorkflowRevision,
   validatePrototypeDocumentVersion,
   applyPrototypeAction,
-  resolvePrototypeSession,
   prototypeWorkflowChanges,
   settlePrototypeDocumentReview,
   notifyPrototypeProjectSettingsChanged,
@@ -79,7 +78,6 @@ const commands = [
 
 interface CataloguePage {
   catalogue?: PrototypeCatalogue;
-  pending?: Promise<PrototypeCatalogue>;
 }
 
 const RECONNECT_GRACE_MS = 30 * 60_000;
@@ -120,7 +118,9 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     const proposalTablePreferences = createProposalTablePreferencesStore(workspacePath);
     const syncing = new WeakMap<CataloguePage, ReturnType<RequirementListTransfer["publish"]>>();
     let transferTail = Promise.resolve();
-    const publishRequirements = (loadCatalogue: () => Promise<PrototypeCatalogue>) => {
+    const publishRequirements = (
+      loadCatalogue: () => PrototypeCatalogue | Promise<PrototypeCatalogue>,
+    ) => {
       const request = transferTail.then(async () =>
         requirementTransfer.publish(capturePrototypeRequirementList(await loadCatalogue())),
       );
@@ -171,7 +171,10 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
       const page = this.currentPage.getStore() ?? this.defaultPage;
       const pending = syncing.get(page);
       if (pending) return pending;
-      const sync = publishRequirements(() => this.catalogueForPage(false, page)).finally(() => {
+      // 排队期间页面可能刷新；固定受理时的云龙目录，但把材料读取留到实际传输前。
+      const catalogue = page.catalogue;
+      if (!catalogue) throw businessRule("当前页面尚未加载云龙目录，请刷新项目后重试全量同步。");
+      const sync = publishRequirements(() => catalogue).finally(() => {
         syncing.delete(page);
       });
       syncing.set(page, sync);
@@ -179,9 +182,9 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     });
     add("proposalTable.readPreferences", proposalTablePreferences.read);
     add("proposalTable.savePreferences", proposalTablePreferences.save);
-    add("readWorkflow", async (target: AIReqWorkflowTarget) =>
-      this.workflow(target, await this.catalogueForPage()),
-    );
+    const readWorkflow = async (target: AIReqWorkflowTarget) =>
+      this.workflow(target, await this.catalogueForPage(), true);
+    add("readWorkflow", readWorkflow);
     add("projects.refreshSnapshot", async (target: AIReqWorkflowTarget) =>
       this.workflow(target, await this.catalogueForPage(true)),
     );
@@ -190,12 +193,16 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
       this.command(action, target, revision),
     );
     add("retryMaterial", retryPrototypeWorkflowMaterial);
-    add("retrySession", (selection: AIReqWorkflowTarget, sessionId: string) => {
-      const session = this.workflow(selection).session;
+    add("retrySession", async (selection: AIReqWorkflowTarget, sessionId: string) => {
+      const { session } = this.workflow(selection, await this.catalogueForPage());
       if (session?.sessionId !== sessionId) throw businessRule("会话已切换或不存在。");
       retryPrototypeSessionRead(sessionId);
     });
     add("projects.saveRepository", async (input: Parameters<typeof savePrototypeRepository>[0]) => {
+      const page = this.currentPage.getStore() ?? this.defaultPage;
+      // 全局目录可能已被其他页面更新；首次保存还必须命中当前页目录，串行写入再核对项目是否仍有效。
+      if (!page.catalogue?.projects.some(({ id }) => id === input.projectId))
+        throw businessRule("当前页面未加载该云龙项目，请刷新项目后重试。");
       if (await savePrototypeRepository(input, capturePrototypeProjectDocuments)) {
         notifyPrototypeProjectSettingsChanged();
       }
@@ -297,35 +304,33 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     return entry.page;
   }
 
-  private catalogueForPage(
+  private async catalogueForPage(
     refresh = false,
     page = this.currentPage.getStore() ?? this.defaultPage,
   ): Promise<PrototypeCatalogue> {
-    if (!refresh && page.catalogue) return Promise.resolve(page.catalogue);
-    page.pending ??= readPrototypeCatalogue()
-      .then((catalogue) => {
-        if (refresh && catalogue.failures.length)
-          throw businessRule("部分云龙项目读取失败，请重试刷新项目。");
-        page.catalogue = catalogue;
-        return catalogue;
-      })
-      .finally(() => {
-        page.pending = undefined;
-      });
-    return page.pending;
+    if (!refresh && page.catalogue) return page.catalogue;
+    // 云龙端口共享在途读取；首次普通读取可以接纳部分结果，显式刷新则必须完整成功。
+    const catalogue = await readPrototypeCatalogue();
+    if (refresh && catalogue.failures.length)
+      throw businessRule("部分云龙项目读取失败，请重试刷新项目。");
+    page.catalogue = catalogue;
+    return catalogue;
   }
 
-  private workflow(selection: AIReqWorkflowTarget, catalogue?: PrototypeCatalogue) {
+  private workflow(
+    selection: AIReqWorkflowTarget,
+    catalogue: PrototypeCatalogue,
+    bindSession = false,
+  ) {
     if (
       selection.projectId &&
-      catalogue?.failures.includes(selection.projectId) &&
+      catalogue.failures.includes(selection.projectId) &&
       !catalogue.details.has(selection.projectId)
     )
       throw businessRule("当前项目的云龙需求暂未读取，请刷新项目后重试。");
-    const view = getPrototypeWorkflow(selection, catalogue);
+    const workflow = readPrototypeWorkflow(selection, catalogue, bindSession);
     return {
-      view,
-      session: resolvePrototypeSession(view, selection),
+      ...workflow,
       workspace: readPrototypeProjectWorkspace(selection.projectId, catalogue),
     };
   }
@@ -409,7 +414,6 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
                   {
                     ...(input as AIReqRemoteArgs<"projects.saveRepository">[0]),
                     expectedRevision: undefined,
-                    name: undefined,
                   },
                 ],
                 () => method(...args),

@@ -1,4 +1,5 @@
 import type {
+  AIReqCloudProposalFields,
   AIReqRequirementListSyncReceipt,
   AIReqRequirementPersonnel,
 } from "@zcode/services/aireq";
@@ -12,6 +13,7 @@ interface RequirementListEntry extends AIReqRequirementPersonnel {
   submittedBy: string;
   submittedAt: string;
   process?: string;
+  cloudFields?: AIReqCloudProposalFields;
 }
 
 export interface RequirementListSnapshot {

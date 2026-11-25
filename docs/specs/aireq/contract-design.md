@@ -20,7 +20,7 @@
 | setting         | get、update                                                                  | 无          |
 | model-selection | getView                                                                      | 无          |
 
-AIReq 的七个频道在当前客户端的 `/ws` 连接上复用同一二进制传输，共 28 个方法和 3 个事件。独立聊天使用同一 HTTP 服务和协议、不同的升级入口 `/ws/chat`；该连接只公开 Agent 的 10 个方法和 1 个事件，以及 ModelSelection 的 1 个方法。
+AIReq 的七个频道在 `/ws` 连接上复用同一二进制传输，共 28 个方法和 3 个事件。独立聊天的浏览器页面是 `/chat`，在同一 HTTP 服务上通过 `/ws/chat` 升级连接；该连接只公开 Agent 的 10 个方法和 1 个事件，以及 ModelSelection 的 1 个方法。
 
 Git、文件监听、MCP 同步、独立媒体预览、client-config RPC、skills RPC、任务分组、跨宿主附件转移不属于公开服务。HTTP configs、原生 Skill catalog 与 AIReq Skill 不因此消失。受管 worktree、插件、终端等纯类型或通用展示组件存留不授权对应 RPC。
 
@@ -45,6 +45,8 @@ Web 的 `project.readTree()` 不接收参数；传入 `hostId` 或其他实参�
 - 目录：`getSkillReferenceCatalog`、`getConversationCommandCatalog`。
 - 握手／会话：`helloConversationV4`、`initializeConversationV4`、`subscribeConversationV4`、`resyncConversationV4`、`unsubscribeConversationV4`、`conversationRowsRangeV4`、`sendConversationCommandV4`、`queryConversationCommandsV4`。
 - 附件：`attachmentBeginV4`、`attachmentChunkV4`、`attachmentCommitV4`、`attachmentAbortV4`、`attachmentReadV4`。
+
+独立聊天不公开技能目录或附件事务，额外公开 `listRecentChatSessions`，仅查询当前匿名客户端的最近会话。
 
 AIReq 与 `/chat` 的 `getConversationCommandCatalog` 按已选连接定位目录。请求对象只接收 `workspacePath`、可选的 `workspaceIdentity` 和可选的 `sessionId`；`remoteSessionId` 等额外字段在读取目录前拒绝。目录内容和会话归属校验不变。
 
@@ -106,31 +108,35 @@ readonly onDidChange: Event<AIReqRemoteEvent>;
 
 `bootstrap` 无业务创建副作用，返回 `contractVersion`、opaque `backend.id`、`capabilities.workflowCommands`、可选 `initialProjectId`、模型 `choices/settings/revision`、提示词 `saved/revision`、`projects.workspaces` 和可选 Skill 存储目标。`projects.workspaces` 以项目 ID 为键，与同项目的 `readWorkflow.workspace` 同源，包含 `identity`、`kind` 及可选 `path`、`error`。初始化和元数据失效只读一次 bootstrap；浏览器不拼接身份、不用旧值覆盖不可用结果，也不猜测省略的默认项目。显式分享链接优先。响应不返回导航、私人草稿、服务注册清单或后端配置；刷新不覆盖未保存的提示词草稿。
 
-AIReq bootstrap 业务契约版本为 `37`。它与原生 Agent 的 Protocol v4 独立。工作流修订号用于适用 CAS 的写入，文档版本号由该需求的材料与确认事实决定。
+AIReq bootstrap 业务契约版本为 `38`，退役原有静态创建／删除能力，并收窄仓库配置写入参数。共享类型、浏览器调用与服务端 wire 校验同批切换，不接受历史参数作为兼容格式。该版本与原生 Agent 的 Protocol v4 独立。工作流修订号用于适用 CAS 的写入，文档版本号由该需求的材料与确认事实决定。
 
 `models.settings.agents` 是模型与追加指令页签的有序角色目录，包含 `requirements`、`requirements-review`、`solution` 和 `solution-review`。
 
-讨论会话创建时、评审接纳时绑定 `modelConfig`。公开绑定只含 `role`、`roleName`、`modelKey`、`modelName`、`reasoning`、`inherited`、`promptSnapshot`。提示词快照是已保存的追加指令；空字符串仅用内建指令。原生执行仍使用绑定时捕获的供应商与运行时模型标识，不从公开 DTO 还原。模型保存 CAS 使用 bootstrap 的 `models.revision`，不把配置版本复制到每个绑定。后续保存不改写已有会话、已接纳执行或历史报告；讨论输入不覆盖会话配置。
+工作流首次按项目、IR 和目标 Agent 返回可访问的讨论会话引用时，原子绑定当时已保存的 `modelConfig`；评审在接纳时绑定。目录加载、无 IR 的项目投影和需求详情不绑定配置；右侧材料区只读项目投影。稳定会话 ID 预先分配，未绑定的目录条目不具有运行时模型。后续保存不改写已绑定会话、已接纳执行或历史报告，绑定本身不推进工作流写入 revision。公开绑定只含 `role`、`roleName`、`modelKey`、`modelName`、`reasoning`、`inherited`、`promptSnapshot`。提示词快照是已保存的追加指令；空字符串仅用内建指令。原生执行使用同次捕获的供应商与运行时模型标识，不从公开 DTO 还原。模型保存 CAS 使用 bootstrap 的 `models.revision`，不把配置版本复制到每个绑定。
 
 `readWorkflow` 返回 `{view,session?,workspace}`，将业务投影、IR 级原生会话引用与同源工作区配对。读取与恢复会话共用 `AIReqWorkflowTarget`，仅接纳可选 `projectId`、`irId`、`discussionPhase`；省略 `discussionPhase` 时使用需求 Agent。方案会话要求所属项目开发或测试。SR 链接仍可在浏览器定位文档，但 SR、阅读路径及历史版本不随工作流或命令请求往返。
 
-`proposals.syncToRedZone` 的参数为空。服务端使用当前页面已取得的完整云龙快照，捕获全部项目、IR 原始描述及已有的当前需求文档，由传输端口交接。接收端按项目和 IR 更新目录和随附的 `requirements.md`，保留红区方案及其他文件。回执包含交接状态、项目数、IR 数和需求文档数，原型状态为 `simulated`。服务端每 5 分钟使用云龙目录读取端口和同一传输端口执行自动全量同步。自动任务和手动任务串行，自动任务失败只记录日志，下一周期继续。
+`proposals.syncToRedZone` 只接收空参数 `[]`。服务端在请求接纳时固定该页已加载的云龙目录；没有已加载目录时拒绝，不额外发起读取，也不等排队执行时重读页面快照。同步范围不受当前项目、Release、筛选、分页或列配置影响。提交给传输端口时，从当前工作流读取目录内各 IR 的需求材料。任一项目读取失败或已有的需求文档不可读取，整次同步失败，不交接部分结果。
+
+交接仅包含项目组 ID 和名称、快照内的 IR 业务字段（含原始完整描述、所属 PI、进展、人员和创建时间）及可选的当前 `requirements.md` 完整正文，不携带仓库配置、评论、其他材料、历史版本或会话。接收端按项目组 ID 和 IR 业务号更新目录与随附的文档，单独存放导入副本，不覆盖红区自有的同名文档或方案；未附正文不触发文件删除。回执 `status`、`projectCount`、`count`、`documentCount` 表示本次交接状态和项目、IR、需求文档数，原型状态为 `simulated`。
+
+服务端每 5 分钟使用云龙目录读取端口和同一传输端口执行自动全量同步，不修改页面快照。自动任务和手动任务串行，已有自动任务尚未完成时不再入队；失败只记录日志，下一周期继续。同页进行中的手动同步复用该次结果，不新增公开操作或持久的去重保证。
 
 `proposalTable.readPreferences` 和 `proposalTable.savePreferences` 只访问当前连接工号的列配置。列键由共享契约定义，必须至少一个且不能重复。排序字段必须可见，默认排序允许在创建时间列隐藏时按创建时间降序。原型以每个工号一份 JSON 原子落盘到服务工作目录的 `.zcode-runtime/aireq/proposal-table`。列配置键 `owner` 保留为当前责任人列，继续应用已保存的可见性和顺序；需求提出人使用独立键 `requester`。迁移写入使用 `initializeOnly`，服务端已有记录时返回该记录。可选 `autoFit` 标记精简配置会按表格宽度显示进展、停留时间、工作量和开发及测试责任人，显式为 false 表示自定义配置。
 
-`projects.refreshSnapshot` 以 `[workflowTarget]` 请求更新当前页面的云龙快照，并按当前目标返回与 `readWorkflow` 相同的投影。普通工作流读取、详情读取和通知只使用已绑定页面的云龙快照和当前本地业务状态。WebSocket 使用每次网页加载生成并在重连时复用的 `pageId` 标识页面。云龙快照在服务端共享并发请求与 3 秒结果缓存，各页面独立选择采纳的版本。
+`projects.refreshSnapshot` 以 `[workflowTarget]` 请求更新当前页面的云龙快照，并按当前目标返回与 `readWorkflow` 相同的投影。普通工作流读取、详情读取和通知造成的重读复用该页旧目录，叠加当前本地业务状态，不因刷新在途而切换。只有项目目录及其全部项目的 IR 均读取成功，刷新才替换该页快照；失败拒绝请求并保留原快照。首次普通读取可展示部分成功的目录和项目，所选项目读取失败且没有可用数据时返回错误。云龙读取共享并发请求及完成后 3 秒结果缓存，但各页面独立采纳版本。WebSocket 的可选 `pageId` 与重连保留窗口见[连接身份](connection-identity.md#1-身份来源)。
 
-`readRequirementDetails` 按项目和业务号返回页面快照中的原始描述、字段名和可读值。数组和对象以 JSON 字符串返回。评论使用独立的 `requirementComments.list`、`requirementComments.add` 和 `requirementComments.delete`。服务端校验项目与 IR 归属，并使用快照内的需求域定位。评论列表按云龙返回顺序投影，缺少有效 ID 时返回 `null`。新增和删除只在用户显式操作后执行。
+`readRequirementDetails` 按项目组 ID 和 IR 业务号返回页面快照中的原始描述、字段名和可读值。数组和对象以 JSON 字符串返回。同一项目的 `ir list --all` 可返回多个需求域，目录保留每条 IR 自己的需求域。评论使用独立的 `requirementComments.list`、`requirementComments.add` 和 `requirementComments.delete`；服务端按当前页快照校验项目与 IR 归属并取得该 IR 的需求域，再调用云龙。评论列表按云龙返回顺序投影，缺少有效 ID 的条目以 `id: null` 返回。评论新增和删除只由用户显式操作发起。
 
 AIReq 工作区 `kind` 仅为 `proposal`（已登记项目）或 `unavailable`。切换对象需匹配新目标的读取结果；对象未就绪不借前一个对象的工作区。历史文档通过工作流的已确认快照读取。AIReq 不自建原生 UI 状态或输入预测帧；现用原生会话仍走 Protocol v4。
 
 工作流读取失败通过 RPC 拒绝返回，`view` 不含通用 `error` 字段。工作区和单份材料的错误仍随各自的投影返回。
 
-`view.releases` 包含各项目云龙 IR 中存在的 Release，每项提供 `id`、`projectId`、`title`、`createdAt` 和统计字段。`view.projectRequirementCounts` 按项目 ID 提供相同的统计字段，项目级别包含未分配 Release 的 IR。`requirementCount` 是总数，`completedRequirementCount` 统计云龙状态为「完成」的 IR，`confirmedRequirementCount` 统计当前文档版本已确认的需求。详情、材料与会话按查询项目返回。
+项目和 IR 来自云龙；`view.releases` 按各项目快照内的 `pi` 分组，名称取 `piName`，不提供独立 Release 录入。每项提供 `id`、`projectId`、`title`、`createdAt` 和统计字段。`view.projectRequirementCounts` 按项目 ID 提供相同的统计字段，项目级别包含未分配 Release 的 IR。`requirementCount` 是总数，`completedRequirementCount` 统计云龙状态为「完成」的 IR，`confirmedRequirementCount` 统计当前文档版本已确认的需求。详情、材料与会话按查询项目返回。
 
-项目公开投影只含 `id`、`name`、`revision`、`defaultBranch` 和可选 `repositoryUrl`。项目工作区、存储元数据和完整操作身份由服务端持有。命令回执返回实际操作者工号 `actorEmployeeId`，不下发身份对象或 `clientId`；幂等记录不作为工作流历史下发。`readWorkflow.view.requirements` 返回当前项目的全部需求，包含可用的云龙进展 `process` 和人员字段 `delivererOwner`（当前责任人）、`owner`（需求提出人）、`seId`（设计责任人）、`de`（开发责任人）、`te`（测试责任人），不含录入来源或重复的文件清单，当前文件统一从 `view.materials` 读取。可选 `cloudFields` 携带当前快照中用于额外列表列的云龙字段，按共享白名单投影为字符串、数字、布尔值或字符串数组。数组保留各选项用于多选筛选，其他复合值转换为可读字符串。列配置继续使用原有列键，`release`、`date` 和 `process` 的页面文案为「PI」「创建时间」和「进展」。
+项目摘要只含 `id`、`name`、`revision`、`defaultBranch` 和可选的 `repositoryUrl`、`workDirectory`。`workDirectory` 是共享文档链接的配置路径，和浏览器使用的逻辑工作区不同；内部存储元数据不下发。命令回执返回实际操作者工号 `actorEmployeeId`，不下发身份对象或 `clientId`；幂等记录不作为工作流历史下发。`readWorkflow.view.requirements` 返回当前项目的全部需求，包含可用的云龙进展 `process` 和人员字段 `delivererOwner`（当前责任人）、`owner`（需求提出人）、`seId`（设计责任人）、`de`（开发责任人）、`te`（测试责任人），不含录入来源或重复的文件清单，当前文件统一从 `view.materials` 读取。可选 `cloudFields` 携带当前快照中用于额外列表列的云龙字段，按共享白名单投影为字符串、数字、布尔值或字符串数组。数组保留各选项用于多选筛选，其他复合值转换为可读字符串。列配置继续使用原有列键，`release`、`date` 和 `process` 的页面文案为「PI」「创建时间」和「进展」。
 
-`view.projectRoleMembers` 包含全部项目的角色成员记录，每行含 `projectId`、`employeeId` 和 `role`；角色页按所选项目过滤。`view.roleAdministrator` 来自当前连接身份。需求的 `clientDraftId` 仅用于服务端去重。
+`view.projectRoleMembers` 包含全部项目的角色成员记录，每行含 `projectId`、`employeeId` 和 `role`；角色页按所选项目过滤。`view.roleAdministrator` 来自当前连接身份。
 
 `view.materials` 提供当前文件。每条需求的 `documentVersion` 包含当前版本号和可选确认记录。已确认的早期版本通过 `documentHistory` 提供完整材料、SR 清单和确认记录。`documentReviews` 提供按需评审状态、报告、评审角色、版本号和快照是否过时。
 
@@ -144,32 +150,32 @@ AIReq 工作区 `kind` 仅为 `proposal`（已登记项目）或 `unavailable`�
 
 当前 operation map、wire argumentSchemas 与服务分派对应以下操作。`args` 是有序 tuple；`workflowTarget` 表示 `AIReqWorkflowTarget`。省略的结构字段、可选性及联合类型以源码为准。
 
-| path                    | args                                                                | result                            |
-| ----------------------- | ------------------------------------------------------------------- | --------------------------------- |
-| readPresence            | `[]`                                                                | `AIReqPresenceSnapshot`           |
-| readWorkflow             | `[workflowTarget]`                                                  | `AIReqRemoteWorkflow`             |
-| proposals.syncToRedZone | `[]`                                          | `AIReqRequirementListSyncReceipt` |
-| proposalTable.readPreferences | `[]`                                                          | `AIReqProposalTablePreferences` 或 `null` |
-| proposalTable.savePreferences | `[preferences,initializeOnly]`                                | `AIReqProposalTablePreferences` |
-| projects.refreshSnapshot | `[workflowTarget]`                                                  | `AIReqRemoteWorkflow`             |
-| readRequirementDetails   | `[{projectId,irId}]`                                                | `AIReqRequirementDetails`        |
-| requirementComments.list | `[{projectId,irId}]` | `AIReqRequirementComment[]` |
-| requirementComments.add | `[{projectId,irId},body]` | `AIReqRequirementComment` |
-| requirementComments.delete | `[{projectId,irId},commentId]` | `null` |
-| validateDocumentVersion | `[{projectId,irId}]`                                                | `AIReqDocumentValidation`         |
-| command                 | `[action,{projectId?,irId?},expectedRevision]`                       | `AIReqWorkflowResult`             |
-| retryMaterial           | `[{projectId,releaseId,irId,path,sha256}]`                           | `boolean`                         |
-| retrySession             | `[workflowTarget,sessionId]`                                        | `null`                            |
-| projects.saveRepository | `[input]`                                                           | `null`                            |
-| models.save             | `[{defaultModel,agents:[{id,model,reasoning},…]},expectedRevision]`    | `null`                            |
-| prompts.save            | `[value,expectedRevision]`                                          | `null`                            |
-| skillDesign.session     | `[projectId]`                                                       | `AIReqSkillDesignSession`         |
-| skillDesign.read        | `[sessionId]`                                                       | `AIReqSkillDesignDraft`           |
-| skillDesign.saveDraft   | `[sessionId,editableFields]`                                        | `null`                            |
-| skillDesign.prompt      | `[sessionId,editableFields]`                                        | `string`                          |
-| skillDesign.readPreview | `[sessionId]`                                                       | `AIReqSkillDesignPreview` 或 `null` |
-| skillDesign.listSkills  | `[sessionId]`                                                       | `string[]`                        |
-| skillDesign.savePreview | `[sessionId,target,expectedPreviewRevision,operationId]`             | `AIReqSkillSaveReceipt`           |
+| path                          | args                                                                                   | result                                    |
+| ----------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------- |
+| readPresence                  | `[]`                                                                                   | `AIReqPresenceSnapshot`                   |
+| readWorkflow                  | `[workflowTarget]`                                                                     | `AIReqRemoteWorkflow`                     |
+| proposals.syncToRedZone       | `[]`                                                                                   | `AIReqRequirementListSyncReceipt`         |
+| proposalTable.readPreferences | `[]`                                                                                   | `AIReqProposalTablePreferences` 或 `null` |
+| proposalTable.savePreferences | `[preferences,initializeOnly]`                                                         | `AIReqProposalTablePreferences`           |
+| projects.refreshSnapshot      | `[workflowTarget]`                                                                     | `AIReqRemoteWorkflow`                     |
+| readRequirementDetails        | `[{projectId,irId}]`                                                                   | `AIReqRequirementDetails`                 |
+| requirementComments.list      | `[{projectId,irId}]`                                                                   | `AIReqRequirementComment[]`               |
+| requirementComments.add       | `[{projectId,irId},body]`                                                              | `AIReqRequirementComment`                 |
+| requirementComments.delete    | `[{projectId,irId},commentId]`                                                         | `null`                                    |
+| validateDocumentVersion       | `[{projectId,irId}]`                                                                   | `AIReqDocumentValidation`                 |
+| command                       | `[action,{projectId?,irId?},expectedRevision]`                                         | `AIReqWorkflowResult`                     |
+| retryMaterial                 | `[{projectId,releaseId,irId,path,sha256}]`                                             | `boolean`                                 |
+| retrySession                  | `[workflowTarget,sessionId]`                                                           | `null`                                    |
+| projects.saveRepository       | `[{projectId,repositoryUrl,defaultBranch,workDirectory,expectedRevision,operationId}]` | `null`                                    |
+| models.save                   | `[{defaultModel,agents:[{id,model,reasoning},…]},expectedRevision]`                    | `null`                                    |
+| prompts.save                  | `[value,expectedRevision]`                                                             | `null`                                    |
+| skillDesign.session           | `[projectId]`                                                                          | `AIReqSkillDesignSession`                 |
+| skillDesign.read              | `[sessionId]`                                                                          | `AIReqSkillDesignDraft`                   |
+| skillDesign.saveDraft         | `[sessionId,editableFields]`                                                           | `null`                                    |
+| skillDesign.prompt            | `[sessionId,editableFields]`                                                           | `string`                                  |
+| skillDesign.readPreview       | `[sessionId]`                                                                          | `AIReqSkillDesignPreview` 或 `null`       |
+| skillDesign.listSkills        | `[sessionId]`                                                                          | `string[]`                                |
+| skillDesign.savePreview       | `[sessionId,target,expectedPreviewRevision,operationId]`                               | `AIReqSkillSaveReceipt`                   |
 
 `skillDesign.savePreview` 的收据只包含 `path`、`revision` 和 `target`；`skillDesign.readPreview` 重读时附带同形状的已保存收据。保存不接收路径：项目目标由私有会话关联的项目及当前已登记工作区确定，无项目的会话只可保存到共享目录。保存请求按会话和 `operationId` 幂等裁决，比较目标与预览版本；新保存校验 `expectedPreviewRevision`，再由服务端从该版预览读取并校验候选名称。
 
@@ -179,8 +185,8 @@ AIReq 工作区 `kind` 仅为 `proposal`（已登记项目）或 `unavailable`�
 
 关键输入语义：
 
-- `retrySession` 只恢复指定 `AIReqWorkflowTarget` 当前绑定的已有原生会话。`sessionId` 必须精确匹配该目标解析出的会话；不匹配或不存在时拒绝，不创建替代会话、不修改材料或重放输入。
-- repository 输入含 operationId/expectedRevision、可选 projectId、name/repositoryUrl/defaultBranch；不接受本地目录。项目地址与默认分支用于只读代码访问，文档存储及归档独立于该配置。
+- `retrySession` 使用当前页绑定的云龙目录和当前本地工作流，按与 `readWorkflow` 相同的规则解析 `AIReqWorkflowTarget`，只恢复该目标绑定的已有原生会话。`sessionId` 必须精确匹配，不匹配、目标不可用或会话不存在时拒绝，不绕过页面目录、不创建替代会话、不修改材料或重放输入。
+- `projects.saveRepository` 只更新当前页快照中已登记且仍有效的云龙项目；`projectId`、`repositoryUrl`、`defaultBranch`、`workDirectory`、`expectedRevision`、`operationId` 均必填，不接受 `name` 或其他额外字段，也不能创建或重命名项目。仓库地址与默认分支用于只读代码访问，文档存储及归档独立于代码配置。
 - `models.save` 只接收默认模型和每个角色的 ID、模型、思考档位；名称与描述由模型设置 owner 提供，只在读取中返回。写入仍要求完整角色集合和有效 CAS。
 - Skill target 仅 project/user；会话归属、预览版本、路径与同名冲突均由 owner 校验。prompt 只是准备正文，不发送；saveDraft 不等于保存产物。
 - `skillDesign.saveDraft` 和 `skillDesign.prompt` 的说明入参只包含 `goal`、`when`、`inputs`、`outputs`、`boundaries`、`references`、`example`，拒绝 `notes`。原生对话完成时由服务端追加 `notes`，表单保存不改写它。草稿读取仍返回补充记录；`skillDesign.prompt` 使用提交的表单字段和当前会话已提交的 `notes` 生成正文。
@@ -189,17 +195,17 @@ AIReq 工作区 `kind` 仅为 `proposal`（已登记项目）或 `unavailable`�
 
 `command` 通过 `receipt.operationId`、`receipt.status` 和 `receipt.error` 返回操作编号、处理状态和已接纳操作的失败说明。RPC 拒绝仍通过 Promise 错误返回。唯一 CAS 值是第三参：编辑命令使用表单开始编辑时的基线，普通命令使用发起时当前视图的版本。`action` 拒绝 `expectedRevision`。同一操作编号和同一业务目标及参数，先返回已接纳回执，再考虑版本校验；编号复用但业务参数不同则拒绝。切换阅读视图不改变请求目标或幂等摘要；直接发送阅读字段在写入前拒绝。首次接纳的编辑命令直接读取 workflow owner 的版本。客户端不自动重发，命令摘要不进入公开投影。
 
-`deleteRequirement` 以 `projectId` 和 `irId` 指定目标，不接收固定的 `version` 字段。仍执行 `command` 的版本校验、目标归属校验和删除门禁。前端按通用回执的 `receipt.status` 判断删除是否完成，删除后的对象状态通过 `readWorkflow` 读取。
-
 操作版本记录在 `receipt.revision`；完整工作流及 `view.revision` 通过 `readWorkflow` 获取，命令结果不携带 `view` 或顶层 `revision`。仅 `saveDocumentFormats` 成功时返回 `documentFormatSnapshot: { documentFormats, revision }`。
 
 `addProjectRoleMember` 和 `removeProjectRoleMember` 提交 `projectId`、`employeeId` 和 `role`，沿用通用操作编号和工作流版本。服务端只接纳管理员对指定项目开发或测试名单的修改。
 
 公开动作白名单：
 
-- 配置及需求录入使用 `saveDocumentFormats`、`createRelease`、`createProposal`、`deleteRequirement`。
+- 文档格式使用 `saveDocumentFormats`。
 - 项目角色使用 `addProjectRoleMember` 和 `removeProjectRoleMember`。
 - 文档评审和定版使用 `reviewDocuments` 和 `confirmDocumentVersion`。
+
+AIReq 不接受创建项目、创建 Release、创建或删除 IR 的请求。验收数据由测试环境的云龙目录提供，不通过生产 RPC 创建。
 
 `reviewDocuments` 接收 `projectId`、`irId`、`agent` 和操作 ID，从工作流捕获接纳时最新已保存文件并派发独立评审。`confirmDocumentVersion` 接收 `projectId`、`irId`、操作 ID 和预检返回的 `snapshot`，只确认同一未定版的版本和文件。两者均不使用第三参的工作流 revision 比较；定版使用快照比对并复核当前规则。同一成功操作重试返回原回执，其他未匹配的快照或已确认版本拒绝。历史清单与正文由工作流保存，原生会话负责投递评审结果。
 
@@ -224,13 +230,13 @@ sequenceDiagram
   end
 ```
 
-验收覆盖：初次及失效刷新没有逐项目工作流查询；切范围不复用他项目的工作区或统计；空 Release 计数为零；旧编辑基线拒绝且不写入，已有操作重读后返回原回执；旧请求键被拒绝，公开视图及回执不包含服务端私有字段。
+验收覆盖：初次及失效刷新没有逐项目工作流查询；切范围不复用他项目的工作区或统计；包含未分配 Release 的 IR，且没有 IR 的项目统计为零；旧编辑基线拒绝且不写入，已有操作重读后返回原回执；退役动作和请求键被拒绝，公开视图及回执不包含服务端私有字段。
 
 Agent 讨论的完成回调核验项目、IR、会话、写权限及原生执行身份后提交材料。未确认版本内容可更新，已经固定的版本保留原件。以文件路径、摘要及字节数判断实际变化；评审绑定发起时的文件快照。
 
 ## 项目工作目录
 
-`projects.saveRepository` 接收 `workDirectory`，服务端校验绝对路径、项目归属和配置 revision，异步准备本地共享文档目录和当前文件。工作流继续提供读取，提交设置前核对已发布文件仍为当前内容。原型将仓库地址和分支作为配置字段保存。项目摘要返回已配置的 `workDirectory`。原型启动时预置示例项目工作目录，即使共享目录暂时无法准备，仍返回该配置供演示。文档由同一工作流按项目和 IR 发布到就绪目录，历史版本继续由工作流读取。客户端由配置路径生成项目级链接命令。
+`projects.saveRepository` 校验服务端绝对路径 `workDirectory`、项目归属及独立的配置 revision。保存串行处理；同一身份、同一操作编号及同一配置的显式重试复用成功结果，比较内容时不含 `expectedRevision`，同编号不同配置则拒绝。首次写入才比对编辑开始时捕获的配置 revision。异步准备本地共享文档目录和当前文件期间继续读取既有配置，提交设置前核对已发布文件仍为当前内容。项目摘要返回已配置的 `workDirectory`，客户端由此生成项目级链接命令。当前文档由同一工作流按项目和 IR 发布到就绪目录，历史版本继续由工作流读取。
 
 ## 6. 拒绝、文件与设置
 
@@ -286,7 +292,7 @@ Web 的 `broadcast.send` 只接收一个含 `channel` 和 `payload` 的对象，
 
 原型阶段按已确认的业务要求完善实现、公开契约和测试。原型验收通过的版本作为正式对接基线。切换正式后端时复用同一份前端构建产物、SDK、二进制传输、descriptor、DTO、协议 schema 和测试。接入 OMP、只读代码源和持久化使用后端实现与部署配置。前端 UT 和后端 ST 的源码、步骤及断言沿用基线。
 
-原型和正式测试环境通过运行配置指定服务地址、测试仓库和前置数据。两种环境通过同一公开接口验证当前文档、按需评审及确认版本。正式环境另验证对项目代码的只读访问。
+原型和正式测试环境通过运行配置指定服务地址、测试仓库和云龙前置目录；项目、IR 及由 IR 归组的 Release 不由测试调用 AIReq 创建。两种环境通过同一公开接口验证当前文档、按需评审及确认版本。正式环境另验证对项目代码的只读访问。
 
 材料摘要和字节数以实际正文为准，确认人和时间以已提交的操作为准。部署限制、工号与进程内数据范围见[后端说明](../../architecture/mock-backend.md#5-部署限制与后端替换)。
 

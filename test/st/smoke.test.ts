@@ -107,12 +107,13 @@ describe("ST service readiness and connection boundary", () => {
         await expect(
           c.services.aiReqService.call(c.identity, "readPrHandoff" as never, retiredRead as never),
         ).rejects.toHaveProperty("message", "此操作不可用，请刷新页面后重试。");
-        const revision = (await c.read()).view.revision;
+        const { view: before } = await c.read();
+        const revision = before.revision;
+        // 使用仍合法的动作，保证拒绝来自非法导航目标，而非动作已经退役。
         const navigationTargetAction = {
-          type: "createProposal",
-          releaseId: "r",
+          type: "saveDocumentFormats",
           operationId: unique("legacy-navigation"),
-          originalText: unique("rejected-proposal"),
+          documentFormats: before.documentFormats,
         };
         const navigationTargets = [
           { reviewAgent: "a" },
@@ -120,7 +121,13 @@ describe("ST service readiness and connection boundary", () => {
           { discussionPhase: "solution" },
         ];
         const retiredTarget = { projectId: "p", irId: "ir" };
-        // Each action below satisfied the public wire schema before it was retired.
+        const reviewAction = {
+          type: "reviewDocuments",
+          ...retiredTarget,
+          operationId: unique("legacy-review"),
+          agent: "requirements",
+        };
+        // 这些动作退役前均可以通过公开 wire 校验。
         const retiredActions = [
           { type: "publishProposal", candidate: "old" },
           { type: "closeProposalPr", candidate: "old" },
@@ -159,20 +166,10 @@ describe("ST service readiness and connection boundary", () => {
             [{ ...retiredTarget, releaseId: "r", path: "a.md", sha256: "a".repeat(64), round: 1 }],
           ],
           ["command", [navigationTargetAction, { ...retiredTarget, srId: "sr" }, revision]],
-          ["command", [{ ...navigationTargetAction, srId: "sr" }, {}, revision]],
+          ["command", [{ ...reviewAction, srId: "sr" }, retiredTarget, revision]],
           [
             "command",
-            [
-              {
-                type: "createProposal",
-                releaseId: "r",
-                operationId: unique(),
-                originalText: "invalid",
-                expectedRevision: revision,
-              },
-              {},
-              revision + 1,
-            ],
+            [{ ...navigationTargetAction, expectedRevision: revision }, {}, revision + 1],
           ],
           ...retiredActions.map((action) => [
             "command",
@@ -192,20 +189,7 @@ describe("ST service readiness and connection boundary", () => {
               revision,
             ],
           ],
-          [
-            "command",
-            [
-              {
-                type: "reviewDocuments",
-                projectId: "p",
-                irId: "ir",
-                operationId: unique(),
-                agent: "review",
-              },
-              {},
-              revision,
-            ],
-          ],
+          ["command", [{ ...reviewAction, agent: "review" }, {}, revision]],
           ...navigationTargets.map((target) => [
             "command",
             [navigationTargetAction, target, revision],
@@ -228,14 +212,69 @@ describe("ST service readiness and connection boundary", () => {
   );
 
   it(
+    "rejects retired catalogue writes and legacy repository inputs without changing state",
+    async () => {
+      const c = await connectST();
+      try {
+        const before = await c.read();
+        const projectId = unique("retired-project");
+        const releaseId = unique("retired-release");
+        const irId = unique("retired-ir");
+        const { revision } = before.view;
+        const rejected = "操作参数无效，请检查输入并重试。";
+        // 用不存在的业务键探测 wire 拒绝，不把共享目录里的真实 IR 交给旧删除命令。
+        for (const [action, target] of [
+          [{ type: "createRelease", projectId, title: releaseId }, { projectId }],
+          [{ type: "createProposal", projectId, releaseId, originalText: irId }, { projectId }],
+          [
+            { type: "deleteRequirement", projectId, irId },
+            { projectId, irId },
+          ],
+        ]) {
+          await expect(
+            c.services.aiReqService.call(c.identity, "command", [
+              { ...action, operationId: unique("retired-command") },
+              target,
+              revision,
+            ] as never),
+          ).rejects.toHaveProperty("message", rejected);
+        }
+        const repository = {
+          repositoryUrl: config.repositoryUrl,
+          defaultBranch: config.branch,
+          workDirectory: `${config.workDirectoryRoot}/${projectId}`,
+          expectedRevision: 0,
+        };
+        for (const legacy of [
+          repository,
+          { ...repository, name: projectId },
+          { ...repository, projectId, name: projectId },
+        ]) {
+          await expect(
+            c.services.aiReqService.call(c.identity, "projects.saveRepository", [
+              { ...legacy, operationId: unique("retired-repository") },
+            ] as never),
+          ).rejects.toHaveProperty("message", rejected);
+        }
+        expect(await c.read()).toEqual(before);
+      } finally {
+        await c.close();
+      }
+    },
+    config.timeoutMs,
+  );
+
+  it(
     "rejects malformed connection identities before a WebSocket upgrade",
     async () => {
-      const healthy = await connectST();
+      const pageId = crypto.randomUUID();
+      const healthy = await connectST(config.employeeId, unique("upgrade"), pageId);
       try {
         expect((await healthy.bootstrap()).contractVersion).toBe(AIREQ_CONTRACT_VERSION);
         const url = wsUrl(
           { employeeId: "INVALID", clientId: unique("invalid-upgrade") },
           config.token,
+          pageId,
         );
         const outcome = await new Promise<"opened" | "rejected">((resolve, reject) => {
           const socket = new WebSocket(url);

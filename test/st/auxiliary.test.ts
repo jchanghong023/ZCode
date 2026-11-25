@@ -5,19 +5,17 @@ import {
   IProviderSettingsService,
   ISystemService,
 } from "@zcode/services";
-import { connectST, expectRpcUnavailable, unique } from "./client.js";
+import { connectST, expectRpcUnavailable, unique, type STClient } from "./client.js";
 import { config, requireConfig } from "./config.js";
-import { createProposal } from "./business.js";
+import { readRequirement, takeRequirement } from "./business.js";
 import { getProposal } from "./proposal-flow.js";
-import { openNative, requireAccepted } from "./native.js";
+import { openNative, openNativeSession, requireAccepted } from "./native.js";
 
-type STClient = Awaited<ReturnType<typeof connectST>>;
-
-/** 通过正常设计、讨论、预览和保存准备文件，不访问任何服务端私有状态。 */
-async function saveSkillFiles(c: STClient, goal: string, outputs: string) {
-  const created = await createProposal(c);
-  const session = requireConfig(created.remote.session, "公开提案必须提供原生会话引用");
-  const skillSession = await c.call("skillDesign.session", [created.projectId]);
+async function saveSkillFiles(c: STClient) {
+  // 只读前置缺失时才生成资源；Skill 写入必须占用声明为专用项目的 IR。
+  const { projectId, remote } = await takeRequirement(c, { configuredProject: true });
+  const workspacePath = requireConfig(remote.workspace.path, "专用项目的 Skill 工作区路径");
+  const skillSession = await c.call("skillDesign.session", [projectId]);
   expect(skillSession).toEqual({
     sessionId: expect.stringMatching(/\S/),
     workspaceIdentity: expect.stringMatching(/\S/),
@@ -25,10 +23,10 @@ async function saveSkillFiles(c: STClient, goal: string, outputs: string) {
   });
   const { sessionId, workspaceIdentity, temporaryDirectory } = skillSession;
   const draft = {
-    goal,
+    goal: "编写接口变更评审技能，说明如何按字节检查 UTF-8 文件。",
     when: "检查业务文件及配套流程说明时使用。",
     inputs: "文件路径及字节范围。",
-    outputs,
+    outputs: "生成中文 SKILL.md、配套检查清单及无脚本无外链的静态 SVG 流程图，供预览并保存。",
     boundaries: "只读，不删除或覆盖已有文件。",
     references: "文件接口契约。",
     example: "中文验收：偏移按字节而非字符计算。",
@@ -36,11 +34,12 @@ async function saveSkillFiles(c: STClient, goal: string, outputs: string) {
   await c.call("skillDesign.saveDraft", [sessionId, draft]);
   const prompt = await c.call("skillDesign.prompt", [sessionId, draft]);
   expect(prompt).toContain(`${temporaryDirectory}/SKILL.md`);
-  const native = await openNative(c, {
-    ...created.remote,
-    session: { ...session, sessionId },
-    workspace: { ...created.remote.workspace, identity: workspaceIdentity },
-  });
+  const native = await openNativeSession(
+    c.services.zcodeAgentService,
+    c.identity.clientId,
+    sessionId,
+    { workspacePath, workspaceIdentity },
+  );
   try {
     requireAccepted(await native.send("sendText", { text: prompt }));
     expect((await native.waitIdle()).control.phase).toBe("completedSuccess");
@@ -50,8 +49,8 @@ async function saveSkillFiles(c: STClient, goal: string, outputs: string) {
     );
     expect(preview).not.toHaveProperty("directory");
     const main = requireConfig(
-      preview.files.find((entry) => entry.path === "SKILL.md"),
-      "技能预览必须包含 SKILL.md",
+      preview.files.find(({ path }) => path === "SKILL.md"),
+      "技能预览的 SKILL.md",
     );
     const receipt = await c.call("skillDesign.savePreview", [
       sessionId,
@@ -60,55 +59,48 @@ async function saveSkillFiles(c: STClient, goal: string, outputs: string) {
       unique("save-file"),
     ]);
     expect(receipt).toEqual({
-      path: expect.any(String),
+      path: expect.stringMatching(/[/\\]SKILL\.md$/),
       revision: preview.revision,
       target: "project",
     });
-    const slash = Math.max(receipt.path.lastIndexOf("/"), receipt.path.lastIndexOf("\\"));
-    return {
-      preview,
-      main,
-      receipt,
-      directoryPath: receipt.path.slice(0, slash),
-    };
+    expect(await c.call("skillDesign.readPreview", [sessionId])).toEqual({
+      ...preview,
+      savedReceipt: receipt,
+    });
+    expect(await c.call("skillDesign.listSkills", [sessionId])).toContain(receipt.path);
+    return { preview, main, receipt, directory: receipt.path.replace(/[/\\]SKILL\.md$/, "") };
   } finally {
     await native.close();
   }
 }
 
-async function fileFixture(c: STClient) {
-  let file = config.file;
-  if (!file) {
-    // 预期字节取本轮已确认的预览内容，不读取后端源码或固定 AI 回复。
-    const saved = await saveSkillFiles(
-      c,
-      "编写文件读取验收技能，说明使用中文并保留 UTF-8 多字节文本。",
-      "给出字节范围和 EOF 的检查步骤。",
-    );
-    file = {
-      // 搜索限定本次新建的技能目录，避免其他同名 SKILL.md 占用 limit=1 的结果。
-      workspacePath: saved.directoryPath,
-      path: saved.receipt.path,
-      directoryPath: saved.directoryPath,
-      missingPath: `${saved.directoryPath}/${unique("missing")}.txt`,
-      bytesBase64: Buffer.from(saved.main.content, "utf8").toString("base64"),
-    };
-  }
-  const bytes = Uint8Array.from(Buffer.from(file.bytesBase64, "base64"));
-  requireConfig(
-    bytes.some((value) => value > 127) ? true : undefined,
-    "文件前置须包含非空多字节 UTF-8 内容；可通过 ST_FILE_JSON.bytesBase64 指定，用于验证字节偏移而非字符偏移",
-  );
-  return { file, bytes };
-}
+describe("ST auxiliary public contracts", () => {
+  let generatedFiles: ReturnType<typeof saveSkillFiles> | undefined;
+  // 两个读取用例都可独立获取资源，不要求特定顺序，也不在同项目保存两份同名产物。
+  const skillFiles = (c: STClient) => (generatedFiles ??= saveSkillFiles(c));
 
-describe("ST auxiliary public reads", () => {
   it(
     "reads UTF-8 bytes, byte offsets, EOF and file/directory existence through RPC",
     async () => {
       const c = await connectST();
       try {
-        const { file, bytes } = await fileFixture(c);
+        let file = config.file;
+        if (!file) {
+          const { main, receipt, directory } = await skillFiles(c);
+          file = {
+            workspacePath: directory,
+            path: receipt.path,
+            directoryPath: directory,
+            missingPath: `${directory}/${unique("missing")}.txt`,
+            // 预期字节取本轮确认的预览，不读取后端源码或假定固定 AI 回复。
+            bytesBase64: Buffer.from(main.content, "utf8").toString("base64"),
+          };
+        }
+        const bytes = Uint8Array.from(Buffer.from(file.bytesBase64, "base64"));
+        requireConfig(
+          bytes.some((value) => value > 127) ? true : undefined,
+          "ST_FILE_JSON.bytesBase64 须包含非空多字节 UTF-8 内容，用于区分字节偏移与字符偏移",
+        );
         const service = c.services.fileService;
         const stat = await service.stat({ path: file.path });
         expect(stat).toMatchObject({
@@ -183,21 +175,17 @@ describe("ST auxiliary public reads", () => {
     async () => {
       const c = await connectST();
       try {
-        let raw: Record<string, unknown> | undefined = config.fixtures.media?.[0];
-        if (config.fixtures.media !== undefined)
-          raw = requireConfig(raw, "显式配置的媒体前置为空，请补充实际可读媒体对象");
-        if (!raw) {
-          const saved = await saveSkillFiles(
-            c,
-            "设计接口变更评审技能，包含配套的静态 SVG 流程图说明。",
-            "输出技能主文件、检查清单和无脚本、无外链的 SVG 流程说明文件，供逐一预览并保存。",
-          );
+        let raw: Record<string, unknown>;
+        if (config.fixtures.media !== undefined) {
+          raw = requireConfig(config.fixtures.media[0], "fixtures.media[0] 只读媒体前置");
+        } else {
+          const { preview, directory } = await skillFiles(c);
           const graphic = requireConfig(
-            saved.preview.files.find((file) => /\.svg$/i.test(file.path)),
-            "技能设计请求必须提供配套 SVG 流程图预览",
+            preview.files.find(({ path }) => /\.svg$/i.test(path)),
+            "技能预览的静态 SVG 流程图",
           );
           raw = {
-            path: `${saved.directoryPath}/${graphic.path}`,
+            path: `${directory}/${graphic.path}`,
             mediaType: "image/svg+xml",
             bytesBase64: Buffer.from(graphic.content, "utf8").toString("base64"),
           };
@@ -229,26 +217,25 @@ describe("ST auxiliary public reads", () => {
     "resolves an existing business session's directories without creating replacement sessions",
     async () => {
       const c = await connectST();
-      let created: Awaited<ReturnType<typeof createProposal>> | undefined;
       try {
-        created = await createProposal(c);
+        const requirement = await readRequirement(c);
         const session = requireConfig(
-          created.remote.session,
-          "公开提案读取必须提供当前讨论的 session 引用",
+          requirement.remote.session,
+          "只读 IR 必须提供当前需求讨论的 session 引用",
         );
         const workspacePath = requireConfig(
-          created.remote.workspace.path,
-          "公开提案读取必须提供讨论 workspace.path",
+          requirement.remote.workspace.path,
+          "只读 IR 必须提供讨论 workspace.path",
         );
         const ref = {
           taskId: session.sessionId,
           workspacePath,
-          workspaceIdentity: created.remote.workspace.identity,
+          workspaceIdentity: requirement.remote.workspace.identity,
         };
-        const before = await c.read(created.selection);
+        const before = requirement.remote;
         const projectService = requireConfig(c.services.projectService, "公开 project service");
         expect(await projectService.resolveSessionDirectories(ref)).toEqual({
-          projectId: created.projectId,
+          projectId: requirement.projectId,
         });
         expect(
           await c.probeRpc("call", IProjectService.channelName, "resolveSessionDirectories", [
@@ -257,7 +244,9 @@ describe("ST auxiliary public reads", () => {
           ]),
         ).toMatchObject({ code: "INVALID_ARGUMENT" });
         const tree = await projectService.readTree();
-        expect(tree.projects).toContainEqual(expect.objectContaining({ id: created.projectId }));
+        expect(tree.projects).toContainEqual(
+          expect.objectContaining({ id: requirement.projectId }),
+        );
         expect(new Set(tree.projects.map((project) => project.id)).size).toBe(tree.projects.length);
         for (const entry of [...tree.projects, ...tree.tasks]) {
           expect(entry).not.toHaveProperty("hostId");
@@ -277,23 +266,13 @@ describe("ST auxiliary public reads", () => {
             workspaceIdentity: unique("wrong-workspace"),
           }),
         ).rejects.toThrow();
-        const after = await c.read(created.selection);
+        const after = await c.read(requirement.selection);
         expect(after.session).toEqual(before.session);
-        expect(getProposal(after, created).sessions).toEqual(getProposal(before, created).sessions);
+        expect(getProposal(after, requirement).sessions).toEqual(
+          getProposal(before, requirement).sessions,
+        );
       } finally {
-        try {
-          if (created)
-            await c.command(
-              {
-                type: "deleteRequirement",
-                projectId: created.projectId,
-                irId: created.irId,
-              },
-              created.selection,
-            );
-        } finally {
-          await c.close();
-        }
+        await c.close();
       }
     },
     config.timeoutMs,
@@ -304,7 +283,7 @@ describe("ST auxiliary public reads", () => {
     async () => {
       const c = await connectST();
       try {
-        const created = await createProposal(c);
+        const requirement = await readRequirement(c);
         const settings = await c.services.settingService.get();
         expect(settings).toHaveProperty("locale");
         expect(settings).not.toHaveProperty("terminalInheritSystemProfile");
@@ -369,8 +348,8 @@ describe("ST auxiliary public reads", () => {
         ]);
         expect(workflowRoles).toEqual(expect.arrayContaining(Object.keys(bootstrap.prompts.saved)));
         const binding = requireConfig(
-          created.remote.session?.modelConfig,
-          "新建讨论必须提供实际 Agent 模型绑定",
+          requirement.remote.session?.modelConfig,
+          "只读 IR 的需求讨论必须提供实际 Agent 模型绑定",
         );
         expect(binding.role).toBe("requirements");
         // 业务配置键只对应 AIReq 目录；原生执行标识从 v4 快照读取，不解析 choice.id。
@@ -378,7 +357,7 @@ describe("ST auxiliary public reads", () => {
         expect(choice).toMatchObject({ name: binding.modelName });
         const modelView = await c.services.modelSelectionService.getView();
         expect(Number.isInteger(modelView.revision)).toBe(true);
-        const native = await openNative(c, created.remote);
+        const native = await openNative(c, requirement.remote);
         const selection = await native
           .snapshot()
           .then((snapshot) => snapshot.config.modelSelection)

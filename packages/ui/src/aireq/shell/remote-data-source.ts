@@ -43,7 +43,8 @@ export async function createRemoteAIReqDataSource(
     return snapshot?.key === JSON.stringify(target) ? snapshot.value : undefined;
   };
   let disposed = false;
-  let metadataRefreshError: Error | undefined;
+  let metadataRefreshRequired: "failed" | "project-refresh-committed" | undefined;
+  let projectRefreshFlight: Promise<void> | undefined;
   let invalidationGeneration = 0;
   let initializing = true;
   let promptDraftRevision = 0;
@@ -82,14 +83,29 @@ export async function createRemoteAIReqDataSource(
     refreshFlight = (async () => {
       try {
         for (;;) {
+          // 云龙目录按页提交：后发读取必须等刷新 RPC 结束，已发出的旧读取不重排。
+          while (projectRefreshFlight) await projectRefreshFlight;
           const generation = invalidationGeneration;
-          const incoming = await readBootstrap();
-          if (disposed) throw new Error("AIReq连接已关闭");
-          if (generation !== invalidationGeneration) continue;
-          if (JSON.stringify(promptDraft) === JSON.stringify(metadata.prompts.saved))
-            promptDraft = { ...incoming.prompts.saved };
-          metadata = incoming;
-          break;
+          try {
+            const incoming = await readBootstrap();
+            if (disposed) throw new Error("AIReq连接已关闭");
+            if (generation !== invalidationGeneration) continue;
+            if (JSON.stringify(promptDraft) === JSON.stringify(metadata.prompts.saved))
+              promptDraft = { ...incoming.prompts.saved };
+            metadata = incoming;
+            metadataRefreshRequired = undefined;
+            break;
+          } catch (cause) {
+            if (disposed) throw cause;
+            if (generation !== invalidationGeneration) continue;
+            if (metadataRefreshRequired === "project-refresh-committed")
+              throw Object.assign(
+                new Error("项目目录已刷新，但页面配置读取失败，请重试读取。", { cause }),
+                { code: "BUSINESS_RULE_VIOLATION" },
+              );
+            metadataRefreshRequired = "failed";
+            throw cause;
+          }
         }
       } finally {
         refreshFlight = undefined;
@@ -112,14 +128,11 @@ export async function createRemoteAIReqDataSource(
       void refreshMetadata().then(
         () => {
           if (disposed) return;
-          metadataRefreshError = undefined;
           emit(modelListeners);
           emit(workflowListeners);
         },
-        (cause) => {
-          if (disposed) return;
-          metadataRefreshError = cause instanceof Error ? cause : new Error(String(cause));
-          emit(workflowListeners);
+        () => {
+          if (!disposed) emit(workflowListeners);
         },
       );
   });
@@ -160,14 +173,14 @@ export async function createRemoteAIReqDataSource(
     },
     async refreshIdentity() {
       await refreshMetadata();
-      metadataRefreshError = undefined;
       emit(modelListeners);
       emit(workflowListeners);
     },
     async readWorkflow(target) {
-      if (metadataRefreshError) {
-        await refreshMetadata();
-        metadataRefreshError = undefined;
+      for (;;) {
+        if (projectRefreshFlight) await projectRefreshFlight;
+        else if (metadataRefreshRequired) await refreshMetadata();
+        else break;
       }
       const result = await call("readWorkflow", [sessionTarget(target)]);
       snapshots.set(result.view, {
@@ -177,10 +190,26 @@ export async function createRemoteAIReqDataSource(
       return result.view;
     },
     async refreshProjects(target) {
-      const result = await call("projects.refreshSnapshot", [sessionTarget(target)]);
-      invalidationGeneration += 1;
+      const requestedTarget = sessionTarget(target);
+      const refresh = (projectRefreshFlight ?? Promise.resolve()).then(() =>
+        call("projects.refreshSnapshot", [requestedTarget]),
+      );
+      // 只等待线端提交，不把失败传给普通读取，也不让后续读取等刷新自己的 bootstrap。
+      const settled = refresh
+        .then(
+          () => {
+            invalidationGeneration += 1;
+            metadataRefreshRequired = "project-refresh-committed";
+          },
+          () => undefined,
+        )
+        .finally(() => {
+          if (projectRefreshFlight === settled) projectRefreshFlight = undefined;
+        });
+      projectRefreshFlight = settled;
+      const result = await refresh;
+      // 提交后配置回读若失败，不安装混用新目录和旧配置的视图；普通重试只回读。
       await refreshMetadata();
-      metadataRefreshError = undefined;
       snapshots.set(result.view, { key: JSON.stringify(target), value: result });
       return result.view;
     },

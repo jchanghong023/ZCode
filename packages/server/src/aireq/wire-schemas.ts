@@ -129,8 +129,7 @@ export const argumentSchemas = {
       .object({
         operationId: id,
         expectedRevision: revision,
-        projectId: id.optional(),
-        name: text,
+        projectId: id,
         repositoryUrl: text,
         defaultBranch: text,
         workDirectory: text,

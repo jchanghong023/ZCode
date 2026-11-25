@@ -34,9 +34,9 @@ Agent 指令与文档格式页脚的「放弃全部草稿」只处理当前分�
 
 浅色和深色槽分别决定对应界面下使用哪个代码主题，两槽均可选择 GitHub Light 或 GitHub Dark。代码内容区的语法文字、行号及底色随选中的代码主题配对，预览标题与「当前生效」仍按所属界面槽显示。预览与实际文档／会话的代码阅读器共用明暗配对；代码主题与界面同色系时保留原阅读表面，跨色系时内容区使用对应的浅／深底色，外层卡片与工具栏沿用界面配色。验收在宽／窄电脑浏览器分别选择两种交叉组合，检查代码文字达到 4.5:1，并核对当前生效标签和代码块之外的界面仍按原界面主题显示。
 
-主题、界面字号及代码阅读设置由 `StoreProvider` 的现有 ZCode store 持有。可选动效、浅色、深色与跟随系统，控件使用现有国际化标题提供可访问名称。每次打开或刷新页面，首屏使用动效主题。用户选择即时应用，只在当前页面内保留。系统减少动态效果或已有性能模式开启时，主题配色保留，动画按[动效主题规则](../../../DESIGN.md#默认动效主题)停用。
+主题、界面字号及代码阅读设置由 `StoreProvider` 的现有 ZCode store 持有。外观设置和账户主题菜单均可选择钴蓝日间、浅蓝灰、双区电光、极光深夜、动效主题、浅色、深色与跟随系统，控件使用现有国际化标题提供可访问名称。每次打开或刷新 AIReq，静态 HTML 首屏、工号入口和工作台 store 都使用钴蓝日间（`DEFAULT_AIREQ_THEME`），不恢复旧主题记录。主题选择即时应用，只在当前打开的页面内保留；跟随系统只在原浅色和深色之间切换。动效主题必须显式选择；系统减少动态效果或已有性能模式开启时，主题配色保留，动画按[主题与动效规则](../../../DESIGN.md#主题与动效)停用。
 
-重连替换 services 时保留 store、选择及未发送草稿，释放旧广播监听后绑定当前连接；入站更新沿 applyingBroadcast 防回环。离线选择仍应用本地 DOM 和偏好，广播失败记录可恢复诊断，不声称同步成功；重连不重放离线变更。Provider 卸载释放广播和系统主题监听。
+重连替换 services 时保留 store、选择及未发送草稿，释放旧广播监听后绑定当前连接；入站更新沿 applyingBroadcast 防回环，不覆盖本页主动选择的主题。离线选择仍应用本地 DOM 和本页状态，广播失败记录可恢复诊断，不声称同步成功；重连不重放离线变更。Provider 卸载释放广播和系统主题监听。
 
 ### 项目配置
 
@@ -50,18 +50,18 @@ Agent 指令与文档格式页脚的「放弃全部草稿」只处理当前分�
 
 AI 配置中的模型和指令页签使用同一份角色清单。
 
-| 角色 | 职责 |
-| --- | --- |
-| 需求 Agent | 整理、生成和修改需求文档 |
-| 需求评审 Agent | 受邀独立评审最新需求文档并返回意见 |
-| 方案 Agent | 生成和修改方案、SR 材料及依赖 |
+| 角色           | 职责                                         |
+| -------------- | -------------------------------------------- |
+| 需求 Agent     | 整理、生成和修改需求文档                     |
+| 需求评审 Agent | 受邀独立评审最新需求文档并返回意见           |
+| 方案 Agent     | 生成和修改方案、SR 材料及依赖                |
 | 方案评审 Agent | 受邀独立审查方案、规格、任务、依赖与测试材料 |
 
 ### AI 模型与生效范围
 
 所有项目和 Release 共用工作流默认模型和各 Agent 的模型、思考强度与追加指令。模型选项「跟随默认」使用工作流默认模型，思考强度选项「模型默认」使用模型预设。
 
-工作流在新建讨论会话或接纳评审时读取并绑定当时的模型、思考强度及追加指令。已有讨论会话、已接纳的评审及历史报告保留各自的配置快照。页面顶部说明共享范围及生效时间。
+首次进入一个 IR 的需求或方案讨论时，工作流绑定当时已保存的模型、思考强度及追加指令；接纳评审时独立绑定。目录加载、浏览需求详情和阅读文档不提前绑定讨论。已经打开过的讨论、已接纳的评审及历史报告保留各自的配置快照。页面顶部说明共享范围及生效时间。
 
 默认模型旁显示当前已保存的跟随角色数量与名称，没有跟随角色时明确显示 0；草稿改变跟随范围时另列保存后的跟随角色。临近选择器显示其用于新建讨论和新接纳评审，已绑定配置保留。AI 配置页签提供 h2 页标题供屏幕阅读器读取，「工作流默认模型」控件使用同名可访问名称并关联当前范围。
 
@@ -94,16 +94,16 @@ sequenceDiagram
 
 「文档格式」是独立的一级设置。每种文件可添加、修改和移除必需章节，列表初始为空。固定清单按 IR 与 SR 分组，路径以工作树根目录为基准：
 
-| 对象 | 文件路径 |
-| --- | --- |
-| IR | `docs/requirements/<ir-id>/requirements.md` |
-| SR | `openspec/changes/<sr-id>/proposal.md` |
-| SR | `openspec/changes/<sr-id>/design.md` |
-| SR | `openspec/changes/<sr-id>/tasks.md` |
-| SR | `openspec/changes/<sr-id>/test-plan.md` |
-| SR | `openspec/changes/<sr-id>/specs/<sr-id>/spec.md` |
+| 对象 | 文件路径                                         |
+| ---- | ------------------------------------------------ |
+| IR   | `docs/requirements/<ir-id>/requirements.md`      |
+| SR   | `openspec/changes/<sr-id>/proposal.md`           |
+| SR   | `openspec/changes/<sr-id>/design.md`             |
+| SR   | `openspec/changes/<sr-id>/tasks.md`              |
+| SR   | `openspec/changes/<sr-id>/test-plan.md`          |
+| SR   | `openspec/changes/<sr-id>/specs/<sr-id>/spec.md` |
 
-`docs/requirements/<ir-id>/sr-dependencies.json` 也参与定版检查，但不是可设置 Markdown 章节的文件。
+依赖清单 `docs/requirements/<ir-id>/sr-dependencies.json` 使用 JSON，不设置 Markdown 章节。各文件在哪个区参与检查见[定版检查](proposals.md#定版检查)。
 
 所有项目和 Release 共用一套已保存的章节规则。草稿沿用设置页的保存、确认放弃和离开门禁，保存成功后供后续编写和格式提示使用。定版提交预检快照，服务端确认版本及文件仍一致后按当时已保存的格式规则复核。
 
@@ -145,6 +145,6 @@ Sketch 使用浏览器真实 Canvas，位于全页 Dialog 内的现有 HTML ifra
 - `packages/ui/src/aireq/settings/AIReqSettingsPage.tsx`、`AIReqProjectSettings.tsx`、`AIReqAgentModelSettings.tsx`、`AIReqPersonalizationSettings.tsx`、`AIReqDocumentFormatSettings.tsx`
 - 固定路径模板见 [`document-formats.ts`](../../../packages/services/src/aireq/document-formats.ts)，服务端定版检查见 [`document-validation.ts`](../../../packages/server/src/aireq/document-validation.ts)。
 - `packages/ui/src/aireq/tools/AIReqSketchButton.tsx`、`sketch.html`、`AIReqSkillDesignPage.tsx`、`AIReqSkillFilePreview.tsx`
-- `packages/ui/src/store/StoreProvider.tsx`
+- 主题首屏与初始化：`packages/web/index.html`、`packages/shared/src/appearance-theme.ts`、`packages/ui/src/useTheme.ts`、`packages/ui/src/store/StoreProvider.tsx`
 
 公开接口不会因隐藏组件或通用控件存留而扩展；部署和真实服务能力边界集中见 [内存后端](../../architecture/mock-backend.md)。

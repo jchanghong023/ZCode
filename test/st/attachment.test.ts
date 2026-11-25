@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
-import { createProposal } from "./business.js";
+import { takeRequirement } from "./business.js";
 import { connectST, unique, waitUntil } from "./client.js";
 import { config, requireConfig } from "./config.js";
 import { openNative } from "./native.js";
@@ -36,12 +36,10 @@ async function open(client: Client, remote: Parameters<typeof openNative>[1]) {
 
 async function context() {
   const client = await connect();
-  const proposal = await createProposal(
-    client,
-    "附件系统测试：讨论需求材料，并保留附件的完整原始字节供协作人员阅读。",
-  );
-  const native = await open(client, proposal.remote);
-  return { client, proposal, native };
+  // 附件一经会话采用就会留下历史；每个写入用例各占一个预置 IR。
+  const requirement = await takeRequirement(client);
+  const native = await open(client, requirement.remote);
+  return { client, requirement, native };
 }
 
 function target(native: Native, uploadId: string) {
@@ -260,9 +258,9 @@ describe("attachment transactions through the deployed backend", () => {
     const otherEmployeeId = requireConfig(config.otherEmployeeId, "otherEmployeeId");
     if (otherEmployeeId === config.employeeId)
       throw new Error("Attachment cross-employee ST requires two distinct employee identities");
-    const { client, native, proposal } = await context();
+    const { client, native, requirement } = await context();
     const other = await connect(otherEmployeeId);
-    const otherNative = await open(other, proposal.remote);
+    const otherNative = await open(other, requirement.remote);
     const bytes = Buffer.from("可共享的是已采用附件，不是私人暂存", "utf8");
     const shared = await upload(client, native, bytes);
     const privateBytes = Buffer.from("不得泄露的私人草稿", "utf8");

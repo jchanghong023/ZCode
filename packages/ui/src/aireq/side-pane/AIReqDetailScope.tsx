@@ -45,7 +45,8 @@ export function AIReqDetailScope({
   const refresh = useCallback(async () => {
     const request = ++currentRead.current;
     try {
-      const view = await source.readWorkflow({ projectId, irId });
+      // 项目投影已含材料；传 IR 会提前锁定需求讨论的模型配置。
+      const view = await source.readWorkflow({ projectId });
       if (request !== currentRead.current) return;
       const group = view.requirements.find(
         (item) => item.projectId === projectId && item.id === irId && item.releaseId === releaseId,

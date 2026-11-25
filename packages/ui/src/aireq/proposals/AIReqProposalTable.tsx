@@ -37,7 +37,8 @@ export function AIReqProposalTable() {
   const { preferences } = columnConfig;
   const { columns: configuredColumns, sort } = preferences;
   const collator = useMemo(() => new Intl.Collator(locale, { numeric: true }), [locale]);
-  const { query, filters } = ai.proposalQuery;
+  const { proposalQuery } = ai;
+  const { query, filters } = proposalQuery;
   const [page, setPage] = useState(0);
   const searchInput = useRef<HTMLInputElement>(null);
   const tableScroll = useRef<HTMLDivElement>(null);
@@ -63,10 +64,8 @@ export function AIReqProposalTable() {
       ),
     [ai.view?.releases, projectId],
   );
-  const releaseId =
-    ai.selection.releaseId && releaseTitles.has(ai.selection.releaseId)
-      ? ai.selection.releaseId
-      : undefined;
+  // 范围回退由 Context 统一提交；列表不能用缺失版本冒充「全部需求」。
+  const releaseId = ai.selection.releaseId;
   const groups = useMemo(
     () => (ai.view?.requirements ?? []).filter((item) => item.projectId === projectId),
     [ai.view?.requirements, projectId],
@@ -135,11 +134,9 @@ export function AIReqProposalTable() {
       else delete next[column];
       return { ...current, filters: next };
     });
-    setPage(0);
   }
   function clearFilters() {
     ai.updateProposalQuery(() => EMPTY_PROPOSAL_QUERY);
-    setPage(0);
   }
   const tableWidth = columns.reduce((width, column) => width + proposalColumns[column].width, 0);
   const previousLabel = zh ? "上一页" : "Previous page";
@@ -176,11 +173,12 @@ export function AIReqProposalTable() {
     const timer = window.setInterval(update, 60_000);
     return () => window.clearInterval(timer);
   }, [showDwellTime]);
-  useLayoutEffect(() => setPage(0), [releaseId]);
+  // 按查询槽和范围重置分页；同目标重读不重新定位列表。
+  useLayoutEffect(() => setPage(0), [projectId, releaseId, proposalQuery]);
   useLayoutEffect(() => {
     // 表格保留挂载，切页和改变筛选时从新结果的第一行读起。
     if (tableScroll.current) tableScroll.current.scrollTop = 0;
-  }, [currentPage, releaseId, search, filters, sort]);
+  }, [currentPage, projectId, releaseId, search, filters, sort]);
   return (
     <main
       data-aireq-themed-page
@@ -193,7 +191,7 @@ export function AIReqProposalTable() {
       >
         <header className="flex shrink-0 flex-wrap items-start justify-between gap-x-4 gap-y-2">
           <ScopedPageTitle title={zh ? "需求共创" : "Co-creation"} />
-          <AIReqProposalListActions key={ai.selection.releaseId ?? ""} zh={zh} />
+          <AIReqProposalListActions zh={zh} />
         </header>
         <section
           aria-label={zh ? "需求列表" : "Requirements list"}
@@ -212,10 +210,9 @@ export function AIReqProposalTable() {
               collator={collator}
               searchInput={searchInput}
               zh={zh}
-              onSearch={(value) => {
-                ai.updateProposalQuery((current) => ({ ...current, query: value }));
-                setPage(0);
-              }}
+              onSearch={(value) =>
+                ai.updateProposalQuery((current) => ({ ...current, query: value }))
+              }
               onChangeColumn={setColumnFilter}
               onClear={clearFilters}
             >

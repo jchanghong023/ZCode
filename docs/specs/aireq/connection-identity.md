@@ -6,15 +6,17 @@
 
 应用入口只填写工号。校验格式通过即可进入，工号用来标记消息发送人和实际操作者，应用登录无需本人认证。用户可查看所有项目和 Release 的共享内容，可使用业务页面，其他操作依项目角色开放。
 
-Web entry 是连接生命周期 owner，首次连接读取持久 `getV4ClientId()` 并固定；工号来自 `EmployeeEntry`。AIReq identity、WebSocket、v4 握手与命令共用同一 clientId，设备 stream 指纹不代替业务身份。每次页面加载生成独立的 WebSocket `pageId`，重连继续使用该标识。云龙读取快照按页面绑定，断开最后一个连接后保留 30 分钟供重连。
+Web entry 持有连接生命周期，首次连接读取持久 `getV4ClientId()` 并固定；工号来自 `EmployeeEntry`。AIReq identity、WebSocket、v4 握手与命令共用同一 clientId，设备 stream 指纹不代替业务身份。浏览器每次页面加载生成独立的 `pageId`，重连沿用。服务端以工号、clientId 和 `pageId` 绑定页面云龙快照，最后一个连接断开后保留 30 分钟供重连。不传 `pageId` 时仅在当前连接内保留快照，不跨连接复用。
 
 `AIReqIdentity` 仅含 employeeId/clientId：
 
 - employeeId 匹配 `/^[a-z][0-9]{8}$/`。
 - clientId 为非空白字符串，长度不超过 200；不额外假定必须为 UUID。
-- 额外身份字段拒绝。`/ws` 查询仅接受各出现一次的 employeeId/clientId/可选部署 token，场景参数拒绝。
+- 额外身份字段拒绝。`/ws` 查询只接受必填 `employeeId`、`clientId` 和可选部署 `token`、UUID 形式的可选 `pageId`，每项最多出现一次；场景参数拒绝。`pageId` 不是身份字段或凭据。
 
 服务端在升级前验证自报身份；`getConnectionServices` 冻结连接身份，后续 bootstrap/call 的 employee/client 精确匹配，原生命令 envelope.clientId 也匹配。项目树与目录解析通过同一身份读取。请求局部上下文使用 `AsyncLocalStorage`，不用全局可变工号。
+
+独立聊天页面 `/chat` 使用 `/ws/chat`，连接查询只接受 UUID 形式的 `clientId` 和可选部署 `token`，不接收工号或 `pageId`，不共享 AIReq 目录快照。
 
 工作流按项目、IR 和会话校验业务归属，记录执行时的工号，并按当前项目名单校验方案会话、方案评审和文档确认。Release 用于项目版本范围和归属校验，不是会话键。
 
@@ -62,23 +64,23 @@ Web 命令以外层请求的工作区为准，拒绝 `envelope.workspace`；服�
 
 ## 3. 相互独立的版本
 
-| 版本或标识 | 含义 |
-| --- | --- |
-| `AIREQ_CONTRACT_VERSION=27` | bootstrap 契约兼容性，客户端不匹配则拒绝装配 |
-| Protocol v4 wire `3` | hello/clientHello 与二进制 wire 版本 |
-| snapshot `protocolVersion=1` | 会话投影格式，不是 wire 版本 |
-| workflow revision | 普通业务写入的 CAS 基线 |
-| 文档版本号、预检 `snapshot` | 版本号描述材料版本；快照标识绑定定版前检查的版本及文件，同版编辑也会改变快照 |
-| 模型配置、提示词、目录 revision | 分别属于各 owner，不互相替代 |
-| session revision | 原生命令 CAS |
-| topic logEpoch/seq | 投影日志代际与顺序，不是 AIReq bootstrap 水位 |
+| 版本或标识                              | 含义                                                                             |
+| --------------------------------------- | -------------------------------------------------------------------------------- |
+| `AIREQ_CONTRACT_VERSION=38`             | bootstrap 契约兼容性，退役静态动作并收窄仓库保存输入；客户端版本不匹配则拒绝装配 |
+| Protocol v4 wire `3`                    | hello/clientHello 与二进制 wire 版本                                             |
+| snapshot `protocolVersion=1`            | 会话投影格式，不是 wire 版本                                                     |
+| workflow revision                       | 普通业务写入的 CAS 基线                                                          |
+| 文档版本号、预检 `snapshot`             | 版本号描述材料版本；快照标识绑定定版前检查的版本及文件，同版编辑也会改变快照     |
+| 项目仓库配置、模型配置、提示词 revision | 各自的编辑基线，不互相替代                                                       |
+| session revision                        | 原生命令 CAS                                                                     |
+| topic logEpoch/seq                      | 投影日志代际与顺序，不是 AIReq bootstrap 水位                                    |
 
 AIReq 事件和 bootstrap 不提供全局事件水位，不承诺持久重放或跨重启 exactly-once。在线人员快照的 `revision` 只用于在线人员投影排序。
 
 ## 4. CAS 与幂等
 
 - `command` 按 employee/client/operationId 保存回执，摘要包含业务目标（`projectId`／`irId`）与参数，不包含阅读选择或第三参 `expectedRevision`。同 ID 同内容显式重试返回原回执，同 ID 改内容拒绝。普通写入首次接纳时比对 workflow revision。
-- 项目保存与 Skill 预览保存沿各自输入类型的版本／operationId，并非统一全局事务号。
+- `projects.saveRepository` 以当前页快照中的现有项目 ID 为目标，不接收项目名或创建参数。按实际工号、clientId 和 operationId 去重；同 ID 同配置先复用结果，同 ID 不同配置拒绝。`expectedRevision` 不进入摘要，只在首次写入时比对被编辑项目的配置 revision。Skill 预览另用会话、目标、预览 revision 与 operationId，不共享全局事务号。
 - `models.save`、`prompts.save` 只有 expectedRevision，没有 operationId。
 - `skillDesign.saveDraft` 没有请求 CAS／operationId，按提交顺序覆盖可编辑字段，不覆盖会话补充记录。
 
@@ -86,13 +88,15 @@ AIReq 事件和 bootstrap 不提供全局事件水位，不承诺持久重放或
 
 accepted 表示接纳真实转换，不等于后台执行完成；无需变化为 noop，未实现为 rejected 与明确 reasonCode。所有幂等记录仅在当前进程有效。
 
-确认版本不比对 workflow revision：提交预检返回的 `snapshot`，只在相同版本及文件仍未定版时按当前规则复核、固定全部文件并记录确认人及时间。材料漂移或已定版时 RPC 拒绝；快照仍匹配但复核未通过时，`result.documentValidation` 与 `receipt` 同级。评审也不比较 workflow revision，但不提交预检快照，而是捕获接纳时最新已保存材料供独立评审。两者均沿用操作编号去重。
+确认版本不比对 workflow revision：提交预检返回的 `snapshot`，只在相同版本及文件仍未定版时按当前规则复核、固定预检范围内的文件并记录确认人及时间。材料漂移或已定版时 RPC 拒绝；快照仍匹配但复核未通过时，`result.documentValidation` 与 `receipt` 同级。评审也不比较 workflow revision，但不提交预检快照，而是捕获接纳时最新已保存材料供独立评审。两者均沿用操作编号去重。
 
 ## 5. 失效通知与重连
 
 `createRemoteAIReqDataSource` 先订阅 onDidChange，再读 bootstrap 和项目 workspace。读取捕获失效代次，期间有事件则丢弃并补读；初始化失败释放订阅。后续 metadata 刷新单 flight，读取期间再失效则继续补读。
 
 事件只失效投影；错误可见，后续读取可修复。刷新不抢占导航、不覆盖 dirty prompt，保存不能清掉保存期间的新编辑。dispose 与读取代次使迟到响应失效。
+
+`projects.refreshSnapshot` 只在完整云龙目录读取成功时替换该页快照；在途普通读取与失败后的读取仍使用旧快照。首次普通读取可以取得部分成功结果，所选失败项目若没有可用数据则报错。其他页面与自动同步不改变已绑定的快照。`retrySession` 按 `readWorkflow` 同源的页面目录和当前工作流校验目标。空参数 `proposals.syncToRedZone` 在接纳时固定当前页已加载的云龙目录，无目录则拒绝；提交给传输端口时才取当前需求材料。同页在途请求可复用结果，不承诺永久去重或 exactly-once。
 
 连接关闭或出错终结旧 pending 请求。重连替换 accessor、attachment 和订阅，保留同一工号生命周期中的组件挂载、store、正文与附件草稿，重新绑定广播且入站偏好只应用一次。有限退避后可显式重连，退出工号终止旧连接尝试。重连只订阅与重读，不自动重放 create/send/save/confirm mutation。
 

@@ -131,14 +131,13 @@ export interface AIReqProject {
   workDirectory?: string;
 }
 export interface AIReqRemoteRepositoryInput {
-  projectId?: string;
-  name: string;
+  /** 云龙拥有项目名称；这里仅更新已登记项目的仓库配置。 */
+  projectId: string;
   repositoryUrl: string;
   defaultBranch: string;
   workDirectory: string;
-  /** Existing project updates require its editing baseline; creation uses zero. */
-  expectedRevision?: number;
-  operationId?: string;
+  expectedRevision: number;
+  operationId: string;
 }
 export interface AIReqRelease {
   id: string;
@@ -265,14 +264,6 @@ type AIReqIntent = AIReqCommandBase &
   (
     | (AIReqProjectRoleMember & { type: "addProjectRoleMember" | "removeProjectRoleMember" })
     | { type: "saveDocumentFormats"; documentFormats: AIReqDocumentFormats }
-    | { type: "createRelease"; title: string }
-    | {
-        type: "createProposal";
-        originalText: string;
-        clientDraftId?: string;
-        releaseId: string;
-      }
-    | { type: "deleteRequirement"; projectId: string; irId: string }
     | { type: "reviewDocuments"; projectId: string; irId: string; agent: AIReqDiscussionAgent }
     | { type: "confirmDocumentVersion"; projectId: string; irId: string; snapshot: string }
   );

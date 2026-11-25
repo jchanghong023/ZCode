@@ -164,6 +164,7 @@ const priorityColumns: ProposalColumn[] = [
   "developmentOwner",
   "testingOwner",
 ];
+const optionalColumns = new Set(priorityColumns);
 export const compactColumns: ProposalColumn[] = [
   "title",
   "id",
@@ -202,19 +203,20 @@ export function visibleProposalColumns(
   actionsWidth: number,
 ): ProposalColumn[] {
   if (!autoFit) return columns;
-  const optional = new Set(priorityColumns);
+  // 宽度预算按精简列优先级消耗，与已保存的显示顺序无关。
   const baseWidth = columns.reduce(
-    (width, column) => width + (optional.has(column) ? 0 : proposalColumns[column].width),
+    (width, column) => width + (optionalColumns.has(column) ? 0 : proposalColumns[column].width),
     actionsWidth,
   );
   let remaining = availableWidth - baseWidth;
-  return columns.filter((column) => {
-    if (!optional.has(column)) return true;
+  const included = new Set<ProposalColumn>();
+  for (const column of priorityColumns) {
     const width = proposalColumns[column].width;
-    if (remaining < width) return false;
+    if (remaining < width || !columns.includes(column)) continue;
     remaining -= width;
-    return true;
-  });
+    included.add(column);
+  }
+  return columns.filter((column) => !optionalColumns.has(column) || included.has(column));
 }
 
 function isProposalColumn(value: unknown): value is ProposalColumn {
@@ -234,6 +236,8 @@ export function readLegacyProposalPreferences(key: string): ProposalTablePrefere
       (value.sort.direction === "ascending" || value.sort.direction === "descending");
     if (!columns.length) return;
     return {
+      // 保留旧自适应标记，才能区分旧预设和用户明确关闭自适应的列配置。
+      ...(typeof value.autoFit === "boolean" ? { autoFit: value.autoFit } : {}),
       columns,
       sort:
         validSort &&
@@ -388,7 +392,9 @@ export function proposalFilterValues(
     case "release":
       return [item.releaseId];
     case "version":
-      return [item.documentVersion?.confirmation ? "confirmed" : "unconfirmed"];
+      // 无文档与已有但尚未定版的文档是不同的列表状态。
+      if (!item.documentVersion) return [""];
+      return [item.documentVersion.confirmation ? "confirmed" : "unconfirmed"];
     case "process":
       return [item.process ?? ""];
     case "submitter":
@@ -402,7 +408,10 @@ export function proposalFilterValues(
     default: {
       const field = column as keyof NonNullable<AIReqRequirementGroup["cloudFields"]>;
       const value = item.cloudFields?.[field];
-      if (Array.isArray(value)) return value.length ? value : [""];
+      if (Array.isArray(value)) {
+        const values = value.filter((entry) => entry.trim());
+        return values.length ? values : [""];
+      }
       return [String(value ?? "")];
     }
   }
@@ -414,11 +423,14 @@ export function proposalFilterLabel(
   releaseTitles: ReadonlyMap<string, string>,
   zh: boolean,
 ): string {
-  if (!value) return zh ? "未设置" : "Not set";
+  if (!value && column !== "release" && column !== "version") return zh ? "未设置" : "Not set";
   switch (column) {
     case "release":
-      return releaseTitles.get(value) ?? value;
+      // 筛选项保留 PI 作为键；旧条件中已不存在的 PI 也不能回退到内部编号。
+      if (!value) return zh ? "未分配" : "Unassigned";
+      return releaseTitles.get(value)?.trim() || (zh ? "未提供名称" : "Name not provided");
     case "version":
+      if (!value) return zh ? "暂无文档" : "No documents";
       return value === "confirmed" ? (zh ? "已定版" : "Confirmed") : zh ? "未定版" : "Unconfirmed";
     case "process":
       return proposalProcessLabel(value, zh);

@@ -7,7 +7,7 @@ import type {
 import { USER_INSTRUCTIONS_MAX_BYTES } from "../../packages/shared/src/userInstructions.js";
 import { connectST, unique, waitUntil, type STClient } from "./client.js";
 import { config, requireConfig } from "./config.js";
-import { createProject, createProposal } from "./business.js";
+import { requireTestProject, takeRequirement } from "./business.js";
 import { openNative } from "./native.js";
 import {
   completeBusinessMaterial,
@@ -72,60 +72,93 @@ describe("ST project and Agent configuration", () => {
     "applies repository configuration atomically with its own CAS revision",
     async () => {
       await usingClient(async (client) => {
-        const target = await createProject(client);
-        const project = (await client.read(target.selection)).view.projects.find(
-          (item) => item.id === target.projectId,
-        )!;
-        expect(project).toBeDefined();
-        const name = unique("修改项目名称");
-        const repositoryUrl = requireConfig(config.repositoryUrl, "repositoryUrl");
-        await client.call("projects.saveRepository", [
-          {
-            projectId: project.id,
-            name,
-            repositoryUrl,
-            defaultBranch: config.branch,
-            workDirectory: target.workDirectory,
-            expectedRevision: project.revision,
-            operationId: unique("保存项目"),
-          },
-        ]);
-        const changed = (await client.read(target.selection)).view.projects.find(
-          (item) => item.id === project.id,
-        )!;
-        expect(changed).toMatchObject({ name, defaultBranch: config.branch });
-        expect(changed.revision).toBeGreaterThan(project.revision);
-        await expect(
-          client.call("projects.saveRepository", [
-            {
-              projectId: project.id,
-              name: unique("旧版本覆盖"),
-              repositoryUrl,
-              defaultBranch: config.branch,
-              workDirectory: target.workDirectory,
-              expectedRevision: project.revision,
-              operationId: unique("过期项目保存"),
-            },
-          ]),
-        ).rejects.toThrow();
-        await expect(
-          client.call("projects.saveRepository", [
-            {
-              projectId: project.id,
-              name: unique("无效地址不应保存"),
-              repositoryUrl: "javascript:invalid-repository",
-              defaultBranch: config.branch,
-              workDirectory: target.workDirectory,
-              expectedRevision: changed.revision,
-              operationId: unique("无效项目保存"),
-            },
-          ]),
-        ).rejects.toThrow();
-        expect(
-          (await client.read(target.selection)).view.projects.find(
-            (item) => item.id === project.id,
-          ),
-        ).toEqual(changed);
+        const first = await requireTestProject(client);
+        const project =
+          first.repositoryUrl && first.workDirectory
+            ? first
+            : await requireTestProject(client, first.id);
+        const repositoryUrl = requireConfig(
+          project.repositoryUrl,
+          "仓库配置 CAS 要求可回写的专用仓库",
+        );
+        const workDirectory = requireConfig(
+          project.workDirectory,
+          "仓库配置 CAS 要求已配置的工作目录",
+        );
+        const selection = { projectId: project.id };
+        const readProject = async () =>
+          requireConfig(
+            (await client.read(selection)).view.projects.find((item) => item.id === project.id),
+            "公开目录中的测试项目",
+          );
+        const save = {
+          projectId: project.id,
+          repositoryUrl,
+          defaultBranch: unique("st-repository-cas"),
+          workDirectory,
+          expectedRevision: project.revision,
+          operationId: unique("save-project-repository"),
+        };
+        const changed = {
+          ...project,
+          defaultBranch: save.defaultBranch,
+          revision: project.revision + 1,
+        };
+        let saved = false;
+        try {
+          const result = await client.call("projects.saveRepository", [save]);
+          saved = true;
+          expect(result).toBeNull();
+          // 项目名称由云龙持有；本地保存只改变指定项目的配置 revision 和代码入口。
+          expect(await readProject()).toEqual(changed);
+          // 重试可带旧的或重读后的 CAS 基线；只要设置相同，就不重复提交。
+          expect(await client.call("projects.saveRepository", [save])).toBe(result);
+          expect(
+            await client.call("projects.saveRepository", [
+              { ...save, expectedRevision: changed.revision },
+            ]),
+          ).toBe(result);
+          await expect(
+            client.call("projects.saveRepository", [
+              { ...save, defaultBranch: project.defaultBranch, expectedRevision: changed.revision },
+            ]),
+          ).rejects.toThrow("操作编号不能复用于不同输入");
+          await expect(
+            client.call("projects.saveRepository", [
+              { ...save, defaultBranch: project.defaultBranch, operationId: unique("stale-save") },
+            ]),
+          ).rejects.toThrow("项目配置已变化");
+          const anotherWrite = { ...save, expectedRevision: changed.revision };
+          await expect(
+            client.call("projects.saveRepository", [
+              {
+                ...anotherWrite,
+                repositoryUrl: "javascript:invalid-repository",
+                operationId: unique("invalid-repository"),
+              },
+            ]),
+          ).rejects.toThrow("请输入 Git 远程仓库地址");
+          await expect(
+            client.services.aiReqService.call(client.identity, "projects.saveRepository", [
+              { ...anotherWrite, name: unique("forbidden-name"), operationId: unique("rename") },
+            ] as never),
+          ).rejects.toThrow("操作参数无效");
+          expect(await readProject()).toEqual(changed);
+        } finally {
+          if (saved) {
+            // 只按已记录的精确版本和值复原，不能把重读到的其他写入当成本例所有。
+            expect(await readProject(), "项目配置被并发修改，拒绝覆盖").toEqual(changed);
+            await client.call("projects.saveRepository", [
+              {
+                ...save,
+                defaultBranch: project.defaultBranch,
+                expectedRevision: changed.revision,
+                operationId: unique("restore-project-repository"),
+              },
+            ]);
+            expect(await readProject()).toEqual({ ...project, revision: changed.revision + 1 });
+          }
+        }
       });
     },
     config.timeoutMs,
@@ -136,7 +169,7 @@ describe("ST project and Agent configuration", () => {
     async () => {
       await usingClient(async (client) => {
         const original = (await client.bootstrap()).models;
-        const before = await createProposal(client);
+        const before = await takeRequirement(client, { unboundPhase: "requirements" });
         const originalBinding = before.remote.session?.modelConfig;
         expect(originalBinding?.role).toBe("requirements");
         const alternative = requireConfig(
@@ -174,12 +207,12 @@ describe("ST project and Agent configuration", () => {
         });
         try {
           await client.call("models.save", [modelWriteInput(shared), original.revision]);
-          owned = (await client.bootstrap()).models;
-          expect(owned.settings).toEqual(shared);
+          owned = { ...original, revision: original.revision + 1, settings: shared };
+          expect((await client.bootstrap()).models).toEqual(owned);
           await client.call("models.save", [modelWriteInput(next), owned.revision]);
-          // Bootstrap is the public post-commit verification and the only restore baseline.
-          owned = (await client.bootstrap()).models;
-          expect(owned.settings).toEqual(next);
+          // 公共保存不返回版本；只恢复由 CAS 基线和本次写入确定的值，不认领并发写入。
+          owned = { ...owned, revision: owned.revision + 1, settings: next };
+          expect((await client.bootstrap()).models).toEqual(owned);
           expect(owned.revision).toBeGreaterThan(original.revision);
           await waitUntil(
             "模型保存后的通知与配置重读",
@@ -213,7 +246,8 @@ describe("ST project and Agent configuration", () => {
             ).rejects.toThrow("操作参数无效，请检查输入并重试。");
           }
           expect((await client.bootstrap()).models).toEqual(owned);
-          const after = await createProposal(client);
+          // 目录读取不会绑定讨论配置，保存后才首次打开另一专用 IR 的需求阶段。
+          const after = await takeRequirement(client, { unboundPhase: "requirements" });
           const requirementsAgent = next.agents.find((agent) => agent.id === "requirements")!;
           expect(after.remote.session?.modelConfig).toEqual({
             role: "requirements",
@@ -261,7 +295,7 @@ describe("ST project and Agent configuration", () => {
         const initial = await client.bootstrap();
         const original = initial.prompts;
         const role = "requirements-review";
-        const before = await createProposal(client);
+        const before = await takeRequirement(client, { unboundPhase: "requirements" });
         await completeBusinessMaterial(client, before);
         const { review: historical } = await reviewDocuments(client, before, "requirements");
         const next = { ...original.saved, [role]: unique("追加指令：必须核对验收依据") };
@@ -272,8 +306,8 @@ describe("ST project and Agent configuration", () => {
         });
         try {
           await client.call("prompts.save", [next, original.revision]);
-          owned = (await client.bootstrap()).prompts;
-          expect(owned.saved).toEqual(next);
+          owned = { ...original, revision: original.revision + 1, saved: next };
+          expect((await client.bootstrap()).prompts).toEqual(owned);
           // 草稿属于浏览器，bootstrap 只返回已保存指令及版本。
           expect(owned).not.toHaveProperty("draft");
           expect(owned.revision).toBeGreaterThan(original.revision);

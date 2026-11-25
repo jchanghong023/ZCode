@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { IServiceAccessor } from "../../packages/services/src/index.js";
 import {
   AIREQ_CONTRACT_VERSION,
+  AIREQ_ROLE_ADMINISTRATOR,
   type AIReqAgentModelSettings,
   type AIReqIdentity,
   type AIReqRemoteBootstrap,
@@ -17,6 +18,7 @@ import { createRemoteAIReqDataSource } from "../../packages/ui/src/aireq/shell/r
 // Expectations follow connection-identity.md §4–5: explicit targets, invalidation,
 // unsaved edits and disposal belong to the frontend independently of the backend.
 const identity: AIReqIdentity = { employeeId: "a12345678", clientId: "browser-a" };
+const admin = { ...identity, employeeId: AIREQ_ROLE_ADMINISTRATOR };
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -37,7 +39,7 @@ function bootstrap(revision = 1): AIReqRemoteBootstrap {
     contractVersion: AIREQ_CONTRACT_VERSION,
     backend: { id: "backend-a" },
     capabilities: {
-      workflowCommands: ["createProposal"],
+      workflowCommands: ["addProjectRoleMember"],
     },
     initialProjectId: "project-a",
     models: { choices: [], settings: { defaultModel: `model-${revision}`, agents: [] }, revision },
@@ -72,8 +74,17 @@ function workflow(projectId: string, revision = 1): AIReqRemoteWorkflow {
   };
 }
 
-function requestedWorkflow(args: unknown[]) {
-  return workflow((args[0] as AIReqWorkflowTarget | undefined)?.projectId ?? "project-a");
+function requestedWorkflow(args: unknown[], revision = 1) {
+  return workflow((args[0] as AIReqWorkflowTarget | undefined)?.projectId ?? "project-a", revision);
+}
+
+function addTestingMember(projectId: string) {
+  return {
+    type: "addProjectRoleMember",
+    projectId,
+    employeeId: "b12345678",
+    role: "testing",
+  } as const;
 }
 
 function serviceDouble() {
@@ -276,13 +287,162 @@ describe("AIReq frontend data source", () => {
     }
   });
 
+  it("reads the committed catalogue for notifications and project switches without holding an older read", async () => {
+    const remote = serviceDouble();
+    const oldWorkflow = deferred<AIReqRemoteWorkflow>();
+    const wireRefresh = deferred<AIReqRemoteWorkflow>();
+    const refreshStarted = deferred<void>();
+    const notified = deferred<AIReqRemoteWorkflow["view"]>();
+    const original = { projectId: "project-a" };
+    const other = { projectId: "project-b" };
+    let selected = original;
+    let catalogueRevision = 1;
+    remote.call.mockImplementation(async (_identity, path, args) => {
+      if (path === "projects.refreshSnapshot") {
+        refreshStarted.resolve();
+        return wireRefresh.promise;
+      }
+      const { projectId } = args[0] as AIReqWorkflowTarget;
+      return projectId === original.projectId
+        ? oldWorkflow.promise
+        : requestedWorkflow(args, catalogueRevision);
+    });
+    const source = await createRemoteAIReqDataSource(remote.services, identity);
+    const stop = source.subscribeWorkflow(() => {
+      void source.readWorkflow(selected).then(notified.resolve, notified.reject);
+    });
+    try {
+      const oldRead = source.readWorkflow(original);
+      const refresh = source.refreshProjects(original);
+      await refreshStarted.promise;
+      remote.emit({ type: "workflow" });
+      selected = other;
+      const switched = source.readWorkflow(other);
+
+      oldWorkflow.resolve(workflow(original.projectId));
+      expect((await oldRead).revision).toBe(1);
+      expect(remote.readBootstrap).toHaveBeenCalledTimes(1);
+      expect(remote.call.mock.calls.filter(([, path]) => path === "readWorkflow")).toHaveLength(1);
+
+      catalogueRevision = 2;
+      remote.metadata.current = {
+        ...bootstrap(2),
+        projects: { workspaces: { [other.projectId]: workspace(other.projectId) } },
+      };
+      wireRefresh.resolve(workflow(original.projectId, catalogueRevision));
+      const [refreshView, switchedView, notifiedView] = await Promise.all([
+        refresh,
+        switched,
+        notified.promise,
+      ]);
+      expect(refreshView.revision).toBe(2);
+      for (const view of [switchedView, notifiedView]) {
+        expect(view.revision).toBe(2);
+        expect(source.resolveWorkspace(view, other)).toEqual(workspace(other.projectId));
+      }
+      expect(source.projects!.readDevelopmentRoot(other.projectId)).toBe("/project-b");
+      expect(
+        remote.call.mock.calls.filter(([, path]) => path === "projects.refreshSnapshot"),
+      ).toHaveLength(1);
+    } finally {
+      stop();
+      await source.dispose();
+    }
+  });
+
+  it("keeps ordinary reads on the previous catalogue when the explicit refresh is rejected", async () => {
+    const remote = serviceDouble();
+    const wireRefresh = deferred<AIReqRemoteWorkflow>();
+    const refreshStarted = deferred<void>();
+    remote.call.mockImplementation(async (_identity, path, args) => {
+      if (path === "projects.refreshSnapshot") {
+        refreshStarted.resolve();
+        return wireRefresh.promise;
+      }
+      return requestedWorkflow(args);
+    });
+    const source = await createRemoteAIReqDataSource(remote.services, identity);
+    try {
+      const failure = new Error("cloud catalogue unavailable");
+      const rejected = expect(source.refreshProjects({ projectId: "project-a" })).rejects.toBe(
+        failure,
+      );
+      await refreshStarted.promise;
+      const switched = source.readWorkflow({ projectId: "project-b" });
+      expect(remote.call.mock.calls.filter(([, path]) => path === "readWorkflow")).toHaveLength(0);
+      wireRefresh.reject(failure);
+      await rejected;
+      expect((await switched).revision).toBe(1);
+      expect(source.projects!.readDevelopmentRoot("project-a")).toBe("/project-a");
+    } finally {
+      await source.dispose();
+    }
+  });
+
+  it("reports a committed refresh with failed metadata and retries reads without resending the write", async () => {
+    const remote = serviceDouble();
+    const wireRefresh = deferred<AIReqRemoteWorkflow>();
+    const metadataRead = deferred<AIReqRemoteBootstrap>();
+    const metadataStarted = deferred<void>();
+    const target = { projectId: "project-a" };
+    let catalogueRevision = 1;
+    remote.call.mockImplementation(async (_identity, path, args) =>
+      path === "projects.refreshSnapshot"
+        ? wireRefresh.promise
+        : requestedWorkflow(args, catalogueRevision),
+    );
+    const source = await createRemoteAIReqDataSource(remote.services, identity);
+    try {
+      const oldView = await source.readWorkflow(target);
+      remote.readBootstrap.mockImplementationOnce(() => {
+        metadataStarted.resolve();
+        return metadataRead.promise;
+      });
+      const failure = new Error("bootstrap unavailable");
+      const metadataFailure = {
+        message: "项目目录已刷新，但页面配置读取失败，请重试读取。",
+        code: "BUSINESS_RULE_VIOLATION",
+        cause: failure,
+      };
+      const refreshing = expect(source.refreshProjects(target)).rejects.toMatchObject(
+        metadataFailure,
+      );
+      catalogueRevision = 2;
+      wireRefresh.resolve(workflow(target.projectId, catalogueRevision));
+      await metadataStarted.promise;
+      const switched = expect(
+        source.readWorkflow({ projectId: "project-b" }),
+      ).rejects.toMatchObject(metadataFailure);
+      metadataRead.reject(failure);
+      await Promise.all([refreshing, switched]);
+      expect(oldView.revision).toBe(1);
+      expect(source.projects!.readDevelopmentRoot("project-a")).toBe("/project-a");
+      expect(remote.call.mock.calls.filter(([, path]) => path === "readWorkflow")).toHaveLength(1);
+
+      remote.metadata.current = {
+        ...bootstrap(2),
+        projects: { workspaces: { "project-b": workspace("project-b") } },
+      };
+      const retried = await source.readWorkflow({ projectId: "project-b" });
+      expect(retried.revision).toBe(2);
+      expect(source.projects!.readDevelopmentRoot("project-b")).toBe("/project-b");
+      expect(source.projects!.readDevelopmentRoot("project-a")).toBeUndefined();
+      expect(
+        remote.call.mock.calls.filter(([, path]) => path === "projects.refreshSnapshot"),
+      ).toHaveLength(1);
+    } finally {
+      await source.dispose();
+    }
+  });
+
   it("keeps the command target, operation ID and CAS baseline when only navigation changes", async () => {
     const remote = serviceDouble();
     const receipt: AIReqWorkflowResult = {
       projectId: "project-a",
       receipt: {
-        operationId: "create-proposal-1",
-        type: "createProposal",
+        operationId: "add-testing-member-1",
+        actorEmployeeId: admin.employeeId,
+        type: "addProjectRoleMember",
         status: "completed",
         startedAt: "2026-11-17T00:00:00Z",
         revision: 8,
@@ -291,13 +451,11 @@ describe("AIReq frontend data source", () => {
     remote.call.mockImplementation(async (_identity, path, args) =>
       path === "command" ? receipt : requestedWorkflow(args),
     );
-    const source = await createRemoteAIReqDataSource(remote.services, identity);
+    const source = await createRemoteAIReqDataSource(remote.services, admin);
     try {
       const action = {
-        type: "createProposal" as const,
-        releaseId: "release-a",
-        originalText: "Export reports",
-        operationId: "create-proposal-1",
+        ...addTestingMember("project-a"),
+        operationId: "add-testing-member-1",
         expectedRevision: 7,
       };
       const ids = { projectId: "project-a", irId: "ir-a" };
@@ -322,20 +480,16 @@ describe("AIReq frontend data source", () => {
       ).toStrictEqual(
         Array.from({ length: 2 }, () => [
           {
-            type: "createProposal",
-            releaseId: "release-a",
-            originalText: "Export reports",
-            operationId: "create-proposal-1",
+            ...addTestingMember("project-a"),
+            operationId: "add-testing-member-1",
           },
           ids,
           7,
         ]),
       );
       expect(action).toEqual({
-        type: "createProposal",
-        releaseId: "release-a",
-        originalText: "Export reports",
-        operationId: "create-proposal-1",
+        ...addTestingMember("project-a"),
+        operationId: "add-testing-member-1",
         expectedRevision: 7,
       });
     } finally {
@@ -345,26 +499,18 @@ describe("AIReq frontend data source", () => {
 
   it("assigns an operation identity and current revision to a new user action without mutating it", async () => {
     const remote = serviceDouble();
-    const source = await createRemoteAIReqDataSource(remote.services, identity);
+    const source = await createRemoteAIReqDataSource(remote.services, admin);
     try {
-      const action = {
-        type: "createProposal" as const,
-        releaseId: "release-a",
-        originalText: "Export reports",
-      };
+      const action = addTestingMember("project-b");
       await source.command(action, { projectId: "project-b" }, 31);
       const command = remote.call.mock.calls.find(([, path]) => path === "command");
       expect(command).toEqual([
-        identity,
+        admin,
         "command",
         [{ ...action, operationId: expect.any(String) }, { projectId: "project-b" }, 31],
       ]);
       expect((command![2][0] as { operationId: string }).operationId.trim()).not.toBe("");
-      expect(action).toEqual({
-        type: "createProposal",
-        releaseId: "release-a",
-        originalText: "Export reports",
-      });
+      expect(action).toEqual(addTestingMember("project-b"));
     } finally {
       await source.dispose();
     }
@@ -447,11 +593,7 @@ describe("AIReq frontend data source", () => {
     remote.emit({ type: "workflow" });
     const callsBeforeWrite = remote.call.mock.calls.length;
     await expect(
-      source.command(
-        { type: "createProposal", releaseId: "release-a", originalText: "must not send" },
-        {},
-        1,
-      ),
+      source.command(addTestingMember("project-a"), { projectId: "project-a" }, 1),
     ).rejects.toThrow("连接已关闭");
     expect(remote.call.mock.calls).toHaveLength(callsBeforeWrite);
   });

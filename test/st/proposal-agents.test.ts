@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { createProject, createProposal, createProposalIn } from "./business.js";
-import { connectST, unique, waitUntil } from "./client.js";
+import type { AIReqProjectRoleMember } from "@zcode/services/aireq";
+import { requireTestProject, takeRequirement } from "./business.js";
+import { connectST, unique, waitUntil, type STClient } from "./client.js";
 import { config, requireConfig } from "./config.js";
 import { openNative } from "./native.js";
 import {
@@ -14,6 +15,22 @@ import {
   reviewDocuments,
 } from "./proposal-flow.js";
 
+async function grantProjectRole(
+  admin: STClient,
+  selection: { projectId: string; irId: string },
+  member: AIReqProjectRoleMember,
+) {
+  const added = await admin.command({ type: "addProjectRoleMember", ...member }, selection);
+  expect(added.receipt.status, added.receipt.error).toBe("completed");
+  let granted = true;
+  return async () => {
+    if (!granted) return;
+    granted = false;
+    const removed = await admin.command({ type: "removeProjectRoleMember", ...member }, selection);
+    expect(removed.receipt.status, removed.receipt.error).toBe("completed");
+  };
+}
+
 describe("co-creation agents through the public API", () => {
   it(
     "isolates discussion history between roles and IRs in one Release, and enforces project membership",
@@ -21,16 +38,48 @@ describe("co-creation agents through the public API", () => {
       const business = await connectST();
       const tester = await connectST(config.testerEmployeeId);
       const admin = await connectST("y00000000");
+      let revoke: (() => Promise<void>) | undefined;
       try {
-        expect(business.identity.employeeId).not.toBe(tester.identity.employeeId);
-        const target = await createProposal(business);
-        const sibling = await createProposalIn(business, target, "同版本中的另一条需求");
+        expect(
+          new Set([business, tester, admin].map(({ identity }) => identity.employeeId)).size,
+        ).toBe(3);
+        const target = await takeRequirement(business, {
+          requireRelease: true,
+          requireSibling: true,
+        });
+        // 云龙目录不能由 ST 新建 IR；同版本隔离必须占用两条已预备的不同 IR。
+        const sibling = await takeRequirement(business, {
+          projectId: target.projectId,
+          releaseId: target.releaseId,
+        });
         expect(sibling.irId).not.toBe(target.irId);
         expect(getProposal(sibling.remote, sibling).releaseId).toBe(target.releaseId);
-        const other = await createProject(business);
+        // 另一项目只做错配读取，不占用其 IR，也不修改其配置。
+        const hasOtherFixture = config.fixtures.projects?.some(
+          ({ projectId }) => projectId !== target.projectId,
+        );
+        const other = hasOtherFixture
+          ? await requireTestProject(business, target.projectId)
+          : requireConfig(
+              target.remote.view.projects.find(({ id }) => id !== target.projectId),
+              "用于会话错配读取的另一云龙项目",
+            );
         const selection = proposalSelection(target);
         const requirements = { ...selection, discussionPhase: "requirements" } as const;
         const solution = { ...selection, discussionPhase: "solution" } as const;
+        const projectRoles = (remote: typeof target.remote) =>
+          remote.view.projectRoleMembers.filter(({ projectId }) => projectId === target.projectId);
+        const baselineRoles = projectRoles(target.remote);
+        // 撤回测试角色后还拥有开发角色会继续有权进入方案 Agent，因而不能作为隔离夹具。
+        if (
+          baselineRoles.some(
+            ({ employeeId }) =>
+              employeeId === business.identity.employeeId ||
+              employeeId === tester.identity.employeeId,
+          )
+        ) {
+          throw new Error("ST 前置阻塞：会话隔离夹具项目的业务及测试工号必须没有预置项目角色");
+        }
         const initial = await business.read(requirements);
         const irSession = requireConfig(initial.session, "需求讨论会话");
         expect(irSession.phase).toBe("requirements");
@@ -42,9 +91,9 @@ describe("co-creation agents through the public API", () => {
           employeeId: tester.identity.employeeId,
           role: "testing",
         } as const;
-        const added = await admin.command({ type: "addProjectRoleMember", ...member }, selection);
-        expect(added.receipt.status, added.receipt.error).toBe("completed");
+        revoke = await grantProjectRole(admin, selection, member);
         const allowed = await tester.read(solution);
+        expect(projectRoles(allowed)).toEqual([...baselineRoles, member]);
         const srSession = requireConfig(allowed.session, "测试成员的方案讨论会话");
         expect(srSession).toMatchObject({
           projectId: target.projectId,
@@ -56,20 +105,39 @@ describe("co-creation agents through the public API", () => {
           openNative(business, allowed).then((session) => session.close()),
         ).rejects.toThrow();
         expect((await business.read(solution)).session).toBeUndefined();
-        expect(
-          (await tester.read({ ...solution, projectId: other.projectId })).session,
-        ).toBeUndefined();
+        expect((await tester.read({ ...solution, projectId: other.id })).session).toBeUndefined();
 
         const reqText = unique("请补充登录前不可导出的验收条件");
         const solutionText = unique("请补充服务端测试数据隔离");
         const siblingText = unique("请补充审计追踪的验收条件");
         await discuss(tester, target, solutionText, "solution");
         const solutionFirst = await tester.read(solution);
-        expect(getProposal(solutionFirst, target).documentVersion).toEqual({ number: 1 });
-        expect(getMaterials(solutionFirst, target).some((file) => file.kind === "solution")).toBe(
-          true,
+        const srsFor = (remote: typeof target.remote, { projectId, irId }: typeof selection) =>
+          remote.view.srs.filter((sr) => sr.projectId === projectId && sr.irId === irId);
+        const solutionGroup = getProposal(solutionFirst, target);
+        expect(solutionGroup.documentVersion).toEqual({ number: 1 });
+        expect(solutionGroup.srIds.length).toBeGreaterThan(0);
+        expect(
+          srsFor(solutionFirst, target)
+            .map(({ id }) => id)
+            .sort(),
+        ).toEqual([...solutionGroup.srIds].sort());
+        const solutionMaterials = getMaterials(solutionFirst, target);
+        expect(solutionMaterials).toContainEqual(
+          expect.objectContaining({ srId: solutionGroup.srIds[0] }),
         );
+        expect(solutionMaterials.some((file) => file.kind === "solution")).toBe(true);
+        const siblingAfterSolution = await business.read(sibling.selection);
+        expect(siblingAfterSolution.session).toEqual(sibling.remote.session);
+        expect(getProposal(siblingAfterSolution, sibling)).toEqual(
+          getProposal(sibling.remote, sibling),
+        );
+        expect(getMaterials(siblingAfterSolution, sibling)).toEqual(
+          getMaterials(sibling.remote, sibling),
+        );
+        expect(srsFor(siblingAfterSolution, sibling)).toEqual(srsFor(sibling.remote, sibling));
         await discuss(business, target, reqText);
+        const beforeSiblingEdit = await business.read(requirements);
         await discuss(business, sibling, siblingText);
         const readHistory = async (actor: typeof business, remote: typeof initial) => {
           const native = await openNative(actor, remote);
@@ -85,7 +153,15 @@ describe("co-creation agents through the public API", () => {
         const requirementsRemote = await business.read(requirements);
         const solutionRemote = await tester.read(solution);
         const siblingRemote = await business.read(sibling.selection);
-        expect(siblingRemote.session).toMatchObject({ ...sibling.selection, phase: "requirements" });
+        expect(getMaterials(siblingRemote, sibling).length).toBeGreaterThan(0);
+        expect(getMaterials(requirementsRemote, target)).toEqual(
+          getMaterials(beforeSiblingEdit, target),
+        );
+        expect(srsFor(requirementsRemote, target)).toEqual(srsFor(beforeSiblingEdit, target));
+        expect(siblingRemote.session).toMatchObject({
+          ...sibling.selection,
+          phase: "requirements",
+        });
         const siblingSession = requireConfig(siblingRemote.session, "旁路需求讨论会话");
         expect(
           new Set([irSession.sessionId, srSession.sessionId, siblingSession.sessionId]).size,
@@ -119,17 +195,18 @@ describe("co-creation agents through the public API", () => {
         expect(await readHistory(tester, repaired)).toEqual(beforeRetry);
         expect(await readHistory(tester, await tester.read(solution))).toEqual(solutionHistory);
 
-        const removed = await admin.command(
-          { type: "removeProjectRoleMember", ...member },
-          selection,
-        );
-        expect(removed.receipt.status, removed.receipt.error).toBe("completed");
+        await revoke();
         expect((await tester.read(solution)).session).toBeUndefined();
         const stillReadable = await tester.read(requirements);
+        expect(projectRoles(stillReadable)).toEqual(baselineRoles);
         expect(stillReadable.session?.sessionId).toBe(irSession.sessionId);
         expect(getMaterials(stillReadable, target).length).toBeGreaterThan(0);
       } finally {
-        await Promise.all([business.close(), tester.close(), admin.close()]);
+        try {
+          await revoke?.();
+        } finally {
+          await Promise.all([business.close(), tester.close(), admin.close()]);
+        }
       }
     },
     config.timeoutMs,
@@ -141,18 +218,29 @@ describe("co-creation agents through the public API", () => {
       const business = await connectST();
       const developer = await connectST(config.otherEmployeeId);
       const admin = await connectST("y00000000");
+      let revoke: (() => Promise<void>) | undefined;
       try {
-        const target = await createProposal(business);
+        expect(
+          new Set([business, developer, admin].map(({ identity }) => identity.employeeId)).size,
+        ).toBe(3);
+        const target = await takeRequirement(business);
         const selection = proposalSelection(target);
-        await admin.command(
-          {
-            type: "addProjectRoleMember",
-            projectId: target.projectId,
-            employeeId: developer.identity.employeeId,
-            role: "development",
-          },
-          selection,
-        );
+        // 评审需要业务工号没有方案权限，并由本例授予开发角色后执行独立评审。
+        if (
+          target.remote.view.projectRoleMembers.some(
+            ({ projectId, employeeId }) =>
+              projectId === target.projectId &&
+              (employeeId === business.identity.employeeId ||
+                employeeId === developer.identity.employeeId),
+          )
+        ) {
+          throw new Error("ST 前置阻塞：评审夹具项目的业务及开发工号必须没有预置项目角色");
+        }
+        revoke = await grantProjectRole(admin, selection, {
+          projectId: target.projectId,
+          employeeId: developer.identity.employeeId,
+          role: "development",
+        });
         await completeBusinessMaterial(business, target);
         const withSolution = await completeSolutionMaterial(developer, target);
         const initial = getProposal(withSolution, target);
@@ -255,7 +343,11 @@ describe("co-creation agents through the public API", () => {
         });
         expect(getMaterials(reviewed, target)).toEqual(getMaterials(changed, target));
       } finally {
-        await Promise.all([business.close(), developer.close(), admin.close()]);
+        try {
+          await revoke?.();
+        } finally {
+          await Promise.all([business.close(), developer.close(), admin.close()]);
+        }
       }
     },
     config.timeoutMs,

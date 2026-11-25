@@ -1,17 +1,19 @@
-import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AIREQ_THEMES, DEFAULT_AIREQ_THEME } from "@zcode/shared";
 import type { WebBroadcastMessage, WebBroadcastService } from "@zcode/services";
 import { createZCodeStore } from "../../packages/ui/src/store/index.js";
 
-const html = readFileSync(new URL("../../packages/web/index.html", import.meta.url), "utf8");
+// AIReq 网页入口显式传入钴蓝日间，不使用通用 store 的默认动效主题。
+const AIREQ_STORE_OPTIONS = { initialTheme: DEFAULT_AIREQ_THEME };
+
 function openBrowser(saved: string | null = null) {
   const localStorage = {
     getItem: vi.fn((key: string) => (key === "zcode-theme" ? saved : null)),
     setItem: vi.fn(),
   };
   const classes = new Set<string>();
-  const attributes = new Map([["data-zcode-browser-theme-surface", "dark"]]);
+  const surfaceAttribute = "data-zcode-browser-theme-surface";
+  const attributes = new Map([[surfaceAttribute, "dark"]]);
   const root = {
     classList: {
       toggle: (name: string, enabled: boolean) => {
@@ -34,12 +36,36 @@ function openBrowser(saved: string | null = null) {
   vi.stubGlobal("getComputedStyle", () => ({ getPropertyValue: () => "" }));
   return {
     localStorage,
-    classes,
     appearance: () => ({
       scheme: root.style.colorScheme,
-      motion: classes.has("theme-zai-motion"),
+      surface: attributes.get(surfaceAttribute),
+      classes,
     }),
   };
+}
+
+function expectRootTheme(
+  browser: ReturnType<typeof openBrowser>,
+  scheme: "light" | "dark",
+  ...themeClasses: string[]
+) {
+  expect(browser.appearance()).toEqual({
+    scheme,
+    surface: scheme,
+    classes: new Set([
+      `theme-zai-${scheme}`,
+      ...(scheme === "dark" ? ["dark"] : []),
+      ...themeClasses,
+    ]),
+  });
+}
+
+function expectCobaltDay(
+  store: ReturnType<typeof createZCodeStore>,
+  browser: ReturnType<typeof openBrowser>,
+) {
+  expect(store.getState().theme).toBe("aireq-cobalt");
+  expectRootTheme(browser, "light", "theme-aireq-cobalt", "theme-aireq-color");
 }
 
 function connection() {
@@ -61,74 +87,94 @@ function connection() {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("browser theme preference", () => {
-  it("starts the AIReq browser surface in Cobalt Day before React loads", () => {
-    const root = html.match(/<html\b[^>]*>/)?.[0];
-    expect(root).toContain('class="theme-zai-light theme-aireq-cobalt theme-aireq-color"');
-    expect(root).toContain('data-zcode-browser-theme-surface="light"');
-    expect(root).toContain('style="color-scheme: light');
+  it("keeps the generic store's motion default when no initial theme is provided", () => {
+    const browser = openBrowser();
+    const store = createZCodeStore(connection().service);
+    expect(store.getState().theme).toBe("zai-motion");
+    expectRootTheme(browser, "dark", "theme-zai-motion");
   });
 
   it("applies only the chosen AIReq palette and restores the default on a fresh load", () => {
     const browser = openBrowser();
-    const options = { initialTheme: DEFAULT_AIREQ_THEME };
-    const store = createZCodeStore(connection().service, options);
-    expect(store.getState().theme).toBe("aireq-cobalt");
+    const store = createZCodeStore(connection().service, AIREQ_STORE_OPTIONS);
+    expectCobaltDay(store, browser);
     for (const theme of AIREQ_THEMES) {
       store.getState().setTheme(theme);
-      expect(AIREQ_THEMES.filter((name) => browser.classes.has(`theme-${name}`))).toEqual([theme]);
-      expect(browser.appearance().scheme).toBe(theme === "aireq-aurora" ? "dark" : "light");
+      expect(store.getState().theme).toBe(theme);
+      expectRootTheme(
+        browser,
+        theme === "aireq-aurora" ? "dark" : "light",
+        `theme-${theme}`,
+        "theme-aireq-color",
+      );
     }
-    expect(createZCodeStore(connection().service, options).getState().theme).toBe("aireq-cobalt");
-    expect(browser.classes.has("theme-aireq-aurora")).toBe(false);
+    expectCobaltDay(createZCodeStore(connection().service, AIREQ_STORE_OPTIONS), browser);
   });
 
   it.each([null, "light", "zai-dark", "system"])(
-    "ignores the old browser preference %s",
+    "starts AIReq in Cobalt Day without reading the old browser preference %s",
     (saved) => {
       const browser = openBrowser(saved);
-      const store = createZCodeStore(connection().service);
-      expect(store.getState().theme).toBe("zai-motion");
-      expect(browser.appearance()).toEqual({ scheme: "dark", motion: true });
+      const store = createZCodeStore(connection().service, AIREQ_STORE_OPTIONS);
+      expectCobaltDay(store, browser);
       expect(browser.localStorage.getItem).not.toHaveBeenCalledWith("zcode-theme");
     },
   );
 
-  it("mirrors a session theme without saving or rebroadcasting it", () => {
+  it("mirrors an incoming session theme in AIReq without saving or rebroadcasting it", () => {
     const browser = openBrowser();
     const client = connection();
-    const store = createZCodeStore(client.service);
+    const store = createZCodeStore(client.service, AIREQ_STORE_OPTIONS);
+    expectCobaltDay(store, browser);
     const disconnect = store.connectBroadcastService(client.service);
     client.receiveTheme("light");
-    expect(browser.appearance()).toEqual({ scheme: "light", motion: false });
+    expect(store.getState().theme).toBe("zai-light");
+    expectRootTheme(browser, "light");
+    expect(browser.localStorage.setItem).not.toHaveBeenCalledWith("zcode-theme", expect.anything());
     expect(client.service.send).not.toHaveBeenCalled();
     disconnect();
-    expect(createZCodeStore(connection().service).getState().theme).toBe("zai-motion");
-    expect(browser.appearance()).toEqual({ scheme: "dark", motion: true });
+    expectCobaltDay(createZCodeStore(connection().service, AIREQ_STORE_OPTIONS), browser);
   });
 
   it.each([
     ["zai-light", "light"],
     ["zai-dark", "dark"],
     ["system", "light"],
+    ["aireq-aurora", "dark", ["theme-aireq-aurora", "theme-aireq-color"]],
   ] as const)(
-    "keeps the current page's %s choice on reconnect and resets on a new load",
-    (theme, scheme) => {
+    "keeps AIReq's %s choice on reconnect and resets on a new load",
+    (theme, scheme, themeClasses: readonly string[] = []) => {
       const browser = openBrowser("light");
       const initial = connection();
-      const store = createZCodeStore(initial.service);
+      const store = createZCodeStore(initial.service, AIREQ_STORE_OPTIONS);
+      expectCobaltDay(store, browser);
       const disconnect = store.connectBroadcastService(initial.service);
       store.getState().setTheme(theme);
-      expect(browser.appearance()).toEqual({ scheme, motion: false });
-      expect(browser.localStorage.setItem).not.toHaveBeenCalledWith("zcode-theme", theme);
+      expect(store.getState().theme).toBe(theme);
+      expectRootTheme(browser, scheme, ...themeClasses);
+      expect(initial.service.send.mock.calls).toEqual([
+        [{ channel: "state:theme", payload: theme }],
+      ]);
       disconnect();
       const reconnected = connection();
       const disconnectReconnected = store.connectBroadcastService(reconnected.service);
       reconnected.receiveTheme("zai-motion");
       expect(store.getState().theme).toBe(theme);
-      expect(browser.appearance()).toEqual({ scheme, motion: false });
+      expectRootTheme(browser, scheme, ...themeClasses);
+      expect(reconnected.service.send).not.toHaveBeenCalled();
+      store.getState().setTheme("aireq-violet");
+      expect(store.getState().theme).toBe("aireq-violet");
+      expectRootTheme(browser, "light", "theme-aireq-violet", "theme-aireq-color");
+      expect(reconnected.service.send.mock.calls).toEqual([
+        [{ channel: "state:theme", payload: "aireq-violet" }],
+      ]);
+      expect(initial.service.send).toHaveBeenCalledTimes(1);
+      expect(browser.localStorage.setItem).not.toHaveBeenCalledWith(
+        "zcode-theme",
+        expect.anything(),
+      );
       disconnectReconnected();
-      expect(createZCodeStore(connection().service).getState().theme).toBe("zai-motion");
-      expect(browser.appearance()).toEqual({ scheme: "dark", motion: true });
+      expectCobaltDay(createZCodeStore(connection().service, AIREQ_STORE_OPTIONS), browser);
     },
   );
 });

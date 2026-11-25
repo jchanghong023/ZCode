@@ -39,7 +39,8 @@ export function AIReqProjectDocumentsPage({
               ai.view?.releases.filter((item) => item.projectId === project.id) ?? [];
             const releaseReadFailed = ai.view?.releaseReadFailures?.includes(project.id);
             const counts = ai.view?.projectRequirementCounts?.[project.id];
-            const showCounts = !releaseReadFailed && !ai.error;
+            // 刷新失败时 Shell 报错且保留原快照；只有快照内读取失败的项目不显示统计。
+            const showCounts = !releaseReadFailed;
             return (
               <Card key={project.id} className="min-w-0 gap-3 p-4">
                 <div className="flex min-w-0 flex-wrap items-center gap-3">

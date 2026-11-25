@@ -1,7 +1,6 @@
 import type { AIReqDiscussionAgent } from "@zcode/services/aireq";
 import type { NativeSessionRef, SystemRequirement } from "./workflow-state.js";
 import { prototypeSpecPath } from "./proposal-storage.js";
-import { readPrototypeAgentModelBinding } from "./agent-models.js";
 
 export const PROTOTYPE_WORKSPACE_IDENTITY = "aireq-mock";
 
@@ -24,6 +23,5 @@ export function sessionRef(
     irId,
     sessionId: `${projectId}-${irId}-ir-${agent}`,
     phase: agent,
-    ...readPrototypeAgentModelBinding(agent),
   };
 }

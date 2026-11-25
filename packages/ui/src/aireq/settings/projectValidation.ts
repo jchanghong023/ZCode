@@ -1,28 +1,15 @@
 export type ProjectFieldErrors = {
-  name?: string;
   repository?: string;
   branch?: string;
   workDirectory?: string;
 };
 
 export function validateRepository(
-  name: string | undefined,
   remote: string,
   branch: string,
   workDirectory: string,
 ): ProjectFieldErrors {
   const errors: ProjectFieldErrors = {};
-  const project = name?.trim();
-  if (
-    project !== undefined &&
-    (!project ||
-      project === "." ||
-      project === ".." ||
-      project.includes("/") ||
-      project.includes("\\") ||
-      /\p{Cc}/u.test(project))
-  )
-    errors.name = "请输入可用作目录名的项目名称。";
   const directory = workDirectory.trim();
   const absolutePath = directory.startsWith("/") || /^[A-Za-z]:[\\/]/.test(directory);
   if (!absolutePath || /^(?:[A-Za-z]:)?[\\/]+$/u.test(directory) || /\p{Cc}/u.test(directory))

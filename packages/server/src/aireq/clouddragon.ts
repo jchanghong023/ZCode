@@ -25,7 +25,7 @@ const person = z.string().trim().nullish();
 const requirement = z
   .object({
     businessNo,
-    name: z.string(),
+    name: z.string().nullish(),
     description: z.string(),
     creator: z.string(),
     submitter: z.string(),
@@ -47,7 +47,7 @@ const requirementResponse = z.object({
     z.object({
       id: domainId,
       name: z.string().nullish(),
-      count: z.number().int().nonnegative().optional(),
+      count: z.number().int().nonnegative(),
       items: z.array(requirement),
     }),
   ),
@@ -67,6 +67,10 @@ const mockProjects = [
   { id: "gmockdev01", name: "协作平台开发" },
   { id: "gmockdev02", name: "工作台开发" },
 ] satisfies CloudDragonProject[];
+const mockDomainNames = new Map([
+  ["900001", mockProjects[0]!.name],
+  ["900002", mockProjects[1]!.name],
+]);
 
 const mockRequirements = [
   {
@@ -241,10 +245,13 @@ export async function readCloudDragonProjects(): Promise<CloudDragonProject[]> {
 
 export async function readCloudDragonRequirements(
   project: string,
-): Promise<{ items: CloudDragonRequirement[]; domainName?: string }> {
+): Promise<{
+  items: CloudDragonRequirement[];
+  domainNames: ReadonlyMap<string, string | undefined>;
+}> {
   if (useMockCloudDragon)
     return {
-      domainName: mockProjects.find(({ id }) => id === project)?.name,
+      domainNames: mockDomainNames,
       items: mockRequirements
         .filter(({ projectId }) => projectId === project)
         .map(({ projectId: _projectId, ...item }) =>
@@ -273,16 +280,25 @@ export async function readCloudDragonRequirements(
         ),
     };
   const { domains } = await runCloudDragon(["ir", "list", "--all"], requirementResponse, project);
-  const [group] = domains;
-  if (!group) return { items: [] };
-  if (
-    domains.length !== 1 ||
-    (group.count !== undefined && group.count !== group.items.length) ||
-    group.items.some((item) => item.domain !== group.id)
-  )
-    throw businessRule("云龙返回的需求与项目需求域不匹配，请重试。");
-  const requirements = new Map(group.items.map((item) => [item.businessNo, item]));
-  return { items: [...requirements.values()], domainName: group.name?.trim() || undefined };
+  const items: CloudDragonRequirement[] = [];
+  const domainNames = new Map<string, string | undefined>();
+  const businessNumbers = new Set<string>();
+  // --all 会返回同一项目的多个需求域；不能按首组取名或通过覆盖记录来消解有歧义的归属。
+  for (const group of domains) {
+    if (domainNames.has(group.id)) throw businessRule("云龙返回了重复的需求域，请重试。");
+    if (group.count !== group.items.length)
+      throw businessRule("云龙返回的需求域条数不一致，请重试。");
+    domainNames.set(group.id, group.name?.trim() || undefined);
+    for (const item of group.items) {
+      if (item.domain !== group.id)
+        throw businessRule("云龙返回的需求与项目需求域不匹配，请重试。");
+      if (businessNumbers.has(item.businessNo))
+        throw businessRule("云龙在同一项目返回了重复的 IR 业务号，请重试。");
+      businessNumbers.add(item.businessNo);
+      items.push(item);
+    }
+  }
+  return { items, domainNames };
 }
 
 function displayField(value: z.infer<ReturnType<typeof z.json>>): string {
@@ -347,13 +363,14 @@ const mockComments: AIReqRequirementComment[] = [
 type CommentTarget = AIReqObjectRef & { domain: string };
 
 const commentIdentifier = /^(?:[0-9a-f]{32}|[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12})$/i;
-const mockCommentsByIR = new Map<string, AIReqRequirementComment[]>([
-  [JSON.stringify(["gmockdev01", "IR20990101000001"]), mockComments],
+const mockCommentsByTarget = new Map<string, AIReqRequirementComment[]>([
+  [JSON.stringify(["gmockdev01", "900001", "IR20990101000001"]), mockComments],
 ]);
 const pendingCommentLists = new Map<string, Promise<AIReqRequirementComment[]>>();
 
-function commentKey({ projectId, irId }: CommentTarget) {
-  return JSON.stringify([projectId, irId]);
+function commentKey({ projectId, domain, irId }: CommentTarget) {
+  // 同一 IR 在新旧页面快照中可能分属不同的域，不能复用另一域的评论请求。
+  return JSON.stringify([projectId, domain, irId]);
 }
 
 function projectComment(
@@ -374,7 +391,7 @@ function projectComment(
 
 export function readCloudDragonComments(target: CommentTarget): Promise<AIReqRequirementComment[]> {
   const key = commentKey(target);
-  if (useMockCloudDragon) return Promise.resolve(mockCommentsByIR.get(key) ?? []);
+  if (useMockCloudDragon) return Promise.resolve(mockCommentsByTarget.get(key) ?? []);
   const pending = pendingCommentLists.get(key);
   if (pending) return pending;
   const request = runCloudDragon(
@@ -402,7 +419,7 @@ export async function addCloudDragonComment(
       author: getEmployeeId(),
       createdAt: new Date().toISOString(),
     };
-    mockCommentsByIR.set(key, [...(mockCommentsByIR.get(key) ?? []), comment]);
+    mockCommentsByTarget.set(key, [...(mockCommentsByTarget.get(key) ?? []), comment]);
     return comment;
   }
   // 用户正文作为单个位置参数传入，允许多行以及以短横线开头的文本。
@@ -422,10 +439,10 @@ export async function deleteCloudDragonComment(
   if (!commentIdentifier.test(commentId)) throw businessRule("评论 ID 无效，请重新加载评论。");
   const key = commentKey(target);
   if (useMockCloudDragon) {
-    const current = mockCommentsByIR.get(key) ?? [];
+    const current = mockCommentsByTarget.get(key) ?? [];
     const remaining = current.filter(({ id }) => id !== commentId);
     if (current.length === remaining.length) throw businessRule("该需求下没有这条评论。");
-    mockCommentsByIR.set(key, remaining);
+    mockCommentsByTarget.set(key, remaining);
   } else {
     await runCloudDragon(
       ["comment", "delete", target.irId, commentId, "--domain", target.domain],

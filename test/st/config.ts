@@ -1,12 +1,26 @@
 import { readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
-export interface STFixture {
+interface STRequirementFixture extends Record<string, unknown> {
   projectId: string;
   irId: string;
-  srId?: string;
   releaseId?: string;
-  [key: string]: unknown;
 }
+interface STProjectFixture extends Record<string, unknown> {
+  projectId: string;
+  allowUnconfigured?: boolean;
+}
+interface STFixtures {
+  requirements?: STRequirementFixture[];
+  projects?: STProjectFixture[];
+  [purpose: string]: Record<string, unknown>[] | undefined;
+}
+
+function isFixtureId(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
 function positiveInteger(value: string | undefined, fallback: number): number {
   if (!value) return fallback;
   const number = Number(value);
@@ -14,7 +28,7 @@ function positiveInteger(value: string | undefined, fallback: number): number {
     throw new Error("ST 配置错误：超时必须为正整数毫秒");
   return number;
 }
-function fixtureFile(): Record<string, STFixture[]> {
+function fixtureFile(): STFixtures {
   const file = process.env.ST_FIXTURES_FILE;
   if (!file) return {};
   let parsed: unknown;
@@ -32,7 +46,38 @@ function fixtureFile(): Record<string, STFixture[]> {
     )
       throw new Error("ST 配置错误：每个前置用途必须是对象数组");
   }
-  return parsed as Record<string, STFixture[]>;
+  const fixtures = parsed as Record<string, Record<string, unknown>[] | undefined>;
+  // 需求和项目是不同用途；项目夹具不需要伪造 IR，声明的 ID 也不得用空串代替。
+  const requirements = new Set<string>();
+  for (const row of fixtures.requirements ?? []) {
+    if (
+      !isFixtureId(row.projectId) ||
+      !isFixtureId(row.irId) ||
+      (row.releaseId !== undefined && !isFixtureId(row.releaseId))
+    ) {
+      throw new Error(
+        "ST 前置阻塞：requirements 条目必须提供 projectId、irId 及有效的可选 releaseId",
+      );
+    }
+    const key = JSON.stringify([row.projectId, row.irId]);
+    if (requirements.has(key)) throw new Error(`ST 前置阻塞：requirements 重复声明 ${key}`);
+    requirements.add(key);
+  }
+  const projects = new Set<string>();
+  for (const row of fixtures.projects ?? []) {
+    if (
+      !isFixtureId(row.projectId) ||
+      (row.allowUnconfigured !== undefined && typeof row.allowUnconfigured !== "boolean")
+    ) {
+      throw new Error(
+        "ST 前置阻塞：projects 条目必须提供 projectId，allowUnconfigured 只能是布尔值",
+      );
+    }
+    if (projects.has(row.projectId))
+      throw new Error(`ST 前置阻塞：projects 重复声明 ${row.projectId}`);
+    projects.add(row.projectId);
+  }
+  return fixtures as STFixtures;
 }
 const base = new URL(process.env.ST_BASE_URL || "http://localhost:5174");
 if (
@@ -53,7 +98,8 @@ export const config = {
   timeoutMs: positiveInteger(process.env.ST_TIMEOUT_MS, 120_000),
   repositoryUrl: process.env.ST_REPOSITORY_URL || "https://github.com/jchanghong023/test.git",
   branch: process.env.ST_REPOSITORY_BRANCH || "main",
-  workDirectoryRoot: process.env.ST_WORK_DIRECTORY_ROOT || "/tmp/zcode-st-projects",
+  workDirectoryRoot: process.env.ST_WORK_DIRECTORY_ROOT || join(tmpdir(), "zcode-st-projects"),
+  isolatedRedZoneSync: process.env.ST_ISOLATED_RED_ZONE_SYNC === "1",
   fixtures: fixtureFile(),
   file: undefined as
     | undefined

@@ -17,31 +17,36 @@ web/main.tsx → @zcode/client → 同源 /ws 二进制 Channel RPC
 
 `entry-http.ts` 创建一次服务集合。每条 WebSocket 独占 socket、协议、ChannelServer、固定身份 facade 和 agent connection scope；关闭只释放连接资源和订阅，不销毁共享业务 owner。HTTP 层不复制业务或重放账本。`createMockHttpServer` 返回可由调用者 `stop()` 的 Bun server。
 
-原型保存项目时对仓库地址和分支做格式校验，配置和共享文档目录由本地服务准备。工作流将当前文档发布到项目的共享目录。开发通过仓库内的目录软链接读取。详见[项目工作目录](../specs/aireq/contract-design.md#项目工作目录)。
+AIReq 页面使用 `/ws` 和工号身份。独立聊天页面 `/chat` 使用 `/ws/chat` 和匿名客户端身份，单独装配 Agent 与模型目录，不访问 AIReq 公开频道。
+
+项目录入来自云龙。原型仅允许给页面目录中已登记且仍有效的项目更新仓库配置，保存时校验仓库地址、分支、服务端绝对工作目录与项目配置版本，并按操作编号幂等裁决。本地服务准备共享文档目录，工作流发布当前文档，开发通过仓库内的目录软链接读取。详见[项目工作目录](../specs/aireq/contract-design.md#项目工作目录)。
 
 运行时为 Bun，pnpm 管理依赖；`node:*` 为 Bun 兼容 API，不是独立 Node.js 后端。根 `dev` 并行启动 server/web，`build` 依次构建 server/web，具体命令以根 `package.json` 和[构建工作流](../../README.md#构建与部署)为准。
 
 ## 2. 权威状态
 
-| 状态                                                                          | 唯一所有者                                    | 边界                                   |
-| ----------------------------------------------------------------------------- | --------------------------------------------- | -------------------------------------- |
-| 项目、Release、IR/SR、当前材料、文档版本和评审                                | `MockAIReqService` 与 `aireq/workflow.ts`     | UI 重读同源投影                        |
-| 模型绑定、提示词及各自 revision                                               | `aireq/agent-models.ts`、`personalization.ts` | bootstrap 提供配置，不另建读取 RPC     |
-| Skill 私有草稿、预览、文件、版本与 catalog                                    | `aireq/skill-design.ts`、`skills.ts`          | 文件服务只读同一内存事实               |
-| rows、revision、phase、config、queue、plan、usage、pending、conversation 水位 | `MockRuntime.sessions` / `MockSession`        | `MockZCodeAgentService` 接纳命令并发帧 |
-| 原生任务索引                                                                  | `MockRuntime.tasks`                           | 原生会话的任务索引                     |
-| 附件暂存、提交字节及采用关系                                                  | `MockZCodeAgentService`                       | composer 只拥有未发送草稿和引用        |
-| 通用应用设置                                                                  | `MockSettingService`                          | 不与 AIReq 模型／提示词共用版本        |
+| 状态                                                                          | 唯一所有者                                       | 边界                                   |
+| ----------------------------------------------------------------------------- | ------------------------------------------------ | -------------------------------------- |
+| 项目与 IR 来源字段、按 PI 派生的 Release                                      | 云龙；连接 owner 持有页面读取快照                | 普通读取复用已绑定目录                 |
+| 项目仓库配置、角色、SR、当前材料、文档版本和评审                              | `aireq/project-settings.ts`、`aireq/workflow.ts` | UI 重读与页面目录合并后的投影          |
+| 模型绑定、提示词及各自 revision                                               | `aireq/agent-models.ts`、`personalization.ts`    | bootstrap 提供配置，不另建读取 RPC     |
+| Skill 私有草稿、预览、文件、版本与 catalog                                    | `aireq/skill-design.ts`、`skills.ts`             | 文件服务只读同一内存事实               |
+| rows、revision、phase、config、queue、plan、usage、pending、conversation 水位 | `MockRuntime.sessions` / `MockSession`           | `MockZCodeAgentService` 接纳命令并发帧 |
+| 原生任务索引                                                                  | `MockRuntime.tasks`                              | 原生会话的任务索引                     |
+| 附件暂存、提交字节及采用关系                                                  | `MockZCodeAgentService`                          | composer 只拥有未发送草稿和引用        |
+| 通用应用设置                                                                  | `MockSettingService`                             | 不与 AIReq 模型／提示词共用版本        |
 
 服务端校验身份、参数和项目角色，再提交并通知。原生执行绑定对象和会话。材料变化更新当前未确认版本，或在上一版已确认时开启下一版。服务端提供只读文件检查。定版再次校验完整性与格式，通过后在同一事务保存当前全部文件。按需评审绑定发起时的文件快照。
 
 `bun run dev` 在服务端启用本地云龙样例，工作流通过与真实云龙相同的读取入口同步项目和 IR。`bun run dev --use-clouddragon` 与直接启动服务端使用真实 CLI。角色、材料及项目仓库配置由内存后端管理。见[云龙对接](../specs/aireq/proposals.md#黄区需求澄清与云龙对接)。
 
+云龙读取合并并发请求，完成后的结果共享 3 秒。项目可以包含多个需求域，评论定位保留并使用各 IR 自己的需求域。连接 owner 按工号、客户端和可选 `pageId` 保留页面快照，最后一个连接断开后仍可在 30 分钟内复用；没有 `pageId` 的快照只属于当前连接。首次普通读取可取得部分成功的目录，刷新必须等项目目录及所有 IR 列表完整成功才替换该页快照。刷新在途、失败或其他页面刷新均不更换本页普通读取的目录，本地材料和配置仍反映当前事实。
+
 ### 原型后端业务初始数据
 
-项目和 Release 的需求总数来自同一工作流。Release 同时汇总当前文档版本已确认的需求数。
+项目需求总数包括未分配 PI 的 IR；Release 仅由当前目录中的 IR 按 PI 归组，并统计其中状态为「完成」和当前文档版本已确认的需求数。
 
-本地云龙样例提供项目和 IR。角色、材料和文档版本通过现有业务操作维护。两个 Agent 生成的 Markdown 材料包含 Mermaid 流程图，正文、摘要与大小随确认快照一起保存。依赖清单使用纯 JSON，由右侧文档区按对应版本绘制依赖图。
+本地云龙样例为演示和测试提供项目与 IR，不依赖 AIReq 创建或删除它们。角色、材料、文档版本和既有项目的仓库配置由当前业务操作维护。两个 Agent 生成的 Markdown 材料包含 Mermaid 流程图，正文、摘要与大小随确认快照一起保存。依赖清单使用纯 JSON，由右侧文档区按对应版本绘制依赖图。
 
 演示验收从右侧文档区打开当前及历史版本，并在需求 Agent 和方案 Agent 会话中生成材料，确认各 Markdown 文件能显示流程图，依赖图能读取同版依赖。
 
@@ -62,11 +67,13 @@ Skill 主入口隐藏，但私有会话、附件、预览、保存和草稿门�
 
 | 接入面                          | 当前行为                                                                                                                                            |
 | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/ws`                           | 升级前校验身份、查询和可选 token；升级后仅二进制 Channel RPC，文本消息以 1003 关闭                                                                  |
+| `/ws`                           | 校验工号、客户端身份、可选 `pageId` 和部署 token；仅二进制 Channel RPC，文本消息以 1003 关闭                                                        |
+| `/chat`                         | 浏览器聊天页面，静态托管读取 `chat/index.html`；不要求工号，不经过部署 token 校验                                                                   |
+| `/ws/chat`                      | 校验匿名 UUID `clientId` 和可选部署 token；使用聊天白名单与同一二进制协议                                                                           |
 | `GET /api/v1/client/configs`    | `no-store`，返回 `{code:0,data:{configs:{feedbackUrl:…}}}`；独立于 RPC 配置服务                                                                     |
 | `POST /api/v1/telemetry/events` | 严格 shared `ui`／`arms` 信封；清洗副本交诊断后返回 202 空响应；非法 JSON／字段 400，未授权 401，内部失败安全 500                                   |
 | 静态托管                        | 配置 staticRoot 后启用；HTML `no-cache`，带内容哈希 assets 一年 immutable，其他资源重新校验；支持 HEAD、br/gzip/identity 与 `Vary: Accept-Encoding` |
-| SPA fallback                    | 不覆盖 `/api/` 或 `/ws`；拒绝目录穿越、盘符路径及 `.map`；没有可接受编码返回 406                                                                    |
+| SPA fallback                    | 不覆盖 `/api/` 或 `/ws` 及其子路由；拒绝目录穿越、盘符路径及 `.map`；没有可接受编码返回 406                                                         |
 
 浏览器标签页图标由 `packages/web/index.html` 内嵌 PNG 提供，静态发布目录不提供根路径的 `favicon.ico` 文件。
 
@@ -86,7 +93,9 @@ Skill 主入口隐藏，但私有会话、附件、预览、保存和草稿门�
 
 ## 5. 部署限制与后端替换
 
-原型的业务数据、会话、共享配置、回执、文件和附件保存在当前进程的内存里。红区全量同步由内存接收端更新云龙来源的项目和 IR，随附的需求文档以项目组 ID 与 IR 业务号关联并单独存放。红区自有文档与导入副本使用独立存储。需求共创列配置按工号写入服务工作目录，重启时保留。材料的逻辑路径和收据对应内存保存事实。
+原型的本地业务状态、会话、共享配置、回执、逻辑文件和附件保存在当前进程内。需求共创列配置按工号写入服务工作目录，重启时保留。已配置项目的当前材料可另行发布到服务端共享文档目录；逻辑材料路径和收据仍对应内存工作流，不代表持久事务。
+
+红区手动全量同步在接纳时固定该页已加载的目录，没有目录则拒绝；提交给传输端口时读取当前需求材料。每 5 分钟的自动任务读取云龙目录，不替换页面快照，与手动任务串行。内存接收端以项目组 ID 和 IR 业务号更新云龙快照字段和可选的完整 `requirements.md`，导入副本与红区自有文件分开，缺少随附正文时不删除文件。原型不提供额外红区 RPC、持久队列或跨重启 exactly-once。
 
 当前没有真实 AI、代码扫描、真实仓库读取、数据库、生产认证或权限体系。工号自报，clientId 不是凭据；内存材料和确认记录只描述平台内流程。产品不执行用户开发 tasks、业务构建或测试。
 

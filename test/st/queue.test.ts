@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { connectST, unique, type STClient } from "./client.js";
-import { createProposal } from "./business.js";
+import { takeRequirement } from "./business.js";
 import {
   expectCapabilityRejected,
   expectNativeTurnWork,
@@ -16,10 +16,13 @@ it("rejects an implicit busy send, steers the active turn, and delivers follow-u
   let peerClient: STClient | undefined;
   let peer: Awaited<ReturnType<typeof openNative>> | undefined;
   try {
-    const proposal = await createProposal(c);
-    native = await openNative(c, proposal.remote);
+    const { remote } = await takeRequirement(c);
+    native = await openNative(c, remote);
     peerClient = await connectST(c.identity.employeeId);
-    peer = await openNative(peerClient, proposal.remote);
+    peer = await openNative(peerClient, remote);
+    // 预置 IR 可能已有历史；仍精确断言本轮新增行及实时队列帧。
+    const previousRowId = (await native.snapshot()).rows.window.at(-1)?.rowId ?? -1;
+    const frameStart = native.frames.length;
     const startId = unique("foreground");
     const implicitId = unique("implicit-busy");
     const steerId = unique("steer");
@@ -50,7 +53,8 @@ it("rejects an implicit busy send, steers the active turn, and delivers follow-u
     expectNativeTurnWork(native, final, startId);
     expectNativeTurnWork(native, final, followUpId);
     expect(final.queue.items).toEqual([]);
-    const deltas = native.frames.flatMap((frame) =>
+    const frames = native.frames.slice(frameStart);
+    const deltas = frames.flatMap((frame) =>
       frame.payload.kind === "deltas" ? frame.payload.deltas : [],
     );
     expect(
@@ -71,7 +75,7 @@ it("rejects an implicit busy send, steers the active turn, and delivers follow-u
         }),
       }),
     );
-    const delivery = native.frames.find(
+    const delivery = frames.find(
       ({ payload }) =>
         payload.kind === "deltas" &&
         payload.deltas.some(
@@ -94,16 +98,15 @@ it("rejects an implicit busy send, steers the active turn, and delivers follow-u
       }),
     );
 
-    const inputs = final.rows.window.filter((row) => row.kind === "userInput");
+    const newRows = final.rows.window.filter(({ rowId }) => rowId > previousRowId);
+    const inputs = newRows.filter((row) => row.kind === "userInput");
     expect(inputs.map((row) => row.sourceCommandId)).toEqual([startId, steerId, followUpId]);
     const [start, steer, followUp] = inputs;
     expect(steer).toMatchObject({ text, turnId: start!.turnId, clientId: c.identity.clientId });
     expect(followUp).toMatchObject({ text, clientId: peerClient.identity.clientId });
     expect(followUp!.turnId).not.toBe(start!.turnId);
     expect(
-      final.rows.window
-        .filter((row) => row.kind === "turnHeader")
-        .map((row) => row.sourceCommandId),
+      newRows.filter((row) => row.kind === "turnHeader").map((row) => row.sourceCommandId),
     ).toEqual([startId, followUpId]);
     const { workspace, sessionId } = native;
     const rejectedKey = { sessionId, commandId: implicitId };
@@ -147,11 +150,12 @@ it("stops only the expected execution and returns undispatched inputs to their a
   let peerClient: STClient | undefined;
   let peer: Awaited<ReturnType<typeof openNative>> | undefined;
   try {
-    const proposal = await createProposal(c);
-    native = await openNative(c, proposal.remote);
+    const requirement = await takeRequirement(c);
+    native = await openNative(c, requirement.remote);
     peerClient = await connectST(c.identity.employeeId);
-    peer = await openNative(peerClient, proposal.remote);
-    const before = getProposal(proposal.remote, proposal);
+    peer = await openNative(peerClient, requirement.remote);
+    const before = getProposal(requirement.remote, requirement);
+    const previousRowId = (await native.snapshot()).rows.window.at(-1)?.rowId ?? -1;
     const startId = unique("stop-target");
     const followUpId = unique("pending-at-stop");
     const secondId = unique("second-pending-at-stop");
@@ -240,13 +244,15 @@ it("stops only the expected execution and returns undispatched inputs to their a
     expect(stopped.availability.sendQueuedNow.allowed).toBe(false);
     expect(stopped.availability.setFollowupMode.allowed).toBe(false);
     expect(
-      stopped.rows.window
-        .filter((row) => row.kind === "userInput")
-        .map((row) => row.sourceCommandId),
+      stopped.rows.window.flatMap((row) =>
+        row.kind === "userInput" && row.rowId > previousRowId ? [row.sourceCommandId] : [],
+      ),
     ).toEqual([startId]);
-    const afterStop = await c.read(proposal.selection);
-    expect(getMaterials(afterStop, proposal)).toEqual(getMaterials(proposal.remote, proposal));
-    expect(getProposal(afterStop, proposal).documentVersion).toEqual(before.documentVersion);
+    const afterStop = await c.read(requirement.selection);
+    expect(getMaterials(afterStop, requirement)).toEqual(
+      getMaterials(requirement.remote, requirement),
+    );
+    expect(getProposal(afterStop, requirement).documentVersion).toEqual(before.documentVersion);
 
     const [later, laterRunning] = await Promise.all([
       native.send("sendText", { text: "用户显式发送一条新需求。" }, { commandId: laterId }),

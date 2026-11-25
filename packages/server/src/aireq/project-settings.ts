@@ -69,7 +69,9 @@ async function prepareAndSaveRepository(
   input: AIReqRemoteRepositoryInput,
   captureDocuments: (projectId: string) => ProjectDocumentSnapshot,
 ): Promise<boolean> {
-  const existing = readPrototypeProjectSetting(input.projectId);
+  const id = input.projectId;
+  // 项目身份由云龙目录提供，仓库配置不能凭请求创建或重命名项目。
+  const existing = readPrototypeProjectSetting(id);
   if (!existing) throw businessRule("请选择云龙中已有的项目。");
   if (input.expectedRevision !== existing.revision)
     throw businessRule("项目配置已变化，请重新读取。");
@@ -115,7 +117,6 @@ async function prepareAndSaveRepository(
     existing.workDirectory === workDirectory
   )
     return false;
-  const id = existing.id;
   const storageDirectory = await resolveProjectDirectory(workDirectory);
   if (dirname(storageDirectory) === storageDirectory)
     throw businessRule("请输入可用于项目的独立工作目录。");

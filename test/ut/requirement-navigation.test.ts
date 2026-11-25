@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   requirementObjectLink,
+  requirementScopeFallback,
   restoreMainView,
   restoreNavigationOverlay,
 } from "../../packages/ui/src/aireq/navigationState.js";
@@ -17,14 +18,49 @@ describe("requirement navigation history", () => {
     expect(restoreMainView("ideas")).toBe("projectProgress");
   });
 
-  it("restores supported overlays without accepting malformed draft records", () => {
+  it("restores settings but discards the retired draft overlay", () => {
     expect(restoreNavigationOverlay({ kind: "settings" })).toEqual({ kind: "settings" });
-    expect(restoreNavigationOverlay({ kind: "proposal", draft: { id: "draft" } })).toEqual({
-      kind: "proposal",
-      draft: { id: "draft" },
-    });
-    expect(restoreNavigationOverlay({ kind: "proposal", draft: { id: 7 } })).toBeNull();
+    expect(restoreNavigationOverlay({ kind: "proposal", draft: { id: "draft" } })).toBeNull();
     expect(restoreNavigationOverlay({ kind: "unknown" })).toBeNull();
+  });
+
+  const directory = {
+    projects: [{ id: "p", name: "Project", revision: 0, defaultBranch: "main" }],
+    releases: [
+      {
+        id: "r",
+        projectId: "p",
+        title: "Release",
+        createdAt: "",
+        requirementCount: 1,
+        completedRequirementCount: 0,
+        confirmedRequirementCount: 0,
+      },
+    ],
+  };
+
+  it("returns to the overview when the selected project is absent from a complete directory", () => {
+    expect(requirementScopeFallback({ projectId: "removed", releaseId: "r" }, directory)).toEqual({
+      selection: {},
+      mainView: "projectProgress",
+    });
+  });
+
+  it("falls back to the project's entire list only when its selected Release is gone", () => {
+    expect(requirementScopeFallback({ projectId: "p", releaseId: "r" }, directory)).toBeUndefined();
+    expect(requirementScopeFallback({ projectId: "p", releaseId: "gone" }, directory)).toEqual({
+      selection: { projectId: "p" },
+      mainView: "proposals",
+    });
+  });
+
+  it("does not treat a partial project read as evidence that its Release disappeared", () => {
+    expect(
+      requirementScopeFallback(
+        { projectId: "p", releaseId: "r" },
+        { ...directory, releases: [], releaseReadFailures: ["p"] },
+      ),
+    ).toBeUndefined();
   });
 });
 
@@ -58,8 +94,16 @@ describe("requirement object links", () => {
 
   it("does not create a link for an incomplete target", () => {
     expect(requirementObjectLink("https://example.test", { projectId: "p" }, "r")).toBeUndefined();
-    expect(
-      requirementObjectLink("https://example.test", { projectId: "p", irId: "ir" }, ""),
-    ).toBeUndefined();
+    expect(requirementObjectLink("https://example.test", { irId: "ir" })).toBeUndefined();
+  });
+
+  it.each([undefined, ""])("omits the optional Release for an unassigned IR (%s)", (releaseId) => {
+    const target = { projectId: "p", irId: "ir" };
+    const link = requirementObjectLink("https://example.test", target, releaseId);
+    expect(link).toBe("https://example.test/?aireqProject=p&aireqIr=ir");
+    const parsed = readObjectLink(link);
+    if (!parsed || parsed === "invalid") throw new Error("无法读取未分配 Release 的需求链接");
+    expect(parsed.releaseId).toBeUndefined();
+    expect(selectionFromObjectLink(parsed)).toEqual({ ...target, discussionPhase: "requirements" });
   });
 });

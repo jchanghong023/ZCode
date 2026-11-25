@@ -34,6 +34,7 @@ import type {
 import {
   EMPTY_PROPOSAL_QUERY,
   requirementObjectLink,
+  requirementScopeFallback,
   restoreNavigationOverlay,
   restoreMainView,
   type AIReqNavigationState,
@@ -42,6 +43,14 @@ import {
 } from "./navigationState.js";
 
 const AIReqContext = createContext<AIReqContextValue | null>(null);
+type PageActionState = { status: "pending" | "succeeded" } | { status: "failed"; cause: unknown };
+const ProposalPageActionsContext = createContext<{
+  projectRefresh?: PageActionState;
+  redSync?: PageActionState;
+  syncRequirementList(): Promise<void>;
+} | null>(null);
+export const useAIReqProposalPageActions = () => useContext(ProposalPageActionsContext);
+
 function sourceScope(source: AIReqDataSource): string {
   return JSON.stringify([source.backend?.id ?? "aireq", source.clientId, getEmployeeId()]);
 }
@@ -127,6 +136,26 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     },
     [source, navigationOwner],
   );
+  const replaceScopeInCurrentSlot = useCallback(
+    (target: AIReqSelection, { index, mainView }: AIReqNavigationState) => {
+      const saved = window.history.state;
+      if (saved?.aiReqNavigationOwner !== navigationOwner || saved.aiReqNavigationIndex !== index)
+        return;
+      if (
+        saved.aiReqMainView === mainView &&
+        JSON.stringify(saved.aiReqSelection) === JSON.stringify(target)
+      )
+        return;
+      window.history.replaceState(
+        { ...saved, aiReqSelection: target, aiReqMainView: mainView },
+        "",
+        mainView === "chat"
+          ? requirementObjectLink(window.location.href, target, target.releaseId)
+          : withoutObjectLink(new URL(window.location.href)),
+      );
+    },
+    [navigationOwner],
+  );
   const [view, setView] = useState<AIReqWorkflowView>();
   const [loadedSelection, setLoadedSelection] = useState<AIReqSelection>();
   const viewRef = useRef(view);
@@ -135,6 +164,10 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
   const commandError = useRef(false);
   const [pending, setPending] = useState(true);
   const requestRevision = useRef(0);
+  const [projectRefresh, setProjectRefresh] = useState<PageActionState>();
+  const [redSync, setRedSync] = useState<PageActionState>();
+  const projectRefreshFlight = useRef<Promise<void> | undefined>(undefined);
+  const redSyncInFlight = useRef(false);
   const draftGuardRef = useRef<((navigate: () => void) => void) | null>(null);
   const draftGuards = useRef(new Map<string, (navigate: () => void) => void>());
   const guardRef = useRef<((navigate: () => void) => void) | null>(null);
@@ -185,29 +218,84 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
           ? source.refreshProjects(target)
           : source.readWorkflow(target));
         if (revision !== requestRevision.current) return;
+        // 初次解析显式分享链接保留原目标及错误；普通范围则和新目录一起提交。
+        const fallback = pendingObjectLink.current
+          ? undefined
+          : requirementScopeFallback(target, next);
+        if (fallback) {
+          const current = { ...navigationRef.current, mainView: fallback.mainView };
+          navigationRef.current = current;
+          selectionRef.current = fallback.selection;
+          // 修正原历史槽，后退不会撞上另一个由回退生成的无效入口。
+          replaceScopeInCurrentSlot(fallback.selection, current);
+          setNavigation(current);
+          setSelection(fallback.selection);
+          if (!fallback.selection.projectId) {
+            proposalQueries.current.delete(current.index);
+            setProposalQuery(EMPTY_PROPOSAL_QUERY);
+          }
+        }
         viewRef.current = next;
         setView(next);
         // 区分各次导航的读取结果，避免同一对象切换 Agent 时显示旧会话。
-        setLoadedSelection(target);
+        setLoadedSelection(fallback?.selection ?? target);
         // 修复：订阅重读不是命令重试，不能抹掉尚未处理的业务提交失败。
         if (!commandError.current) setError(undefined);
       } catch (cause) {
-        if (revision === requestRevision.current) report(cause);
+        if (!refreshProjects && revision === requestRevision.current) report(cause);
         if (throwOnError) throw cause;
       } finally {
         if (revision === requestRevision.current) setPending(false);
       }
     },
-    [source, report],
+    [source, report, replaceScopeInCurrentSlot],
   );
   const refresh = useCallback(
     (throwOnError = false) => load(selectionRef.current, throwOnError),
     [load],
   );
   const refreshProjects = useCallback(
-    (throwOnError = false) => load(selectionRef.current, throwOnError, true),
-    [load],
+    async (throwOnError = false) => {
+      let flight = projectRefreshFlight.current;
+      if (!flight) {
+        // 刷新按登录页而非发起时的范围结算，即使本次读取已被新范围或通知取代。
+        setProjectRefresh({ status: "pending" });
+        flight = load(selectionRef.current, true, true)
+          .then(
+            () => setProjectRefresh({ status: "succeeded" }),
+            (cause: unknown) => {
+              setProjectRefresh({ status: "failed", cause });
+              if (navigationRef.current.mainView !== "proposals") report(cause);
+              throw cause;
+            },
+          )
+          .finally(() => {
+            projectRefreshFlight.current = undefined;
+          });
+        projectRefreshFlight.current = flight;
+      }
+      try {
+        await flight;
+      } catch (cause) {
+        if (throwOnError) throw cause;
+      }
+    },
+    [load, report],
   );
+  const syncRequirementList = useCallback(async () => {
+    if (redSyncInFlight.current || projectRefreshFlight.current) return;
+    redSyncInFlight.current = true;
+    // 列表按项目重挂载，但全量同步的忙态与失败属于同一登录页。
+    setRedSync({ status: "pending" });
+    try {
+      await source.syncRequirementList();
+      setRedSync(undefined);
+    } catch (cause) {
+      setRedSync({ status: "failed", cause });
+    } finally {
+      redSyncInFlight.current = false;
+    }
+  }, [source]);
   useEffect(() => {
     void refresh();
     const unsubscribe = source.subscribeWorkflow(() => {
@@ -230,6 +318,8 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         !value.irId &&
         loadedSelection === current &&
         !pending &&
+        viewRef.current !== undefined &&
+        !requirementScopeFallback(value, viewRef.current) &&
         !error;
       if (
         addHistory &&
@@ -336,6 +426,8 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       // 浏览器后退先回到原历史槽，再走设置门禁；取消不能改变当前对象。
       if (historyReturn.current) {
         const { delta } = historyReturn.current;
+        // 目录可能在浏览器暂处目标槽时返回；回到原槽再补写纠正后的范围。
+        replaceScopeInCurrentSlot(selectionRef.current, navigationRef.current);
         historyReturn.current = null;
         const resume = () => {
           approvedHistory.current = true;
@@ -376,13 +468,14 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       };
       navigationRef.current = next;
       setNavigation(next);
-      setProposalQuery(proposalQueries.current.get(index) ?? EMPTY_PROPOSAL_QUERY);
+      // 即使两个槽共享同一个查询，也要通知仍挂载的列表重置页码。
+      setProposalQuery({ ...(proposalQueries.current.get(index) ?? EMPTY_PROPOSAL_QUERY) });
       window.history.replaceState({ ...event.state, aiReqNavigationExtent: next.extent }, "");
       select(target, false, mainView);
     };
     window.addEventListener("popstate", restore);
     return () => window.removeEventListener("popstate", restore);
-  }, [source, select, navigate, navigationOwner]);
+  }, [source, select, navigate, navigationOwner, replaceScopeInCurrentSlot]);
   const openSettings = useCallback(() => {
     if (navigationRef.current.overlay?.kind === "settings") return;
     // 设置覆盖层参与同一历史，避免后退时在不可见工作区导航。
@@ -496,7 +589,9 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         navigate,
       }}
     >
-      {children}
+      <ProposalPageActionsContext.Provider value={{ projectRefresh, redSync, syncRequirementList }}>
+        {children}
+      </ProposalPageActionsContext.Provider>
     </AIReqContext.Provider>
   );
 }

@@ -2,358 +2,85 @@
 
 ## 黄区需求澄清与云龙对接
 
-黄区负责需求澄清和讨论。方案设计在内网进行。云龙保存项目和 IR 的业务记录，AIReq 工作流管理讨论和需求文档。云龙与 AIReq 的双向同步以项目组 ID 和 IR 业务号关联。同步字段限于云龙支持的业务字段。云龙写入需要显式操作和授权，并按可写字段白名单执行。AIReq 的讨论、文档、版本历史、SR、个人偏好和其他本地记录由 AIReq 管理。IR 从云龙目录移除时，列表按新目录显示，已有 AIReq 工作流记录保留。当前原型读取云龙快照，IR 评论支持新增和删除。其他云龙字段的写回仍需接入生产流程。
+AIReq 分别部署在黄区和红区。业务同学在黄区与需求 Agent 澄清场景和验收标准，再与开发对齐。每个 IR 的正式需求文档由黄区 AIReq 管理。红区接收云龙目录和需求文档，开发和测试在红区结合项目代码和知识库做方案。
 
-AIReq 读取云龙账号可访问、名称包含「开发」且有项目组 ID 的项目。首次加载页面读取一次项目目录，每个项目执行一次 `ir list --all`。服务端使用同一批 IR 统计 Release 和需求数量，按 `pi` 归组，以 `piName` 展示名称。
+云龙维护项目及原始 IR。黄区从账号可访问、名称含「开发」且有项目组 ID 的项目读取全部需求域。以项目组 ID 定位项目、以 IR 业务号关联同一需求。Release 仅从全部 IR 的 `pi` 归组，名称取 `piName`。未分配 PI 的 IR 计入项目总数，没有 IR 的 Release 不展示。项目、Release 和 IR 的增删均在云龙完成。
 
-「查看全部需求」「查看此版本需求」、项目与 Release 切换、详情中的描述和字段、重连和工作流通知均复用页面首次取得的云龙快照。页面只有在用户点击「刷新项目」或重新加载网页时才请求新快照，刷新失败时保留页面原来的数据。文档、定版和项目配置仍随 AIReq 本地工作流更新。服务端合并并发云龙读取，结果返回后 3 秒内的新首页及手动刷新复用同一结果，包括失败结果。活跃页面的数据不会被其他页面的刷新替换。
+首次加载或点击「刷新项目」时读取快照。域与条目不一致或项目内 IR 业务号重复时，该项目读取失败。刷新失败保留原快照。成功刷新仅更新云龙目录、标题、描述及业务字段。云龙移除的 IR 不再列出，AIReq 已有的需求正文、版本、讨论与评审继续保留。页面快照与并发读取遵循[公开接口](contract-design.md)。
 
-
-`bun run dev` 默认由服务端提供本地云龙样例，无需内网、CLI 或凭据。使用示例工号 `a00000001` 登录后，可以查看项目、Release、已完成的 IR 和未分配 Release 的 IR，并打开需求讨论。
-
-`bun run dev --use-clouddragon` 使用真实 CLI，直接启动服务端也默认使用真实 CLI。服务端通过 `project list --name 开发` 读取项目，通过 `ir list --all` 读取全部 IR。请将支持这些命令的新版 CLI 安装到服务端运行账号的 `PATH`。真实模式下，安装、鉴权和读取错误都沿业务读取路径显示。见[服务端云龙适配器](../../../packages/server/src/aireq/clouddragon.ts)。
+家庭开发机默认使用可单独运行的离线云龙 CLI。服务端对两种 CLI 执行相同的命令、解析和校验，前端共用同一业务流程。命令行产生的项目数据变更可在平台刷新后读取。启动方式见[开发与产品入口](../../../README.md#开发与产品入口)，命令、返回数据和字段类型见[云龙 CLI 实现参考](../../architecture/clouddragon-cli.md)。
 
 ### 黄区到红区的全量同步
 
-黄区用于讨论和澄清需求，红区存放业务数据和业务代码。「刷新项目」请求新的云龙快照，失败时保留当前列表并显示错误。红区同步使用图标按钮，鼠标悬停或键盘聚焦时显示「同步到红区（所有项目）」、同步内容与每 5 分钟自动同步的频率。手动同步使用页面已有的全部云龙项目及 IR 快照，范围不受当前项目、Release、筛选、分页和列配置影响。快照包含项目目录、IR 列表和未经摘要的 IR 描述，以及每个 IR 当前已保存的 `requirements.md` 完整正文（如存在）。服务端每 5 分钟读取一次云龙目录并执行同范围的自动同步，浏览器无需保持打开。自动同步不替换已打开页面的快照，与手动同步串行执行。上一次自动同步尚未完成时，不重复排队。
+在黄区点击「同步到红区（所有项目）」，或由服务端每 5 分钟自动发起。两种方式均传全部项目、IR 字段（含完整原始描述）和各 IR 已保存的最新需求正文。手动同步不受筛选、Release 或分页影响。手动请求固定接纳时的页面目录，执行时读取正文。自动任务读取自己的目录，与手动任务串行，上一轮未完成时不重复排队。
 
-工作流捕获快照，服务端传输端口负责交接。任一项目读取失败或现有需求文档不可读取时，整次同步失败。接收端以项目组 ID 和 IR 业务号对齐记录。交接仅包含云龙来源的项目和 IR 字段，以及 AIReq 可选的当前需求文档。接收端单独存放黄区导入的需求文档，重复交接只更新该 IR 的导入副本。红区自有项目文档、方案文档及同名需求文档均保留。缺少需求文档的 IR 不触发文件删除。原型在内存中模拟同样的更新，并返回项目、IR 和需求文档条数。
+正式部署通过公司的单向文件工具交接。任一项目读取失败或已有需求正文不可读时，整次同步失败。红区按 IR 业务号更新云龙字段和需求导入副本，草稿和已确认正文都能导入。未附正文时保留已有文件。重传保留红区自有项目文档、同名需求文档、SR 拆分、设计、测试方案和定版记录。同步成功只表示交接完成。当前原型在内存中模拟传输。
 
 ```mermaid
 sequenceDiagram
   participant UI as 需求共创
   participant W as 黄区工作流
-  participant R as 红区传输端口
+  participant T as 公司单向文件工具
+  participant R as 红区工作流
   UI->>W: 请求全量同步
-  W->>W: 读取页面绑定的项目与 IR 快照
-  W->>W: 捕获当前需求文档
-  W->>R: 交接完整快照
+  W->>W: 接纳时固定页面绑定的项目与 IR 快照
+  W->>W: 轮到本次传输时读取当前需求文档
+  W->>T: 提交云龙快照及最新需求正文
+  T->>R: 单向送入红区
   R->>R: 更新目录、IR 和导入副本，保留红区自有文件
-  R-->>UI: 返回交接结果与条数
 ```
 
-验收从指定 Release 发起同步，核对所有项目及未分配 Release 的 IR 都进入快照。检查长描述和需求文档正文完整。重复同步后确认已有红区方案、同名需求文档及快照未附带的文件仍在。
-
-### 安装与登录
-
-`clouddragon-cli` 需要 Python 3.10 或更高版本，以及可访问云龙门户和企业 SSO 的内网环境。安装会自动获取运行时依赖 `httpx`。在 CLI 源码目录运行以下命令。
-
-```bash
-pip install .
-clouddragon --help
-```
-
-也可在 CLI 源码目录的上一级运行 `python -m clouddragon_cli --help`。
-
-| 必填环境变量 | 含义         |
-| ------------ | ------------ |
-| `w3Account`  | 云龙登录账号 |
-| `password`   | 云龙登录密码 |
-
-CLI 从环境变量读取凭据。启动 AIReq 服务时设置这两个变量，CLI 子进程会继承它们。手工运行时可交互输入，避免将密码写入命令历史。
-
-```bash
-read -r -p '云龙账号：' w3Account
-read -r -s -p '云龙密码：' password
-printf '\n'
-export w3Account password
-clouddragon project list --name 开发
-```
-
-```powershell
-$env:w3Account = Read-Host '云龙账号'
-$env:password = [System.Net.NetworkCredential]::new('', (Read-Host '云龙密码' -AsSecureString)).Password
-clouddragon project list --name 开发
-```
-
-CLI 使用内置默认项目和 API 入口，HTTP 请求默认超时 20 秒。登录成功后，门户下发的 `prod_cftk` 会话 cookie 按账号缓存在 `~/.clouddragon/session.json`。后续命令复用缓存，会话失效时自动重新登录一次。CLI 当前使用 `verify=False` 关闭 TLS 证书校验，真实凭据应在可信内网使用。门户改版或企业 SSO 策略变化时，可能需要调整 CLI 的 `client.py`。
-
-### 查项目和需求域
-
-命令格式为 `clouddragon <资源> <动作>`。运行 `clouddragon --help` 查看资源，或用 `clouddragon ir list --help` 查看参数及输出。以下命令使用示例项目组 ID、需求域和 IR 业务号。
-
-```bash
-clouddragon project list --name 开发
-clouddragon domain list --project gexample0001
-```
-
-- `project list` 在 `data.items` 返回当前账号可访问的项目。`--name` 按项目名做大小写不敏感的包含匹配。项目项的 `id` 是 `--project` 所需的项目组 ID，`current` 表示本次选中的项目。
-- `domain list` 在 `data.items` 返回所选项目的需求域。`--domain` 接受需求域的 `id` 或名称。
-- 项目或需求域缺少可用标识时，该项的 `id` 为 `null`。
-
-### 全局选项
-
-| 选项 | 含义 |
-| ---- | ---- |
-| `--project VALUE` | 选择项目，省略时使用内置默认项目。接受项目组 ID 或 URL，显式传入空值会报错。URL 路径须包含完整的字母数字项目 ID，例如 `/project/g123`。 |
-| `--timeout SECONDS` | 覆盖本次 HTTP 请求超时，默认 20 秒。 |
-| `--compact` | 输出单行 JSON。 |
-| `--debug` | 执行失败时向 stderr 额外输出 Python traceback。 |
-| `--version` | 使用 `clouddragon --version` 查看版本。 |
-
-`--project`、`--timeout`、`--compact` 和 `--debug` 可放在资源前、资源和动作之间，或动作之后。同一选项重复传入时，最后一次生效。
-
-### 查 IR
-
-```bash
-# 取项目内全部 IR
-clouddragon --project gexample0001 ir list --all
-
-# 只取指定需求域中处于测试阶段的 IR 的第 2 页
-clouddragon ir list --project gexample0001 --domain 900001 --process 测试 --page 2 --page-size 50
-
-# 从列表的 data.domains[].items[].businessNo 取业务号，再查详情
-clouddragon ir show IR20990101000001 --project gexample0001 --domain 900001
-```
-
-`ir list` 默认取每个选中需求域的第一页，每页 200 条。`--domain` 可重复，省略时查询项目内所有需求域。`--page` 和 `--page-size` 接受从 1 开始的整数。`--all` 自动翻页并按各域内的 IR `id` 去重，与 `--page` 互斥。
-
-每个 `data.domains[]` 条目包含 `id`、`name`、`items`、`count`、`page`、`page_size`、`total` 和 `next_page`。`page_size` 是请求的页大小，`count` 是实际返回条数，`total` 是服务端报告的跨页总数。按域把 `next_page` 传给 `--page`，直到它为 `null`。最后一次请求可能返回空页。使用 `--all` 时，`page`、`total` 和 `next_page` 均为 `null`。
-
-以下是 `--page-size 1` 的响应示例，IR 对象节选了用于定位需求和统计 Release 的字段。
-
-```json
-{
-  "ok": true,
-  "data": {
-    "project": "gexample0001",
-    "domains": [
-      {
-        "id": "900001",
-        "name": "示例需求域",
-        "items": [
-          {
-            "id": "9000000101",
-            "businessNo": "IR20990101000001",
-            "domain": "900001",
-            "name": "示例需求标题",
-            "process": "完成",
-            "pi": "10001",
-            "piName": "示例 Release"
-          }
-        ],
-        "count": 1,
-        "page": 1,
-        "page_size": 1,
-        "total": 2,
-        "next_page": 2
-      }
-    ]
-  }
-}
-```
-
-`--process` 在服务端按进展筛选，可选 `初始`、`分析`、`开发`、`测试`、`完成`。只需统计各域的完成数时，可用每页 1 条的请求读取 `total`。
-
-```bash
-clouddragon ir list --project gexample0001 --process 完成 --page-size 1 |
-  jq -c '.data.domains[] | {name, count: .total}'
-```
-
-按 Release 统计时，先用 `--all` 取得全量数据，再按 `pi` 归组，以 `piName` 显示名称。以下命令只统计已分配 Release 的 IR，项目总数仍包含未分配 `pi` 的 IR。
-
-```bash
-clouddragon ir list --project gexample0001 --all --compact |
-  jq -c '[.data.domains[].items[] | select((.pi // "") != "")]
-    | group_by(.pi)[]
-    | {id: .[0].pi, release: .[0].piName, total: length,
-       done: (map(select(.process == "完成")) | length)}'
-```
-
-`ir show` 接收门户业务号，在 `data.ir` 返回门户原始字段。查看、更新和评论命令均接受 `--domain`，省略时按业务号逐域查找。列表搜索使用清理过的描述，清理后为空时使用标题 `name`。AIReq 详情使用列表快照中的原始字段和完整描述。打开详情时单独查询该 IR 当前的评论。手动运行 `ir show` 和 `comment list` 也可访问详情与评论。
+验收从指定 Release 发起同步，核对所有项目及未分配 Release 的 IR 都进入快照，长描述与需求文档正文完整。让手动请求等待前一轮传输，在等待期间刷新云龙目录并保存文档；核对交接仍使用接纳时的目录，但携带轮到本次传输时的当前文档。重复同步后确认已有红区方案、同名需求文档及快照未附带的文件仍在。
 
 ### 云龙字段与页面列
 
-以下是云龙门户 `field/getAllFields` 响应中的 75 条字段定义，按适用对象分组。名称取自 `fieldName`，键取自 `fieldKey`。本次元数据中的 `fieldType` 均为空。字段定义说明门户的列配置，实际取值时以对应对象 API 的响应为准。
+列表和详情读取当前快照的 `businessNo`、`name`、`description` 和业务字段。列表搜索使用清理后的描述，空描述回退到标题。需求空间取该 IR 所属域名称，缺名称时显示域 ID。当前责任人取 `delivererOwner`，提出人、设计、开发、测试责任人依次取 `owner`、`seId`、`de`、`te`。提交人缺失时使用创建人，其他缺值显示「—」。
 
-#### 需求、子需求和任务
-
-| 页面名称 | `fieldKey` | `useType` |
-| --- | --- | --- |
-| 标题 | `title` | `IR,SR,US,Task` |
-| 详情 | `deil` | `IR,SR,US,Task` |
-| 需求空间 | `domain` | `IR,SR,US,Task` |
-| PI | `pi` | `IR,SR,US,Task` |
-| 迭代 | `iterateId` | `IR,SR,US,Task` |
-| 预估\|卷积工作量 | `estimatedWorkloadManday` | `IR,SR,US,Task` |
-| 预估代码行(KLOC) | `pmsWorkloadKloc` | `IR,SR,US,Task` |
-| 进展 | `process` | `IR,SR,US,Task` |
-| 优先级 | `priorityLevel` | `IR,SR,US,Task` |
-| 健康状态 | `health_degree` | `IR,SR,US,Task` |
-| 微服务 | `serviceName` | `IR,SR,US,Task` |
-| 业务编码 | `businessCode` | `IR,SR,US,Task` |
-| 无需分解原因 | `noBreakReason` | `IR,SR,US,Task` |
-| 是否涉及网络安全 | `industry` | `IR,SR,US,Task` |
-| 是否需要分解 | `needBreak` | `IR,SR,US,Task` |
-| 目标用户 | `targetCustomer` | `IR,SR,US,Task` |
-| 无需代码开发原因 | `noDevelopReason` | `IR,SR,US,Task` |
-| 是否需要代码开发 | `needDevelop` | `IR,SR,US,Task` |
-| 需求提出人 | `owner` | `IR,SR,US,Task` |
-| 设计责任人 | `seId` | `IR,SR,US,Task` |
-| 开发责任人 | `de` | `IR,SR,US,Task` |
-| 关联责任人 | `relatedOwner` | `IR,SR,US,Task` |
-| 测试责任人 | `te` | `IR,SR,US,Task` |
-| 当前责任人 | `delivererOwner` | `IR,SR,US,Task` |
-| 计划开发结束时间 | `developEndTime` | `IR,SR,US,Task` |
-| 需求更新人 | `modifiedBy` | `IR,SR,US,Task` |
-| 计划测试结束时间 | `testingEndTime` | `IR,SR,US,Task` |
-| 用户期望交付时间 | `expectedImplementationDate` | `IR,SR,US,Task` |
-| 需求来源 | `demandSource` | `IR,SR,US,Task` |
-| 关联RR | `rrBusinessNo` | `IR,SR,US,Task` |
-| 架构元素 | `netype` | `IR,SR,US,Task` |
-| 创建人 | `creator` | `IR,SR,US,Task` |
-| 创建时间 | `createDate` | `IR,SR,US,Task` |
-| 转分析时间 | `turnAnalysisTime` | `IR,SR,US,Task` |
-| 转开发时间 | `completedAnalysisTime` | `IR,SR,US,Task` |
-| 转测试时间 | `turnTestTime` | `IR,SR,US,Task` |
-| 完成时间 | `completedDate` | `IR,SR,US,Task` |
-| 分解状态 | `isDecompose` | `IR,SR,US,Task` |
-| 需求类型 | `subType` | `IR,SR,US,Task` |
-| 标签 | `labels` | `IR,SR,US,Task` |
-| 评论 | `comments` | `IR,SR,US,Task` |
-| 下游RR编号 | `pmsRRNumber` | `IR,SR,US,Task` |
-| 所属领域 | `correspondingCategory` | `IR,SR,US,Task` |
-| 是否需要关联微服务 | `isRelatedMicroService` | `IR,SR,US,Task` |
-| 是否需要关联文档 | `isRelatedDoc` | `IR,SR,US,Task` |
-| 是否需要关联架构元素 | `isRelatedArc` | `IR,SR,US,Task` |
-| 硬件单板信息 | `board` | `IR,SR,US,Task` |
-| 需求分类 | `trustCategory` | `IR,SR,US,Task` |
-| 验证策略 | `verificationPolicy` | `IR,SR,US,Task` |
-| 验证策略描述 | `verificationPolicyDesc` | `IR,SR,US,Task` |
-| PMS(PI) | `pmsPI` | `IR,SR,US,Task` |
-| 实际工作量（KLOC） | `realWorkloadKloc` | `US` |
-| 实际工作量（人天） | `realWorkloadManday` | `US` |
-| 附件 | `attachment` | `IR,SR,US,Task` |
-| 系统ID | `systemid` | `IR,SR,US,Task` |
-| 基线状态 | `baseline` | `IR,SR,US,Task` |
-| PMS状态 | `pmsStatus` | `IR,SR,US,Task` |
-| 网络安全标识 | `pmsNetworkSecurityIdentity` | `IR,SR,US,Task` |
-| 需求开发跟踪状态 | `implTracingState` | `IR,SR,US` |
-
-#### 缺陷（BUG）
-
-| 页面名称 | `fieldKey` |
-| --- | --- |
-| 标题 | `title` |
-| 描述 | `description` |
-| 需求空间 | `defect2domain` |
-| 提出人 | `defectCreatedBy` |
-| 严重程度 | `severity` |
-| 问题领域 | `problemDomain` |
-| 微服务 | `serviceId` |
-| 发现环境 | `foundEnvironment` |
-| 发现PI | `foundPi` |
-| 发现迭代 | `foundDefect2Plan` |
-| 期望修复时间 | `expectedRepairDate` |
-| 修复PI | `pi` |
-| 修复迭代 | `defect2Plan` |
-| 计划修复时间 | `dueDate` |
-| 预估工作量 | `devWorkload` |
-| 健康状态 | `healthDegree` |
-
-#### IR 业务数据的取值
-
-`ir list` 的 `data.domains[].items[]` 和 `ir show` 的 `data.ir` 返回 IR 记录。下面这些记录字段与门户元数据需要一起对照。
-
-| 含义 | IR 记录字段 | 说明 |
-| --- | --- | --- |
-| 需求编号 | `businessNo` | 门户业务号，用于 `ir show`、`ir update` 和评论命令。内部 `id` 用于门户详情查询。 |
-| 标题 | `name` | IR 记录使用 `name`，列配置元数据使用 `title`。 |
-| 描述 | `description` | IR 记录使用 `description`，需求类元数据的「详情」使用 `deil`。 |
-| 预估／卷积工作量 | `estimatedWorkloadManday`、`sumWorkloadManday` | 元数据用同一列名登记 `estimatedWorkloadManday`，IR 记录另有 `sumWorkloadManday` 表示卷积工作量。 |
-| Release 名称 | `piName` | 以 `pi` 分组，使用 `piName` 展示名称。 |
-| 提交人 | `submitter` | AIReq 在缺失时显示 `creator`。 |
-
-当前责任人取 `delivererOwner`，需求提出人取 `owner`，设计、开发、测试责任人分别取 `seId`、`de`、`te`。这些人员字段为空时保留空值。CLI 的 `--owner` 写入 `owner`。
-
-本次元数据未列出门户的「停留时间」和「关联任务」。AIReq 的「停留时间」根据快照计算，自进入当前进展起算。初始、分析、开发、测试、完成分别取 `createDate`、`turnAnalysisTime`、`completedAnalysisTime`、`turnTestTime`、`completedDate`。缺少相应时间或时间无效时显示「—」。列可见时在浏览器内每分钟更新。门户原有停留时长的取值口径和「关联任务」来源仍需核对。列配置包括已确认映射的云龙 IR 列，缺值显示「—」。需求空间优先取列表域名，缺少名称时显示域 ID。预估／卷积工作量按门户组合为一列，单位为人天，排序使用预估值，缺少预估值时使用卷积值。AIReq 的详情复用列表快照，只有快照包含的原始字段才能在详情中读取。
-
-### 创建和更新 IR
-
-```bash
-clouddragon ir create --project gexample0001 --domain "示例需求域" --name "新需求" --priority 高
-clouddragon ir update IR20990101000001 --project gexample0001 --process 完成
-clouddragon ir update IR20990101000001 --project gexample0001 --description "<p>更新后的示例描述</p>"
-```
-
-| 选项 | 说明 |
-| ---- | ---- |
-| `--domain VALUE` | 需求域 ID 或名称。创建时必填，更新时可用于缩小查找范围。 |
-| `--name TEXT` | IR 名称，创建时必填。 |
-| `--description HTML` | 富文本描述，创建时默认使用需求模板。 |
-| `--priority VALUE` | 可选 `高`、`中`、`低`，创建时默认 `中`。 |
-| `--owner USER` | 需求提出人账号（`owner`），创建时默认当前账号。 |
-| `--expected-date YYYY-MM-DD` | 期望实现日期，更新时可传空字符串清除。 |
-| `--process STATE` | 更新时设置目标进展，取值与 `ir list --process` 相同。 |
-
-`ir create` 返回 `domain`、`id`、`business_no` 和 `ir`。创建已返回内部 ID，但回查失败或暂时找不到 IR 时，命令仍成功退出，`business_no` 为 `null`，原因见 `data.ir.warning`。保留内部 `id`，稍后用 `ir list` 获取对应的 `businessNo`。
-
-`ir update` 至少需要一个更新字段。进展和详情字段需分开提交。结果包含 `business_no`、`item_id`、`changed`、`before` 和服务端回读的 `ir`。`changed` 和 `before` 分别给出变化字段的新值和原值。详情字段使用门户字段名，例如 `priorityLevel` 和 `expectedImplementationDate`。
-
-收到 `UpdateUnconfirmedError` 表示门户已接受更新，但回读失败或回读值与请求不同。先用 `ir show` 查询当前状态，再决定是否重试。
+预估和卷积工作量合为一列，单位为人天。排序先取预估值，缺失时取卷积值。「停留时间」从进入当前进展的时间起算，按初始、分析、开发、测试、完成依次取 `createDate`、`turnAnalysisTime`、`completedAnalysisTime`、`turnTestTime`、`completedDate`。时间无效时显示「—」，列可见时每分钟更新。完整列定义见[需求列表字段](../../../packages/ui/src/aireq/proposals/proposalColumns.ts)，交互见[项目与版本导航](section-navigation.md)。
 
 ### IR 详情评论
 
-评论属于云龙 IR，由服务端按当前项目、需求域和 IR 业务号查询。真实模式使用服务端配置的云龙账号执行 CLI，由云龙执行权限校验。模拟模式在服务进程内保存评论变更，供同一项目和 IR 的访问者读取。
+评论属于云龙 IR，由服务端使用页面快照中该条 IR 的项目组 ID、需求域 ID 和业务号查询、新增或删除。真实模式使用服务端配置的云龙账号执行 CLI，由云龙执行权限校验。模拟模式在服务进程内保存评论变更，供同一项目和 IR 的访问者读取。
 
-用户可提交最多 10,000 字符的非空评论，保留多行正文。只有带评论 ID 的条目提供删除入口，并要求用户确认。写入成功后回读该 IR 的评论。回读失败时保留已获知的结果和重试入口。网络错误或超时后可重新读取评论确认结果，页面不会自动重发写操作。
+用户可提交最多 10,000 字符的非空评论，保留多行正文。只有带评论 ID 的条目提供删除入口，并要求用户确认。写入成功后回读该 IR 的评论。回读失败时保留已获知的结果和重试入口。写入结果、错误和后续回读只归属发起操作的项目和 IR，不得修改其他 IR 的评论、输入或反馈。网络错误或超时后可重新读取评论确认结果，页面不会自动重发写操作。
 
-### CLI 评论操作
+### 手动将需求文档发到云龙评论
 
-```bash
-clouddragon comment list IR20990101000001 --project gexample0001
-clouddragon comment add IR20990101000001 "看起来不错" --project gexample0001
-clouddragon comment delete IR20990101000001 00000000-0000-4000-8000-000000000001 --project gexample0001
-```
+黄区为每个 IR 提供「同步需求文档到云龙评论」按钮。一次点击取该 IR 最新已保存的 `requirements.md` 全文，固定此次发送的正文、版本号和确认状态。草稿也可发送。每条评论标明 IR 业务号、版本号及「草稿」或「已确认」。用户再次主动发送时追加评论，保留之前的评论。文档保存、确认版本、黄区到红区的手动或定时同步都不触发该按钮。
 
-`comment list` 在 `data.items` 返回评论，`comment add` 在 `data.comment` 返回新增评论。删除命令接收对应的 `data.items[].id` 或 `data.comment.id` 作为评论 UUID。列表中缺少 UUID 的条目返回 `id: null`。省略 `--type` 时，CLI 从评论列表查询类型，找不到该 ID 时返回 `NotFoundError`。删除不可撤销，执行前先用 `comment list` 核对评论 ID。
+分条标记计入单条评论的长度上限。超长正文优先按段落拆分，单个段落仍超限时继续拆分，依次发送并标明「第几条／共几条」。发送使用同一份已保存正文。部分成功后显示各条发送结果，保留已成功的评论。结果不明时先回读对应 IR 的评论，用户可手动补发剩余部分。没有可读需求正文时说明原因，不提交空评论。
 
-### CLI 输出契约
+当前原型已提供普通评论的读取、新增和删除。以上专用按钮、文档分条及补发是一期验收要求，当前原型尚未实现。
 
-| 结果 | 输出流 | 退出码 | 内容 |
-| ---- | ------ | ------ | ---- |
-| 成功 | stdout | `0` | `{"ok": true, "data": …}` |
-| 执行失败 | stderr | `1` | `{"ok": false, "error": {"type": "AuthenticationError", "message": "示例错误信息"}}` |
-| 参数错误 | stderr | `2` | 同样的失败结构，`error.type` 为 `ArgumentError`。 |
-
-`--help` 和 `--version` 输出纯文本。启用 `--debug` 后，执行失败时 stderr 还会包含 Python traceback。
-
-### CLI 开发与离线测试
-
-在 `clouddragon-cli` 源码目录运行以下命令。测试使用模拟客户端或 `httpx.MockTransport`，无需访问内网或提供真实凭据。
-
-```bash
-pip install -e . pytest
-pytest
-```
+真实云龙评论由服务端调用 `comment list`、`comment add`、`comment delete`。读取范围和写入回执见[公开接口](contract-design.md)，项目、需求域及评论标识的解析见[服务端云龙适配器](../../../packages/server/src/aireq/clouddragon.ts)。
 
 ## 入口与权限
 
-AIReq 按云龙项目展示 IR，点击标题打开详情对话框。需求共创表格每行直接提供「讨论需求」和「查看文档」，「更多操作」提供「讨论方案」和「复制链接命令」。「讨论需求」和「讨论方案」分别打开需求 Agent 和方案 Agent 的会话。所有人可进入需求 Agent 和查看文档。项目配置了工作目录即可复制链接命令。项目开发或测试可进入方案 Agent、修改方案及确认版本。管理员沿用已有全项目角色。项目地址和默认分支供正式后端只读访问项目代码。
-
-「查看文档」保留列表位置，在右侧展开对应需求。进入任一 Agent 对话时，默认打开右侧文档区。用户可收起或重新打开；当前对话中的消息和材料更新保持面板开合。两个会话各保有自己的历史、草稿消息与附件。原生会话按当前项目、IR 和角色路由。
+黄区「讨论需求」对所有有效工号开放。红区「讨论方案」面向项目开发和测试，正式后端可通过项目地址和默认分支只读访问代码。各区的版本由项目开发或测试确认，管理员沿用已有全项目角色。当前单进程原型在同一工作台演示两个入口。逐行操作、阅读与会话交互分别见[导航](section-navigation.md)、[右侧文档区](unified-side-pane.md)和[原生会话](conversation.md)。
 
 ### IR 详情阅读
 
-详情在桌面视口内分为约 5:1 的两列。左列先显示完整描述，再按云龙返回顺序显示评论及可用的作者、时间。正文支持 Markdown、纯文本和经过清理的 HTML。左列共用一个滚动区，可在描述与评论之间跳转。右栏用中文业务标签显示已知字段，空值显示「—」，完整门户字段在「原始字段」中展开。描述和每条评论都有独立的全屏阅读入口，全屏正文跨越整个视口并可滚动。关闭全屏回到该段正文的操作按钮，保留详情列和正文滚动位置。关闭详情回到打开时的标题或行操作入口，保留列表筛选和滚动位置。
+详情在桌面视口内分为约 5:1 的两列。左列先显示完整描述，再按云龙评论接口返回顺序显示评论及可用的作者、时间。正文支持 Markdown、纯文本和经过清理的 HTML。左列共用一个滚动区，可在描述与评论之间跳转。右栏用中文业务标签显示已知字段，空值显示「—」；「原始字段」展开快照中的其他门户字段，不重复展示 `description` 或快照内嵌的 `comments`。描述和每条评论都有独立的全屏阅读入口，全屏正文跨越整个视口并可滚动。关闭全屏回到该段正文的操作按钮，保留详情列和正文滚动位置。关闭详情回到打开时的标题或行操作入口，保留列表筛选和滚动位置。
 
 原始字段保留字段名、空值、布尔值、数组和对象。打开时才读取所选 IR，关闭或切换后丢弃旧请求的结果。详情读取失败提供重试。评论加载失败时独立提示并提供重试。
 
-验收覆盖长描述、多条长评论、空评论、复杂字段、键盘打开和逐层关闭。在 1100×700 桌面窗口确认两列和全屏可滚动，查看下一条评论不受上一条长度影响，关闭后原位置和焦点可恢复。
+验收覆盖长描述、多条长评论、空评论、复杂字段、键盘打开和逐层关闭。在 1100×700 桌面窗口确认两列和全屏可滚动，查看下一条评论不受上一条长度影响，关闭后原位置和焦点可恢复。延迟 IR A 的评论新增或删除回执，在等待期间打开 IR B；检查 A 的回执、错误和回读不会串到 B，也不会清空 B 的输入。
 
 ## 材料与版本
 
-需求 Agent 维护业务需求文档。方案 Agent 维护各 SR 的提案、技术方案、任务、测试方案与规格，以及 IR 的 SR 依赖。材料路径以平台内对象为根；交付、评审和版本确认均读取平台材料。
+黄区需求 Agent 维护每个 IR 的正式需求文档。业务与开发对齐后，由该项目的开发或测试独立确认需求版本，只固定该 IR 当时的需求正文。
 
-没有文件时显示「暂无文档」。首次保存文件时建立 V1。未确认期间，新增、编辑及删除文件都更新同一版本。开发或测试点击「确认版本」时，工作流检查最新版文件并返回文件快照标识。用户在弹窗点击「确认定版」时提交该标识；工作流只接受仍未确认且与预检相同的版本和文件，按当前规则复核后一次性固定全部文件，记录实际确认人的工号和时间。内容不同（包括同版编辑）或已被他人确认时拒绝，不定版其他快照；用户可重新检查尚未确认的最新版。无关的工作流修订不影响定版。已成功的同一操作重试返回原回执。确认后的首次实际文件变更创建下一未确认版本，无文件变化的对话和评审不生成版本。确认版本只读，由工作流保存独立快照。
+红区做方案时，每个 IR 必须拆成至少一个 SR。方案 Agent 维护各 SR 的提案、设计文档、开发任务、测试方案和规格，以及 IR 的 SR 依赖。该 IR 下全部 SR 的设计文档和测试方案共同构成正式交付，按 IR 即可查齐，无需另写 IR 级设计或测试汇总正文。拆分和红区定版均不影响读取云龙、回写评论或黄区需求定版。
 
-列表与文档区默认显示最新版及确认状态；文档区可切换已确认的历史版本并查阅文件正文与确认记录。继续讨论和修改始终作用于最新版本。确认不会结束会话或改变阅读导航。原始短需求独立保留，文档和历史均保存在平台中。
+两区分别管理版本。首次写入建立 V1，草稿修改沿用当前版。确认时工作流复核预检快照，固定本次文件并记录确认人的工号和时间。同版文件已改动或他人已确认时须重新检查。无关工作流修订不使快照失效，重复提交同一成功操作返回原回执。确认后的首次文件变化开启下一版，历史快照只读。
+
+列表与文档区默认显示最新版及确认状态；文档区可切换已确认的历史版本并查阅文件正文与确认记录。继续讨论和修改始终作用于最新版本。确认不会结束会话或改变阅读导航。原始描述来自云龙快照，独立于平台保存的文档及其历史。
 
 ```mermaid
 sequenceDiagram
   participant U as 用户
   participant A as 需求或方案 Agent
-  participant W as 工作流
+  participant W as 所在区的工作流
   U->>A: 通过对话修改材料
   A->>W: 一次提交实际文件变更
   W->>W: 初始化或更新当前版，已确认则开启下一版
@@ -369,13 +96,18 @@ sequenceDiagram
 
 ## 定版检查
 
-服务端检查 IR 的业务需求文档、至少一个 SR、每个 SR 的提案、技术方案、开发任务、测试方案、规格，以及覆盖全部 SR 的依赖清单。按平台文档路径查找文件，校验可读正文、文档格式设置的必需章节与正文，以及依赖 JSON 的结构、依赖项、环路与工期预估。缺失和不合法按路径分别报告，列出具体原因。检查和取消均为只读，失败保留当前未确认版本。定版使用同一校验，校验失败时返回报告。
+| 确认对象 | 服务端检查范围 |
+| --- | --- |
+| 黄区需求版本 | 该 IR 的 `requirements.md` 必须有可读正文，已配置的必需章节均须有正文。尚无 SR 时也可确认。 |
+| 红区方案版本 | 检查该 IR 的需求依据、至少一个 SR、每个 SR 的提案、设计、开发任务、测试方案、规格，以及覆盖全部 SR 的依赖清单。检查各文档的必需章节及正文、依赖 JSON 的结构、依赖项、环路与工期预估。 |
+
+缺失和不合法按路径分别报告，列出具体原因。检查和取消均为只读，失败保留当前未确认版本。定版时复核同一范围。当前原型的[服务端校验](../../../packages/server/src/aireq/document-validation.ts)仍对整套 IR 和 SR 材料一起预检，尚不支持黄区单独定版。
 
 ## 在开发仓库中查看最新文档
 
 项目的共享文档目录为 `<工作目录>/docs/areq`。工作流将每个 IR 的最新版发布到 `<工作目录>/docs/areq/<ir-id>/`。IR 文档和依赖清单位于 IR 根目录，SR 材料位于 `<ir-id>/<sr-id>/`，保留 SR 规格子目录。未定版的保存也发布到该目录。已有项目初次配置工作目录时发布当前材料。历史定版仍从工作流快照读取。
 
-「查看文档」旁的复制按钮根据服务端工作目录生成链接命令。POSIX 路径使用 Bash 的软链接命令，Windows 盘符路径使用 PowerShell 的目录联接命令。悬停或聚焦时预览，单击复制并播报结果。工作目录未配置时提示到项目配置完成设置。开发者在自己的仓库根目录执行一次，仓库中的 `docs` 目录需存在，开发环境须能访问项目的共享目录。
+每行「更多操作」中的「复制链接命令」根据服务端工作目录生成命令。POSIX 路径使用 Bash 的软链接命令，Windows 盘符路径使用 PowerShell 的目录联接命令。悬停或聚焦时预览，单击复制并播报结果。工作目录未配置时提示到项目配置完成设置。开发者在自己的仓库根目录执行一次，仓库中的 `docs` 目录需存在，开发环境须能访问项目的共享目录。
 
 ```sh
 ln -s /xxx/yyy/docs/areq ./docs/areq
@@ -402,18 +134,17 @@ sequenceDiagram
 
 需求 Agent 输入框内提供「评审需求」，方案 Agent 输入框内提供「审查方案」。首次保存材料后即可发起，按钮显示当前最新版号，阅读历史版本时也显示评审目标。当前评审运行中显示进度。点击把固定评审指令交给独立子代理，保留当前输入，工作流使用发起时最新材料快照并把结果关联回当前对话。评审只给意见。报告记录版本与文件快照，材料变化时标记为对应修改前的内容，即使版本号未变。可再次评审最新材料。评审与版本确认分别可用，评审、失败及重试都不改变需求状态。
 
-## 需求录入与查阅
-
-需求共创页头提供「新建需求」。用户选择所属 Release 并保存短需求，表单草稿归前端，创建由工作流通过 `createProposal` 完成。
-
-需求在列表和右侧文档区内查阅。尚未确认过版本的需求可经确认移除，已有确认记录的需求保留材料与历史，并隐藏移除入口。
 
 ## 验收
 
+- 在黄区仅保存需求正文，核对未建 SR 也能由项目开发或测试确认，修改后能查阅之前确认的正文。红区拆一个或多个 SR 后，可从 IR 查齐各 SR 的设计和测试方案。
+- 在黄区分别手动发送草稿和已确认版本，核对对应 IR 评论保留两次正文、版本和状态。长文分条后能还原全文。中途失败后手动补发，只补剩余部分。单独保存、定版或向红区同步均不新增云龙评论。
 - 普通工号可讨论需求和查看材料，未经授权的方案访问和确认请求被拒绝。开发和测试均可独立讨论方案、评审和确认。
 - 首次写入为 V1，未确认期间连续修改仍为 V1。确认记录保留完整文件、实际确认人和时间；后续首次变化生成 V2，V1 仍可读。
 - 预检后同一版本的文件变化，或另一人先确认并开启下一版，原弹窗均不能定版；重新检查后才可确认当前快照。复核按最新文档格式规则执行，失败不写入文件或确认记录。
 - 评审不改文件或版本。评审之后的同版本内容变化使报告指向修改前的内容。切换项目、需求和 Agent 时保持来源隔离。
 - 测试覆盖桌面列表操作、点击后文档侧栏、默认展开及手动收起、深浅主题和上一确认版本阅读。
-- 验收同项目每行复制的链接命令一致。在自己的克隆中执行一次后，验证新增需求及未定版的文档更新可通过原链接读取。
-- 桌面验收检查页头仅提供「新建需求」，可在所选 Release 保存短需求并回到列表。
+- 验收同项目每行复制的链接命令一致。在自己的克隆中执行一次后，验证新纳入云龙快照的需求及未定版的文档更新可通过原链接读取。
+- 在云龙录入、变更或删除 IR 后刷新项目，核对列表和统计按新快照更新；已有需求的本地材料、版本及会话不被云龙字段覆盖，目录移除不删除本地记录。
+- 读取包含多个需求域的项目，核对各域 IR 均进入列表和统计、每条 IR 的「需求空间」取自身域名称（缺名称时取域 ID），评论读取和写入也使用自身域。分别返回域与条目不一致、同项目 IR 业务号重复的数据，核对该项目读取失败，显式刷新不替换已有快照。
+- 详情快照同时含有 `description`、`comments` 和其他业务字段时，确认完整描述只在独立描述区出现，评论来自评论接口，原始字段不重复显示这两项。

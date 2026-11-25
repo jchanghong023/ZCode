@@ -40,7 +40,6 @@ export interface RequirementGroup extends Omit<
   sessions: NativeSessionRef[];
   sourceDescription: string;
   releaseName?: string;
-  clientDraftId?: string;
 }
 
 export interface SystemRequirement extends AIReqSystemRequirement {

@@ -50,7 +50,6 @@ export function projectRequirement(
   canAccessSolution: boolean,
 ): AIReqRequirementGroup {
   const {
-    clientDraftId: _clientDraftId,
     sourceDescription: _sourceDescription,
     releaseName: _releaseName,
     documentVersion,
@@ -101,19 +100,22 @@ export function projectRequirementSummaries({
       release = {
         id: releaseId,
         projectId,
-        title: releaseName || releaseId,
+        title: releaseName ?? "",
         createdAt: "",
         ...emptyRequirementCounts(),
       };
       releases.set(key, release);
-    } else if (release.title === releaseId && releaseName) {
+    } else if (!release.title && releaseName) {
       release.title = releaseName;
     }
     countRequirement(release, requirement);
   }
+  // 同一 PI 的任一条 IR 都可能提供名称；分组完仍无名称才显示占位，不把内部 ID 当作名称。
+  const summaries = [...releases.values()];
+  for (const release of summaries) release.title ||= "未提供名称";
   return {
     projectRequirementCounts: Object.fromEntries(projectCounts),
-    releases: [...releases.values()].sort(
+    releases: summaries.sort(
       (a, b) =>
         b.title.localeCompare(a.title, undefined, { numeric: true }) || a.id.localeCompare(b.id),
     ),

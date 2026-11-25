@@ -12,7 +12,17 @@ import {
   writeFileSync,
 } from "node:fs";
 import * as fs from "node:fs/promises";
-import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
+import {
+  basename,
+  dirname,
+  isAbsolute,
+  join,
+  posix,
+  relative,
+  resolve,
+  sep,
+  toNamespacedPath,
+} from "node:path";
 import type { AIReqMaterialView } from "@zcode/services/aireq";
 import { businessRule } from "./errors.js";
 import { prototypeChangeRoot, prototypeIrRoot } from "./proposal-storage.js";
@@ -37,9 +47,9 @@ function directory(path: string) {
 }
 
 function* newlyCreatedDirectories(path: string, first: string) {
-  // 用有界的相对路径枚举新建目录，避免路径拼写不一致时在根目录循环。
-  let current = resolve(first);
-  const remainder = relative(current, path);
+  // Bun 在 Windows 的递归 mkdir 返回扩展路径；先统一表示，再做严格的祖先判断。
+  let current = toNamespacedPath(resolve(first));
+  const remainder = relative(current, toNamespacedPath(path));
   if (
     dirname(current) === current ||
     isAbsolute(remainder) ||

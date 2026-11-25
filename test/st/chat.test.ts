@@ -11,7 +11,7 @@ import {
   type ConversationTopicWireFrame,
   type ModelSelection,
 } from "@zcode/shared/zcode-protocol-v4";
-import { createProposal } from "./business.js";
+import { readRequirement } from "./business.js";
 import {
   connectChatST,
   connectST,
@@ -446,8 +446,9 @@ it("shares live chat across anonymous connections and isolates AIReq histories i
     } finally {
       await native.close();
     }
-    const proposal = await createProposal(aiReq);
-    const business = await openNative(aiReq, proposal.remote);
+    // AIReq 侧只定位公开会话并验证跨入口拒绝，无需占用写入夹具。
+    const { remote } = await readRequirement(aiReq);
+    const business = await openNative(aiReq, remote);
     try {
       await expect(
         service.conversationRowsRangeV4({

@@ -101,7 +101,6 @@ export function AIReqProjectSettings({
     if (!draft || !canSave || !saveRepository || savingRef.current) return false;
     setProjectError("");
     const errors = validateRepository(
-      undefined,
       draft.repositoryUrl,
       draft.defaultBranch,
       draft.workDirectory,
@@ -122,7 +121,6 @@ export function AIReqProjectSettings({
     try {
       const input = {
         projectId: draft.id,
-        name: projectName ?? draft.name,
         repositoryUrl: draft.repositoryUrl.trim(),
         defaultBranch: draft.defaultBranch.trim(),
         workDirectory: draft.workDirectory.trim(),

@@ -4,10 +4,11 @@ import {
   hasProjectRole,
   type AIReqCommand,
   type AIReqCommandTarget,
+  type AIReqDiscussionAgent,
   type AIReqMaterialReadRequest,
-  type AIReqNativeSessionRef,
   type AIReqObjectRef,
   type AIReqOperationReceipt,
+  type AIReqRemoteWorkflow,
   type AIReqWorkflowResult,
   type AIReqWorkflowTarget,
   type AIReqWorkflowView,
@@ -43,6 +44,7 @@ import {
   syncPrototypeProjectNames,
 } from "./project-settings.js";
 import { sessionRef } from "./fixture-builders.js";
+import { readPrototypeAgentModelBinding } from "./agent-models.js";
 import { prototypeIrRoot } from "./proposal-storage.js";
 import { emptyDocumentFormats } from "./materials.js";
 import {
@@ -101,14 +103,15 @@ async function refreshPrototypeProjects(): Promise<void> {
 }
 
 async function refreshRequirements(projectId: string): Promise<CloudDragonRequirement[]> {
-  const { items, domainName } = await readCloudDragonRequirements(projectId);
+  const { items, domainNames } = await readCloudDragonRequirements(projectId);
   if (!readPrototypeProjectSetting(projectId))
     throw businessRule("云龙目录已不包含此项目，请重新选择。");
   const current = state.requirements.filter((item) => item.projectId === projectId);
   const byId = new Map(current.map((item) => [item.id, item]));
   const requirements = items.map((item) => {
     const existing = byId.get(item.businessNo);
-    const title = item.name.trim() || item.businessNo;
+    // 业务号仅用于关联；云龙标题缺失时不将其伪装成需求名称。
+    const title = item.name?.trim() ?? "";
     const originalText =
       item.description
         .replace(/<br\s*\/?\s*>|<\/(?:p|div|li)>/gi, "\n")
@@ -130,7 +133,7 @@ async function refreshRequirements(projectId: string): Promise<CloudDragonRequir
     const createdAt = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(sourceDate)
       ? sourceDate.replace(" ", "T") + "+08:00"
       : sourceDate;
-    const cloudFields = cloudDragonProposalFields(item, domainName);
+    const cloudFields = cloudDragonProposalFields(item, domainNames.get(item.domain));
     if (existing) {
       if (
         existing.title === title &&
@@ -333,8 +336,10 @@ export function capturePrototypeRequirementList(
   for (const item of catalogue.requirements) {
     const project = byProject.get(item.projectId);
     if (!project) continue;
-    const document = documents.get(keys(item.projectId, item.id, item.documentPath));
-    if (document && (!document.valid || document.content === undefined))
+    // 仅交接该 IR 当轮的正式需求材料；复用读取边界，不能把有读取错误的正文发到红区。
+    const material = documents.get(keys(item.projectId, item.id, item.documentPath));
+    const document = material && readPrototypeMaterial(material);
+    if (document && (!document.valid || document.error || document.content === undefined))
       throw businessRule(`需求 ${item.id} 的需求文档不可读取，请重试全量同步。`);
     project.requirements.push({
       irId: item.id,
@@ -350,6 +355,7 @@ export function capturePrototypeRequirementList(
       te: item.te,
       submittedAt: item.createdAt,
       process: item.process,
+      cloudFields: item.cloudFields,
       ...(document?.content === undefined ? {} : { requirementsMarkdown: document.content }),
     });
   }
@@ -429,13 +435,48 @@ export function requireSolutionAccess(projectId: string): void {
   if (!canAccessSolution(projectId)) throw businessRule("此操作需要当前项目的开发或测试角色。");
 }
 
-export function getPrototypeWorkflow(
-  selection: AIReqWorkflowTarget = {},
-  catalogue?: PrototypeCatalogue,
-): AIReqWorkflowView {
-  const source = catalogue ? mergeCatalogue(catalogue) : state;
-  const projectId = selection.projectId;
-  const requirements = source.projects.some(({ id }) => id === projectId)
+function bindPrototypeDiscussion(
+  projectId: string,
+  irId: string,
+  phase: AIReqDiscussionAgent,
+): void {
+  const index = state.requirements.findIndex(
+    (item) => item.projectId === projectId && item.id === irId,
+  );
+  const requirement = state.requirements[index];
+  if (!requirement) return;
+  const ref = requirement.sessions.find((item) => item.phase === phase);
+  if (!ref || ref.runtimeModel) return;
+
+  const bound = { ...ref, ...readPrototypeAgentModelBinding(phase) };
+  const requirements = state.requirements.slice();
+  requirements[index] = {
+    ...requirement,
+    sessions: requirement.sessions.map((item) => (item === ref ? bound : item)),
+  };
+  // 目录预留 ID 不应锁定配置。首次讨论只更新 canonical 引用，让旧目录重合并而不推进业务 revision。
+  state = { ...state, requirements };
+}
+
+export function readPrototypeWorkflow(
+  { projectId, irId, discussionPhase = "requirements" }: AIReqWorkflowTarget,
+  catalogue: PrototypeCatalogue,
+  bindSession: boolean,
+): Pick<AIReqRemoteWorkflow, "view" | "session"> {
+  const visible = catalogue.projects.some(({ id }) => id === projectId);
+  const solution = projectId !== undefined && canAccessSolution(projectId);
+  if (
+    bindSession &&
+    visible &&
+    projectId &&
+    irId &&
+    catalogue.details.get(projectId)?.has(irId) &&
+    (discussionPhase !== "solution" || solution)
+  ) {
+    bindPrototypeDiscussion(projectId, irId, discussionPhase);
+  }
+  const source = mergeCatalogue(catalogue);
+  const requirements = visible
     ? source.requirements.filter((item) => item.projectId === projectId)
     : [];
   const requirementIds = new Set(requirements.map(({ id }) => id));
@@ -444,8 +485,7 @@ export function getPrototypeWorkflow(
     summaries = projectRequirementSummaries(source);
     requirementSummaries.set(source, summaries);
   }
-  const solution = projectId !== undefined && canAccessSolution(projectId);
-  return {
+  const view: AIReqWorkflowView = {
     revision: source.revision,
     documentFormats: source.documentFormats,
     roleAdministrator: getEmployeeId() === AIREQ_ROLE_ADMINISTRATOR,
@@ -461,17 +501,14 @@ export function getPrototypeWorkflow(
       .filter((item) => item.projectId === projectId && requirementIds.has(item.irId))
       .map(readPrototypeMaterial),
   };
-}
-
-export function resolvePrototypeSession(
-  view: Pick<AIReqWorkflowView, "requirements">,
-  selection: AIReqWorkflowTarget,
-): AIReqNativeSessionRef | undefined {
-  if (!selection.irId) return;
-  const projectId = selection.projectId;
-  return view.requirements
-    .find((item) => item.projectId === projectId && item.id === selection.irId)
-    ?.sessions.find((item) => item.phase === (selection.discussionPhase ?? "requirements"));
+  return {
+    view,
+    session: irId
+      ? view.requirements
+          .find((item) => item.id === irId)
+          ?.sessions.find((item) => item.phase === discussionPhase)
+      : undefined,
+  };
 }
 
 export function retryPrototypeWorkflowMaterial(request: AIReqMaterialReadRequest): boolean {
@@ -549,12 +586,6 @@ export function applyPrototypeAction(
   action: AIReqCommand,
   selection: AIReqCommandTarget,
 ): { result: AIReqWorkflowResult; review?: DocumentReviewRun } {
-  if (
-    action.type === "createProposal" ||
-    action.type === "createRelease" ||
-    action.type === "deleteRequirement"
-  )
-    throw businessRule("请在云龙管理项目需求。");
   const targetProjectId = action.projectId ?? selection.projectId ?? "";
   const requirement =
     readPrototypeProjectSetting(targetProjectId) &&

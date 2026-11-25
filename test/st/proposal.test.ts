@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
+import type { AIReqProjectRoleMember } from "@zcode/services/aireq";
 import { connectST, unique, type STClient } from "./client.js";
-import { config } from "./config.js";
-import { createProject, createProposal, createProposalIn } from "./business.js";
+import { config, requireConfig } from "./config.js";
+import { takeRequirement } from "./business.js";
 import {
   completeBusinessMaterial,
   completeSolutionMaterial,
@@ -24,51 +25,12 @@ async function withClient(run: (client: STClient) => Promise<void>) {
 
 describe("co-creation document versions through the public API", () => {
   it(
-    "creates a short requirement without generating documents or splitting SRs and deduplicates draft retries",
-    async () => {
-      await withClient(async (client) => {
-        const project = await createProject(client);
-        const baseline = await client.read(project.selection);
-        const action = {
-          type: "createProposal" as const,
-          projectId: project.projectId,
-          releaseId: project.releaseId,
-          originalText: unique("可重试的草稿"),
-          clientDraftId: unique("browser-draft"),
-        };
-        const created = await client.command(action, project.selection);
-        const repeated = await client.command(action, project.selection);
-        expect(repeated.receipt.operationId).not.toBe(created.receipt.operationId);
-        expect(repeated.irId).toBe(created.irId);
-        const read = await client.read(project.selection);
-        const drafts = read.view.requirements.filter(
-          (group) => group.originalText === action.originalText,
-        );
-        expect(drafts.map((group) => group.id)).toEqual([created.irId]);
-        expect(drafts[0]).toMatchObject({
-          projectId: project.projectId,
-          releaseId: project.releaseId,
-          submittedBy: client.identity.employeeId,
-          srIds: [],
-          documentHistory: [],
-          documentReviews: [],
-        });
-        expect(drafts[0]).not.toHaveProperty("clientDraftId");
-        expect(drafts[0]).not.toHaveProperty("origin");
-        expect(drafts[0]).not.toHaveProperty("files");
-        expect(drafts[0]?.documentVersion).toBeUndefined();
-        expect(read.view.srs).toEqual(baseline.view.srs);
-        expect(read.view.materials).toEqual(baseline.view.materials);
-      });
-    },
-    config.timeoutMs,
-  );
-
-  it(
     "uses saved document headings to validate and review requirements generated in chat",
     async () => {
       await withClient(async (client) => {
-        const original = (await client.read()).view.documentFormats;
+        // 云龙是 IR 的来源；先占用没有本地材料的专用 IR，再临时修改全局格式。
+        const target = await takeRequirement(client);
+        const { documentFormats: original, revision: baseline } = target.remote.view;
         expect(Object.keys(original).sort()).toEqual([
           "design.md",
           "proposal.md",
@@ -78,7 +40,6 @@ describe("co-creation document versions through the public API", () => {
           "test-plan.md",
         ]);
         const formats = { ...original, "requirements.md": ["数据范围", "验收方式"] };
-        const baseline = (await client.read()).view.revision;
         const saved = await client.command({
           type: "saveDocumentFormats",
           documentFormats: formats,
@@ -90,7 +51,6 @@ describe("co-creation document versions through the public API", () => {
             documentFormats: formats,
             revision: saved.receipt.revision,
           });
-          const target = await createProposal(client, "提供可配置的项目通知规则。");
           const selection = proposalSelection(target);
           await discuss(
             client,
@@ -144,6 +104,7 @@ describe("co-creation document versions through the public API", () => {
             expectedRevision: current.view.revision,
           });
           expect(restored.receipt.status, restored.receipt.error).toBe("completed");
+          expect(restored.documentFormatSnapshot?.documentFormats).toEqual(original);
         }
       });
     },
@@ -153,51 +114,84 @@ describe("co-creation document versions through the public API", () => {
   it(
     "updates V1 until a single confirmation fixes all documents and preserves them after V2 starts",
     async () => {
+      const failures: unknown[] = [];
       await withClient(async (business) => {
-        const developer = await connectST(config.otherEmployeeId);
-        const tester = await connectST(config.testerEmployeeId);
-        const admin = await connectST("y00000000");
+        let developer: STClient | undefined;
+        let tester: STClient | undefined;
+        let admin: STClient | undefined;
+        const granted: AIReqProjectRoleMember[] = [];
         try {
+          developer = await connectST(config.otherEmployeeId);
+          tester = await connectST(config.testerEmployeeId);
+          admin = await connectST("y00000000");
           expect(
             new Set([business, developer, tester, admin].map((actor) => actor.identity.employeeId))
               .size,
           ).toBe(4);
-          const target = await createProposal(business);
+          const target = await takeRequirement(business, { requireRelease: true });
+          const ordinaryActors = new Set(
+            [business, developer, tester].map(({ identity }) => identity.employeeId),
+          );
+          // 预置的开发或测试角色会绕过本例要验证的独立授权，不清理环境原有权限。
+          if (
+            target.remote.view.projectRoleMembers.some(
+              ({ projectId, employeeId }) =>
+                projectId === target.projectId && ordinaryActors.has(employeeId),
+            )
+          ) {
+            throw new Error("ST 前置阻塞：定版夹具项目的三个测试工号必须没有预置项目角色");
+          }
           for (const [actor, role] of [
             [developer, "development"],
             [tester, "testing"],
           ] as const) {
+            const member = {
+              projectId: target.projectId,
+              employeeId: actor.identity.employeeId,
+              role,
+            };
             const result = await admin.command(
               {
                 type: "addProjectRoleMember",
-                projectId: target.projectId,
-                employeeId: actor.identity.employeeId,
-                role,
+                ...member,
               },
               target.selection,
             );
             expect(result.receipt.status, result.receipt.error).toBe("completed");
+            granted.push(member);
           }
           const selection = proposalSelection(target);
-          const confirmationAction = (snapshot: string) => ({
-            type: "confirmDocumentVersion",
-            ...selection,
-            snapshot,
-            expectedRevision: target.remote.view.revision,
-            operationId: unique("confirm-document"),
-          }) as const;
+          const confirmationAction = (snapshot: string) =>
+            ({
+              type: "confirmDocumentVersion",
+              ...selection,
+              snapshot,
+              expectedRevision: target.remote.view.revision,
+              operationId: unique("confirm-document"),
+            }) as const;
           const release = ({ view }: typeof target.remote) =>
             view.releases.find(
               ({ projectId, id }) => projectId === target.projectId && id === target.releaseId,
             );
-          expect(getProposal(target.remote, target).documentVersion).toBeUndefined();
-          expect(release(target.remote)).toMatchObject({
-            requirementCount: 1,
-            confirmedRequirementCount: 0,
-          });
+          const { originalText, documentVersion } = getProposal(target.remote, target);
+          expect(documentVersion).toBeUndefined();
+          // 同一云龙 Release 可能已有其他 IR（包括已定版的 IR），只核对本例的增量。
+          const releaseRequirements = target.remote.view.requirements.filter(
+            ({ projectId, releaseId }) =>
+              projectId === target.projectId && releaseId === target.releaseId,
+          );
+          const requirementCount = releaseRequirements.length;
+          const confirmedRequirementCount = releaseRequirements.filter(
+            ({ documentVersion }) => documentVersion?.confirmation,
+          ).length;
+          expect(requirementCount).toBeGreaterThan(0);
+          const initialRelease = requireConfig(release(target.remote), "定版夹具的 Release");
+          expect(initialRelease).toMatchObject({ requirementCount, confirmedRequirementCount });
           await expect(business.call("validateDocumentVersion", [selection])).rejects.toThrow();
           const emptyCheck = await tester.call("validateDocumentVersion", [selection]);
-          await expectBusinessRejection(tester.command(confirmationAction(emptyCheck.snapshot), selection));
+          await expectBusinessRejection(
+            tester.command(confirmationAction(emptyCheck.snapshot), selection),
+          );
           const v1 = await completeBusinessMaterial(business, target);
           expect(getProposal(v1, target)).toMatchObject({
             documentVersion: { number: 1 },
@@ -248,9 +242,9 @@ describe("co-creation document versions through the public API", () => {
           expect(confirmed.receipt).toMatchObject({ status: "completed", irId: target.irId });
           expect(await tester.command(action, selection)).toEqual(confirmed);
           const saved = await business.read(selection);
-          expect(release(saved)).toMatchObject({
-            requirementCount: 1,
-            confirmedRequirementCount: 1,
+          expect(release(saved)).toEqual({
+            ...initialRelease,
+            confirmedRequirementCount: confirmedRequirementCount + 1,
           });
           const confirmedGroup = getProposal(saved, target);
           expect(confirmedGroup.documentVersion).toMatchObject({
@@ -270,17 +264,16 @@ describe("co-creation document versions through the public API", () => {
           const v2Addition = "## 新增验收\n高亮区分空数据和请求失败。";
           await discuss(business, target, v2Addition);
           const latestV2 = await business.read(selection);
-          expect(release(latestV2)).toMatchObject({
-            requirementCount: 1,
-            confirmedRequirementCount: 0,
-          });
+          expect(release(latestV2)).toEqual(initialRelease);
           const v2 = getProposal(latestV2, target);
           expect(v2.documentVersion).toEqual({ number: 2 });
           const originalSnapshot = {
             number: 1,
             confirmation,
             materials: files,
-            srs: saved.view.srs.filter(({ irId }) => irId === target.irId),
+            srs: saved.view.srs.filter(
+              ({ projectId, irId }) => projectId === target.projectId && irId === target.irId,
+            ),
           };
           expect(v2.documentHistory).toHaveLength(1);
           expect(v2.documentHistory[0]).toMatchObject({
@@ -302,7 +295,10 @@ describe("co-creation document versions through the public API", () => {
           });
           const nextCheck = await developer.call("validateDocumentVersion", [selection]);
           expect(nextCheck.issues).toEqual([]);
-          const lockedV2 = await developer.command(confirmationAction(nextCheck.snapshot), selection);
+          const lockedV2 = await developer.command(
+            confirmationAction(nextCheck.snapshot),
+            selection,
+          );
           expect(lockedV2.receipt.status, lockedV2.receipt.error).toBe("completed");
           const reread = getProposal(await business.read(selection), target);
           expect(reread.documentVersion).toMatchObject({
@@ -312,14 +308,38 @@ describe("co-creation document versions through the public API", () => {
               confirmedAt: expect.any(String),
             },
           });
+          expect(reread.originalText).toBe(originalText);
           expect(reread.documentHistory).toEqual(v2.documentHistory);
-          await expectBusinessRejection(
-            business.command({ type: "deleteRequirement", ...selection }, selection),
-          );
+        } catch (error) {
+          failures.push(error);
         } finally {
-          await Promise.all([developer.close(), tester.close(), admin.close()]);
+          if (admin) {
+            for (const member of granted) {
+              try {
+                const removed = await admin.command(
+                  { type: "removeProjectRoleMember", ...member },
+                  { projectId: member.projectId },
+                );
+                expect(removed.receipt.status, removed.receipt.error).toBe("completed");
+              } catch (error) {
+                failures.push(error);
+              }
+            }
+          }
+          const closed = await Promise.allSettled([
+            developer?.close(),
+            tester?.close(),
+            admin?.close(),
+          ]);
+          for (const result of closed)
+            if (result.status === "rejected") failures.push(result.reason);
         }
+      }).catch((error: unknown) => {
+        failures.push(error);
       });
+      if (failures.length === 1) throw failures[0];
+      if (failures.length > 1)
+        throw new AggregateError(failures, "ST 定版断言、角色回收或连接关闭失败");
     },
     config.timeoutMs,
   );
@@ -330,7 +350,7 @@ describe("co-creation document versions through the public API", () => {
       await withClient(async (client) => {
         const admin = await connectST("y00000000");
         try {
-          const target = await createProposal(client);
+          const target = await takeRequirement(client);
           const selection = proposalSelection(target);
           const first = await completeBusinessMaterial(client, target);
           const { documentPath } = getProposal(first, target);
@@ -380,56 +400,6 @@ describe("co-creation document versions through the public API", () => {
             version: 1,
             issues: [],
           });
-        } finally {
-          await admin.close();
-        }
-      });
-    },
-    config.timeoutMs,
-  );
-
-  it(
-    "deletes an unconfirmed IR and its SRs and materials without affecting a sibling IR",
-    async () => {
-      await withClient(async (client) => {
-        const admin = await connectST("y00000000");
-        try {
-          const target = await createProposal(client);
-          const sibling = await createProposalIn(client, target, "删除后仍保留的旁路需求");
-          await completeBusinessMaterial(client, target);
-          await completeSolutionMaterial(admin, target);
-          await completeBusinessMaterial(client, sibling);
-          const before = await client.read(target.selection);
-          const targetGroup = getProposal(before, target);
-          expect(targetGroup.documentVersion).toEqual({ number: 1 });
-          expect(targetGroup.srIds.length).toBeGreaterThan(0);
-          const targetSrIds = before.view.srs
-            .filter(({ irId }) => irId === target.irId)
-            .map(({ id }) => id)
-            .sort();
-          expect(targetSrIds).toEqual([...targetGroup.srIds].sort());
-          expect(getMaterials(before, target)).toContainEqual(
-            expect.objectContaining({ srId: targetGroup.srIds[0] }),
-          );
-          const siblingGroup = getProposal(before, sibling);
-          expect(siblingGroup.releaseId).toBe(target.releaseId);
-          expect(getMaterials(before, sibling).length).toBeGreaterThan(0);
-          const result = await client.command(
-            { type: "deleteRequirement", ...target.selection },
-            target.selection,
-          );
-          expect(result.receipt.status, result.receipt.error).toBe("completed");
-          expect(result.receipt).not.toHaveProperty("deletion");
-          const deleted = await client.read(target.selection);
-          expect(deleted.session).toBeUndefined();
-          expect(deleted.view.requirements).toEqual(
-            before.view.requirements.filter(({ id }) => id !== target.irId),
-          );
-          expect(deleted.view.srs).toEqual(before.view.srs.filter(({ irId }) => irId !== target.irId));
-          expect(deleted.view.materials).toEqual(
-            before.view.materials.filter(({ irId }) => irId !== target.irId),
-          );
-          expect((await client.read(sibling.selection)).session).toEqual(sibling.remote.session);
         } finally {
           await admin.close();
         }

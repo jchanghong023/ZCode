@@ -1,6 +1,6 @@
 # AIReq — AI 需求协作
 
-面向电脑浏览器的需求文档协作平台，覆盖原始需求、澄清、评审、文档定版和查阅。前端为 React／Vite，服务端为 Bun／Hono 内存模拟后端；两端通过同源 WebSocket 二进制 Channel RPC 通信，业务会话使用 ZCode Protocol v4。
+供芯片团队在黄区澄清需求、在红区结合代码做方案的桌面 Web 应用。[需求共创规格](docs/specs/aireq/proposals.md)定义产品规则。当前原型使用 React／Vite 和 Bun／Hono，通过同源 WebSocket 二进制 Channel RPC 通信，业务会话使用 ZCode Protocol v4。
 
 项目配置指定服务器工作目录和 Git 仓库。开发可在「需求共创」复制项目文档目录的软链接命令，并在自己的仓库中查看最新文档。[查看最新文档](docs/specs/aireq/proposals.md#在开发仓库中查看最新文档)
 
@@ -36,7 +36,7 @@ bun run dev
 
 默认使用本地云龙样例，无需内网、CLI 或凭据。输入示例工号 `a00000001` 进入「所有项目」，从 Release 卡片打开对应版本工作区。产品范围与各功能规格见[文档索引](docs/README.md)。
 
-在内网开发并需要真实云龙项目和 IR 时，安装新版 CLI 并设置 `w3Account` 和 `password`，然后运行以下命令。见[云龙工具安装与登录](docs/specs/aireq/proposals.md#安装与登录)。
+在可访问云龙门户和企业 SSO 的黄区，在 CLI 源码目录使用 Python 3.10 或更高版本运行 `pip install .`，确保服务端账号的 `PATH` 可找到 `clouddragon`。为服务进程设置 `w3Account` 和 `password` 后可启用真实 CLI。直接启动服务端也默认使用真实 CLI。
 
 ```bash
 bun run dev --use-clouddragon

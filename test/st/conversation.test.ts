@@ -6,7 +6,7 @@ import {
   webCommandAckSchema,
 } from "@zcode/shared/zcode-protocol-v4";
 import { connectST, expectRetiredAgentRpc, unique, waitUntil } from "./client.js";
-import { createProposal } from "./business.js";
+import { takeRequirement } from "./business.js";
 import { getProposal } from "./proposal-flow.js";
 import {
   expectNativeLocalCommands,
@@ -28,8 +28,8 @@ it("native send completes with canonical rows, query receipt and real owned fram
   const c = await connectST();
   let native: Awaited<ReturnType<typeof openNative>> | undefined;
   try {
-    const proposal = await createProposal(c);
-    native = await openNative(c, proposal.remote);
+    const requirement = await takeRequirement(c);
+    native = await openNative(c, requirement.remote);
     const catalogTarget = { ...native.workspace, sessionId: native.sessionId };
     const initialCatalog = webSkillReferenceCatalogSchema.parse(
       await c.services.zcodeAgentService.getSkillReferenceCatalog(catalogTarget),
@@ -38,7 +38,9 @@ it("native send completes with canonical rows, query receipt and real owned fram
       await c.services.zcodeAgentService.getSkillReferenceCatalog(native.workspace),
     );
     // 新会话使用初始化时可用的目录，不能返回固定空数组。
-    const { sessionId: skillSessionId } = await c.call("skillDesign.session", [proposal.projectId]);
+    const { sessionId: skillSessionId } = await c.call("skillDesign.session", [
+      requirement.projectId,
+    ]);
     const availablePaths = await c.call("skillDesign.listSkills", [skillSessionId]);
     expect(availablePaths).not.toHaveLength(0);
     const catalogPaths = workspaceCatalog.skills.map(({ path }) => path);
@@ -64,10 +66,10 @@ it("native send completes with canonical rows, query receipt and real owned fram
         .map(({ name }) => name)
         .sort(),
     ).toEqual(initialCatalog.skills.map(({ name }) => `skill:${name}`).sort());
-    const proposalBefore = getProposal(proposal.remote, proposal);
+    const proposalBefore = getProposal(requirement.remote, requirement);
     await expectNativeLocalCommands(native, commands);
-    const afterLocalCommands = await c.read(proposal.selection);
-    expect(getProposal(afterLocalCommands, proposal)).toEqual(proposalBefore);
+    const afterLocalCommands = await c.read(requirement.selection);
+    expect(getProposal(afterLocalCommands, requirement)).toEqual(proposalBefore);
     const id = unique("discussion");
     const text = "请澄清需求边界、使用者及验收标准，生成本阶段业务需求材料。";
     const service = c.services.zcodeAgentService;
@@ -145,8 +147,8 @@ it("same command and input reuses its decision; replacing its text is rejected w
   const c = await connectST();
   let native: Awaited<ReturnType<typeof openNative>> | undefined;
   try {
-    const proposal = await createProposal(c);
-    native = await openNative(c, proposal.remote);
+    const { remote } = await takeRequirement(c);
+    native = await openNative(c, remote);
     const commandId = unique("idempotent-input");
     const payload = {
       text: "需求：用户可以查看需求进度，并区分人工验收与分析结论。",
@@ -198,7 +200,8 @@ it("rejects retired RPC members and commands without changing the business conve
   const c = await connectST();
   let native: Awaited<ReturnType<typeof openNative>> | undefined;
   try {
-    native = await openNative(c, (await createProposal(c)).remote);
+    // 拒绝命令使用本例实际生成的历史行作为目标，仍须占用写入夹具。
+    native = await openNative(c, (await takeRequirement(c)).remote);
     await expectRetiredAgentRpc(c.probeRpc, { ...native.workspace, sessionId: native.sessionId });
     requireAccepted(await native.send("sendText", { text: "请整理当前需求目标与验收标准。" }));
     await expectRetiredConversationCommands(native, await native.waitIdle());
@@ -212,7 +215,8 @@ it("rejects retired RPC members and commands without changing the business conve
 });
 
 it("another connection cannot resync or revoke an owned subscription; reconnect reads without replay", async () => {
-  const a = await connectST();
+  const pageId = crypto.randomUUID();
+  const a = await connectST(undefined, undefined, pageId);
   let b: Awaited<ReturnType<typeof connectST>> | undefined;
   let reconnected: Awaited<ReturnType<typeof connectST>> | undefined;
   let first: Awaited<ReturnType<typeof openNative>> | undefined;
@@ -220,9 +224,9 @@ it("another connection cannot resync or revoke an owned subscription; reconnect 
   const failures: unknown[] = [];
   try {
     b = await connectST(a.identity.employeeId);
-    const proposal = await createProposal(a);
-    first = await openNative(a, proposal.remote);
-    second = await openNative(b, proposal.remote);
+    const { remote } = await takeRequirement(a);
+    first = await openNative(a, remote);
+    second = await openNative(b, remote);
     await expect(
       b.services.zcodeAgentService.resyncConversationV4({
         ...first.workspace,
@@ -267,8 +271,8 @@ it("another connection cannot resync or revoke an owned subscription; reconnect 
     await first.close();
     first = undefined;
     await a.close();
-    reconnected = await connectST(a.identity.employeeId, a.identity.clientId);
-    second = await openNative(reconnected, proposal.remote);
+    reconnected = await connectST(a.identity.employeeId, a.identity.clientId, pageId);
+    second = await openNative(reconnected, remote);
     expect(second.subscriptionId).not.toBe(oldId);
     await expect(
       reconnected.services.zcodeAgentService.resyncConversationV4({
