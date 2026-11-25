@@ -184,9 +184,20 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
   }, [source, refresh]);
   const select = useCallback(
     (value: AIReqSelection, addHistory = true, mainView: WorkspaceMainView = "chat") => {
+      const current = selectionRef.current;
+      const reuseProjectRequirements =
+        mainView === "proposals" &&
+        navigationRef.current.mainView === "proposals" &&
+        Boolean(value.projectId) &&
+        value.projectId === current.projectId &&
+        !current.irId &&
+        !value.irId &&
+        loadedSelection === current &&
+        !pending &&
+        !error;
       if (
         addHistory &&
-        (JSON.stringify(value) !== JSON.stringify(selectionRef.current) ||
+        (JSON.stringify(value) !== JSON.stringify(current) ||
           navigationRef.current.mainView !== mainView)
       )
         recordNavigation(value, mainView);
@@ -195,9 +206,10 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       commandError.current = false;
       setError(undefined);
       setLinkError(undefined);
-      void load(value);
+      if (reuseProjectRequirements) setLoadedSelection(value);
+      else void load(value);
     },
-    [load, recordNavigation],
+    [error, load, loadedSelection, pending, recordNavigation],
   );
   const { setMainView, openProject, switchProject } = useAIReqNavigationActions({
     navigationRef,

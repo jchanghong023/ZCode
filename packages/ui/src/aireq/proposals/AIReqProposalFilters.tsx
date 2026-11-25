@@ -8,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select.js";
+import type { AIReqReleaseSummary } from "../contract.js";
 
 type ProposalFilters = {
   query: string;
@@ -18,19 +19,25 @@ type ProposalFilters = {
 export function AIReqProposalFilters({
   filters: { query, submitter, version },
   submitters,
+  releases,
+  releaseId,
   searchInput,
   zh,
   onChange,
+  onReleaseChange,
 }: {
   filters: ProposalFilters;
   submitters: string[];
+  releases: AIReqReleaseSummary[];
+  releaseId?: string;
   searchInput: RefObject<HTMLInputElement | null>;
   zh: boolean;
   onChange: (field: keyof ProposalFilters, value: string) => void;
+  onReleaseChange: (id?: string) => void;
 }) {
   return (
-    <div className="grid shrink-0 grid-cols-2 gap-2 @min-[620px]/conversation:grid-cols-[minmax(0,1fr)_10rem_11rem]">
-      <div className="relative col-span-2 min-w-0 @min-[620px]/conversation:col-span-1">
+    <div className="grid shrink-0 grid-cols-2 gap-2 @min-[640px]/conversation:grid-cols-[minmax(0,1fr)_9rem_9rem_10rem]">
+      <div className="relative min-w-0">
         <Search
           aria-hidden="true"
           className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-foreground-subtle"
@@ -46,6 +53,28 @@ export function AIReqProposalFilters({
           className="h-9 rounded-lg bg-surface pl-9"
         />
       </div>
+      <Select
+        value={releaseId ? `release:${releaseId}` : "all"}
+        onValueChange={(value) =>
+          onReleaseChange(value === "all" ? undefined : value.slice("release:".length))
+        }
+        disabled={!releases.length}
+      >
+        <SelectTrigger
+          aria-label={zh ? "筛选 Release" : "Filter by Release"}
+          className="h-9 w-full min-w-0 rounded-lg bg-surface"
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent position="popper" align="start">
+          <SelectItem value="all">{zh ? "全部 Release" : "All releases"}</SelectItem>
+          {releases.map((release) => (
+            <SelectItem key={release.id} value={`release:${release.id}`}>
+              {release.title}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       <Select value={submitter} onValueChange={(value) => onChange("submitter", value)}>
         <SelectTrigger
           aria-label={zh ? "筛选提交人" : "Filter by submitter"}

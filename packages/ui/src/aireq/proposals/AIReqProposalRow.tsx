@@ -11,10 +11,12 @@ import { AIReqProposalText } from "./AIReqProposalText.js";
 
 export function AIReqProposalRow({
   item,
+  releaseTitle,
   search,
   zh,
 }: {
   item: AIReqRequirementGroup;
+  releaseTitle: string;
   search: string;
   zh: boolean;
 }) {
@@ -134,10 +136,20 @@ export function AIReqProposalRow({
       </td>
       <td role="cell" className="px-4 py-3 align-top font-mono text-ui-sm wrap-anywhere">
         {item.id}
+        <div className="mt-1 font-sans text-ui-caption text-foreground-subtle @min-[680px]/conversation:hidden">
+          Release · {releaseTitle}
+        </div>
       </td>
       <td
         role="cell"
-        className="hidden px-4 py-3 text-ui-caption @min-[780px]/conversation:table-cell"
+        title={releaseTitle}
+        className="hidden px-4 py-3 align-top wrap-anywhere @min-[680px]/conversation:table-cell"
+      >
+        {releaseTitle}
+      </td>
+      <td
+        role="cell"
+        className="hidden px-4 py-3 text-ui-caption @min-[900px]/conversation:table-cell"
       >
         {versionSummary}
       </td>
@@ -145,7 +157,7 @@ export function AIReqProposalRow({
         role="cell"
         className="px-3 py-3 @max-[520px]/conversation:px-4 @min-[640px]/conversation:px-4"
       >
-        <div className="mb-2 text-ui-caption @min-[780px]/conversation:hidden">
+        <div className="mb-2 text-ui-caption @min-[900px]/conversation:hidden">
           {versionSummary}
         </div>
         <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1.5 @max-[520px]/conversation:justify-start">

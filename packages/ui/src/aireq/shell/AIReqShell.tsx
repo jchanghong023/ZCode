@@ -335,9 +335,7 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
                             : "hidden"
                         }
                       >
-                        <AIReqProposalTable
-                          key={JSON.stringify([ai.selection.projectId, ai.selection.releaseId])}
-                        />
+                        <AIReqProposalTable key={ai.selection.projectId} />
                       </div>
                     </>
                   )}

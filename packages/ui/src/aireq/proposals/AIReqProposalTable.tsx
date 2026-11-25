@@ -19,28 +19,29 @@ export function AIReqProposalTable() {
   const [page, setPage] = useState(0);
   const searchInput = useRef<HTMLInputElement>(null);
   const tableScroll = useRef<HTMLDivElement>(null);
-  const releaseId = ai.view?.releases.find(
-    (item) => item.projectId === ai.selection.projectId && item.id === ai.selection.releaseId,
-  )?.id;
+  const projectId = ai.selection.projectId;
+  const releases = ai.view?.releases.filter((item) => item.projectId === projectId) ?? [];
+  const releaseTitles = new Map(releases.map(({ id, title }) => [id, title]));
+  const releaseId =
+    ai.selection.releaseId && releaseTitles.has(ai.selection.releaseId)
+      ? ai.selection.releaseId
+      : undefined;
   const groups = useMemo(
     () =>
       (ai.view?.requirements ?? [])
-        .filter(
-          (item) =>
-            item.projectId === ai.selection.projectId &&
-            (!releaseId || item.releaseId === releaseId),
-        )
+        .filter((item) => item.projectId === projectId)
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-    [ai.view?.requirements, ai.selection.projectId, releaseId],
+    [ai.view?.requirements, projectId],
   );
   const submitters = useMemo(
     () => [...new Set(groups.map((item) => item.submittedBy))].sort(),
     [groups],
   );
   const search = query.trim().toLocaleLowerCase();
-  const hasFilters = Boolean(search || submitter !== "all" || version !== "all");
+  const hasFilters = Boolean(releaseId || search || submitter !== "all" || version !== "all");
   const filtered = groups.filter(
     (item) =>
+      (!releaseId || item.releaseId === releaseId) &&
       (!search ||
         item.title.toLocaleLowerCase().includes(search) ||
         item.originalText.toLocaleLowerCase().includes(search) ||
@@ -51,10 +52,11 @@ export function AIReqProposalTable() {
   );
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount - 1);
+  useLayoutEffect(() => setPage(0), [releaseId]);
   useLayoutEffect(() => {
     // 表格保留挂载，切页和改变筛选时从新结果的第一行读起。
     if (tableScroll.current) tableScroll.current.scrollTop = 0;
-  }, [currentPage, search, submitter, version]);
+  }, [currentPage, releaseId, search, submitter, version]);
   return (
     <main
       aria-label={zh ? "需求共创" : "Co-creation"}
@@ -69,11 +71,16 @@ export function AIReqProposalTable() {
         <AIReqProposalFilters
           filters={filters}
           submitters={submitters}
+          releases={releases}
+          releaseId={releaseId}
           searchInput={searchInput}
           zh={zh}
           onChange={(field, value) => {
             setFilters((current) => ({ ...current, [field]: value }));
             setPage(0);
+          }}
+          onReleaseChange={(id) => {
+            if (projectId) ai.openProject(projectId, id);
           }}
         />
         {/* 原表格透出页面底色；复用外观页卡片配色，粘性表头也保持不透明。 */}
@@ -88,7 +95,8 @@ export function AIReqProposalTable() {
             <colgroup className="@max-[520px]/conversation:hidden">
               <col />
               <col className="w-38 @min-[740px]/conversation:w-44" />
-              <col className="hidden w-40 @min-[780px]/conversation:table-column @min-[980px]/conversation:w-48" />
+              <col className="hidden w-28 @min-[680px]/conversation:table-column" />
+              <col className="hidden w-40 @min-[900px]/conversation:table-column @min-[980px]/conversation:w-48" />
               <col className="w-40 @min-[780px]/conversation:w-56 @min-[980px]/conversation:w-80" />
             </colgroup>
             <thead
@@ -105,7 +113,14 @@ export function AIReqProposalTable() {
                 <th
                   role="columnheader"
                   scope="col"
-                  className="hidden px-4 py-3 font-medium @min-[780px]/conversation:table-cell"
+                  className="hidden px-4 py-3 font-medium @min-[680px]/conversation:table-cell"
+                >
+                  Release
+                </th>
+                <th
+                  role="columnheader"
+                  scope="col"
+                  className="hidden px-4 py-3 font-medium @min-[900px]/conversation:table-cell"
                 >
                   {zh ? "文档版本" : "Document version"}
                 </th>
@@ -118,13 +133,21 @@ export function AIReqProposalTable() {
               {filtered
                 .slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE)
                 .map((item) => (
-                  <AIReqProposalRow key={item.id} item={item} search={search} zh={zh} />
+                  <AIReqProposalRow
+                    key={item.id}
+                    item={item}
+                    releaseTitle={
+                      releaseTitles.get(item.releaseId) ?? (zh ? "未分配" : "Unassigned")
+                    }
+                    search={search}
+                    zh={zh}
+                  />
                 ))}
               {!filtered.length && (
                 <tr role="row" className="@max-[520px]/conversation:block">
                   <td
                     role="cell"
-                    colSpan={4}
+                    colSpan={5}
                     className="p-6 text-foreground-subtle @max-[520px]/conversation:block"
                   >
                     {groups.length
@@ -141,6 +164,7 @@ export function AIReqProposalTable() {
                         onClick={() => {
                           setFilters(EMPTY_FILTERS);
                           setPage(0);
+                          if (releaseId && projectId) ai.openProject(projectId);
                           searchInput.current?.focus();
                         }}
                       >
