@@ -1,5 +1,4 @@
-import { useId, useLayoutEffect, useRef, useState } from "react";
-import { Button } from "@/components/ui/button.js";
+import { useId } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.js";
 import type { AIReqRequirementGroup } from "../contract.js";
 
@@ -15,76 +14,59 @@ export function AIReqProposalText({
   zh: boolean;
 }) {
   const { title, originalText, submittedBy } = item;
-  const titleRef = useRef<HTMLParagraphElement>(null);
-  const originalRef = useRef<HTMLParagraphElement>(null);
   const readingId = useId();
-  const [isClipped, setIsClipped] = useState(false);
-  const separateOriginal = originalText !== title;
+  const separateOriginal = !!originalText && originalText !== title;
   const titleMatch = searchExcerpt(title, search);
   const originalMatch = separateOriginal ? searchExcerpt(originalText, search) : undefined;
 
-  useLayoutEffect(() => {
-    const elements = [titleRef.current, originalRef.current].filter(
-      (element): element is HTMLParagraphElement => element !== null,
-    );
-    const measure = () =>
-      setIsClipped(elements.some((element) => element.scrollHeight > element.clientHeight + 1));
-    const observer = new ResizeObserver(measure);
-    elements.forEach((element) => observer.observe(element));
-    return () => observer.disconnect();
-  }, [title, originalText, search]);
-
-  const showFullText = isClipped || titleMatch?.shortened || originalMatch?.shortened;
-  const expandLabel = zh ? "展开原文" : "Expand original text";
+  const expandLabel = zh ? "查看原始需求" : "Read original request";
   return (
     <>
-      <p
-        ref={titleRef}
-        className={`wrap-anywhere font-semibold ${titleMatch ? "" : "line-clamp-2"}`}
-        title={`${title}\n${zh ? "提交人" : "Submitted by"} ${submittedBy} · ${submittedAt}`}
-      >
-        {titleMatch?.content ?? title}
-      </p>
-      {separateOriginal && (
-        <p
-          ref={originalRef}
-          className={`mt-1 wrap-anywhere text-ui-caption text-foreground-subtle group-hover/row:text-foreground group-aria-[current=true]/row:text-foreground ${originalMatch ? "" : "line-clamp-2 whitespace-pre-wrap"}`}
-        >
-          {originalMatch?.content ?? originalText}
-        </p>
-      )}
-      {showFullText && (
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              variant="link"
-              size="sm"
-              className="mt-1 px-0.5 text-ui-caption text-foreground underline underline-offset-2"
-              aria-label={`${expandLabel} · ${title}`}
-            >
-              {expandLabel}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent
-            align="start"
-            aria-labelledby={readingId}
-            className="w-96 max-w-(--radix-popover-content-available-width) gap-2"
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="block max-w-full cursor-pointer rounded-sm text-left font-semibold hover:underline hover:underline-offset-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-input-border-focused"
+            aria-label={`${title} · ${expandLabel}`}
           >
-            <h2 id={readingId} className="font-medium">
-              {zh ? "原始需求" : "Original request"}
-            </h2>
-            <div
-              role="region"
-              aria-label={zh ? "完整原文" : "Full text"}
-              tabIndex={0}
-              className="max-h-[min(40vh,16rem)] space-y-2 overflow-auto overscroll-contain rounded-sm p-0.5 outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-input-border-focused"
-            >
-              {separateOriginal && <p className="wrap-anywhere font-medium">{title}</p>}
-              <p className="whitespace-pre-wrap wrap-anywhere">{originalText}</p>
-            </div>
-          </PopoverContent>
-        </Popover>
+            {titleMatch ? (
+              <span className="wrap-anywhere">{titleMatch}</span>
+            ) : (
+              <span className="line-clamp-2 wrap-anywhere">{title}</span>
+            )}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent
+          align="start"
+          aria-labelledby={readingId}
+          className="w-120 max-w-(--radix-popover-content-available-width) gap-3 p-4"
+        >
+          <div
+            role="region"
+            aria-label={expandLabel}
+            tabIndex={0}
+            className="max-h-[min(50vh,24rem)] space-y-3 overflow-auto overscroll-contain rounded-sm p-0.5 outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-input-border-focused"
+          >
+            <header className="space-y-1">
+              <h2 id={readingId} className="wrap-anywhere text-ui-lg font-semibold">
+                {title}
+              </h2>
+              <p className="wrap-anywhere text-ui-caption text-foreground-subtle">
+                {zh ? "提交人" : "Submitted by"} {submittedBy} ·{" "}
+                <time dateTime={item.createdAt}>{submittedAt}</time>
+                {zh ? "（北京时间）" : " (Beijing time)"}
+              </p>
+            </header>
+            {separateOriginal && (
+              <p className="border-t border-border pt-3 whitespace-pre-wrap wrap-anywhere">
+                {originalText}
+              </p>
+            )}
+          </div>
+        </PopoverContent>
+      </Popover>
+      {originalMatch && (
+        <p className="mt-1 wrap-anywhere text-ui-caption text-foreground-subtle">{originalMatch}</p>
       )}
     </>
   );
@@ -115,19 +97,15 @@ function searchExcerpt(text: string, search: string) {
   const after = suffix.slice(0, 24);
   const leading = before.length < prefix.length;
   const trailing = after.length < suffix.length;
-  // 先截取命中附近的前后文，命中本身保留完整，避免两行裁切再次隐藏搜索依据。
-  return {
-    shortened: leading || trailing,
-    content: (
-      <>
-        {leading && "…"}
-        {before.join("")}
-        <mark className="bg-selected font-semibold text-foreground underline underline-offset-2">
-          {text.slice(start, end)}
-        </mark>
-        {after.join("")}
-        {trailing && "…"}
-      </>
-    ),
-  };
+  return (
+    <>
+      {leading && "…"}
+      {before.join("")}
+      <mark className="bg-selected font-semibold text-foreground underline underline-offset-2">
+        {text.slice(start, end)}
+      </mark>
+      {after.join("")}
+      {trailing && "…"}
+    </>
+  );
 }

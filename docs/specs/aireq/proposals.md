@@ -40,16 +40,40 @@ clouddragon create --domain "示例需求域" --name "新需求" \
   --priority 高 --expected-date 2026-12-31
 ```
 
-`projects` 返回的项目 `id` 即 `group_id`，用于子命令前的 `--project`。`irs` 省略 `--domain` 时查询指定项目下的全部需求域，省略 `--page` 时由 CLI 自动取完各页。AIReq 从全量响应读取需求域和 IR。
+`projects` 返回的项目 `id` 即 `group_id`，可直接传给 `--project`。
+
+### 全局选项
+
+除 `--version` 外，全局选项可写在子命令前或后。同一选项重复传入时，以靠后的值为准。
+
+| 选项                | 含义                                                                   |
+| ------------------- | ---------------------------------------------------------------------- |
+| `--project VALUE`   | 覆盖本次使用的项目，接受项目组 ID 或包含 `/project/<groupId>` 的 URL。 |
+| `--timeout SECONDS` | 覆盖本次请求超时，单位为秒。                                           |
+| `--compact`         | 输出单行 JSON。                                                        |
+| `--debug`           | 失败时在 stderr 额外输出 Python traceback。                            |
+| `--version`         | 显示 CLI 版本，只能写在子命令前。                                      |
+
+项目按 `--project`、`CLOUDDRAGON_GROUP_ID`、CLI 内置默认项目的顺序取值。
+
+```sh
+clouddragon --project gexample0001 domains
+clouddragon domains --project gexample0001
+clouddragon --version
+```
 
 ### `irs` 筛选与分页
 
-| 参数            | 类型           | 默认行为           | 含义                               |
-| --------------- | -------------- | ------------------ | ---------------------------------- |
-| `--page NO`     | 大于等于 1 的整数 | 省略时自动取完各页 | 指定时只取第 `NO` 页，页码从 1 开始 |
-| `--page-size N` | 大于等于 1 的整数 | `200`              | 每次请求的页大小，适用于两种模式   |
+| 参数              | 默认       | 含义                                                 |
+| ----------------- | ---------- | ---------------------------------------------------- |
+| `--domain VALUE`  | 全部需求域 | 接受需求域 ID 或名称，可重复传入。                   |
+| `--page NO`       | 自动翻页   | 指定时只取第 `NO` 页，页码从 1 开始。                |
+| `--page-size N`   | `200`      | 每次请求的条数，适用于单页和自动翻页。               |
+| `--process STATE` | 全部进展   | 服务端按进展筛选，可选初始、分析、开发、测试、完成。 |
 
-`--domain` 接受需求域 ID 或名称，可重复传入。`--process` 按进展在服务端筛选，可选初始、分析、开发、测试、完成。指定 `--page` 时，响应按域返回 `page`、`page_size` 和 `total`。使用 `--page 1 --page-size 1` 计数时，读取 `data.domains[].total`，它是应用筛选条件后的匹配总数。`count` 是当前页返回的条数。
+- 省略 `--page` 时，CLI 对每个需求域逐页递增 `pageNo`，累计到服务端返回的 `total` 后停止，并按 IR 的 `id` 去重。响应中的 `count` 是最终返回条数。
+- 指定 `--page` 时，每个需求域只请求一页。响应在各域额外返回 `page`、`page_size`、`total`。`total` 是符合当前筛选条件的跨页总数，`count` 是本页条数。指定 `--process` 后，两者均按该进展统计。
+- `--page` 和 `--page-size` 均须为大于等于 1 的整数。`--process` 只接受表中列出的值。参数错误由 argparse 报告，退出码为 `2`。
 
 ```sh
 # 自动翻页，每次请求 200 条
@@ -63,26 +87,39 @@ clouddragon --project gexample0001 irs --domain 900001 --page-size 50
 
 # 服务端筛选已完成的 IR，从 total 读取完成数
 clouddragon --project gexample0001 irs --domain 900001 --process 完成 --page 1 --page-size 1
+
+# 每个需求域只取一页，输出各域的完成数
+clouddragon --project gexample0001 irs --process 完成 --page 1 --page-size 1 |
+  jq -c '.data.domains[] | {name, count: .total}'
+
+# 只列出测试中的 IR，自动取完各页
+clouddragon --project gexample0001 irs --domain "示例需求域" --process 测试
 ```
 
 ### CLI 输出契约
 
-| 结果 | 输出流 | 退出码 | JSON 结构 |
-| ---- | ------ | ------ | --------- |
-| 成功 | stdout | `0` | `{"ok": true, "data": …}` |
-| 失败 | stderr | `1` | `{"ok": false, "error": {"type": "AuthenticationError", "message": "示例错误信息"}}` |
+| 结果     | 输出流 | 退出码 | JSON 结构                                                                            |
+| -------- | ------ | ------ | ------------------------------------------------------------------------------------ |
+| 成功     | stdout | `0`    | `{"ok": true, "data": …}`                                                            |
+| 执行失败 | stderr | `1`    | `{"ok": false, "error": {"type": "AuthenticationError", "message": "示例错误信息"}}` |
+| 参数错误 | stderr | `2`    | argparse 参数错误信息                                                                |
 
-成功响应的 `data` 字段随子命令变化，使用 `clouddragon <command> --help` 查看。失败响应的 `error.type` 和 `error.message` 均为字符串，表中以鉴权错误为例。
+成功响应的 `data` 字段随子命令变化，使用 `clouddragon <command> --help` 查看。执行失败响应的 `error.type` 和 `error.message` 均为字符串，表中以鉴权错误为例。启用 `--debug` 后，stderr 还会包含 traceback。
 
 ### `projects` 成功响应
 
-以下示例已匿名化，数组缩为三条。
+`projects` 列出当前账号可访问的项目。`--name TEXT` 使用与门户项目搜索一致的服务端过滤，保留名称包含 `TEXT` 的项目，并忽略大小写。省略时列出全部可访问项目。
+
+CLI 使用门户的 `/project/cd-cloud-project/v3/user/project` 接口。该接口位于 `/cloudreq-obp` 之外，CLI 按门户的绝对地址请求，并按 `offset` 和 `limit` 自动翻页。
+
+以下是省略 `--name` 时的匿名示例。
 
 ```json
 {
   "ok": true,
   "data": {
     "project": "gexample0001",
+    "name": null,
     "count": 3,
     "projects": [
       {
@@ -111,9 +148,15 @@ clouddragon --project gexample0001 irs --domain 900001 --process 完成 --page 1
 }
 ```
 
-- `data.project` 是当前项目的组 ID，`current` 标识当前项目。样本中的 `data.count` 等于 `data.projects` 的长度。
-- AIReq 以每条记录的 `id` 作为项目 ID，并将其传入 `--project`。`project_id` 是返回中的另一个标识字段。
-- 从 `name` 读取显示名。指定 `--name` 时，CLI 按项目名称模糊匹配并忽略大小写。示例中的前两条符合 `--name 开发`。
+`data.project` 是本次生效的项目组 ID。`data.name` 是本次名称筛选条件，省略 `--name` 时为 `null`。`data.count` 是返回的项目数。示例中的前两条符合 `--name 开发`。
+
+| `data.projects[]` 字段 | 含义                                              |
+| ---------------------- | ------------------------------------------------- |
+| `id`                   | 项目标识，等于 `group_id`，可传给 `--project`。   |
+| `name`                 | 项目名称。                                        |
+| `group_id`             | 项目组 ID，供 `domains` 和 `irs` 等命令选定项目。 |
+| `project_id`           | 门户侧的项目 ID。                                 |
+| `current`              | 是否为本次生效的项目。                            |
 
 ### `domains` 成功响应
 
@@ -320,7 +363,7 @@ clouddragon --project gexample0001 irs --domain 900001 --page 3 --page-size 7
 
 ## 入口与权限
 
-AIReq 按云龙项目展示 IR，保留原始需求、提交人和时间。需求共创表格每行提供「讨论需求」「讨论方案」「查看文档」和「复制链接命令」。前两个入口分别打开需求 Agent 和方案 Agent 的会话。所有人可进入需求 Agent 和查看文档。项目配置了工作目录即可复制链接命令。项目开发或测试可进入方案 Agent、修改方案及确认版本。管理员沿用已有全项目角色。项目地址和默认分支供正式后端只读访问项目代码。
+AIReq 按云龙项目展示 IR，点击标题可查看原始需求、提交人和时间。需求共创表格每行直接提供「讨论需求」和「查看文档」，「更多操作」提供「讨论方案」和「复制链接命令」。「讨论需求」和「讨论方案」分别打开需求 Agent 和方案 Agent 的会话。所有人可进入需求 Agent 和查看文档。项目配置了工作目录即可复制链接命令。项目开发或测试可进入方案 Agent、修改方案及确认版本。管理员沿用已有全项目角色。项目地址和默认分支供正式后端只读访问项目代码。
 
 「查看文档」保留列表位置，在右侧展开对应需求。进入任一 Agent 对话时，默认打开右侧文档区。用户可收起或重新打开；当前对话中的消息和材料更新保持面板开合。两个会话各保有自己的历史、草稿消息与附件。原生会话按当前项目、IR 和角色路由。
 

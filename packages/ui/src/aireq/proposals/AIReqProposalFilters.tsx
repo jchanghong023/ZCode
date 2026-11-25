@@ -1,6 +1,8 @@
-import { Search } from "lucide-react";
+import { ListFilter, Search } from "lucide-react";
 import { type RefObject } from "react";
+import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.js";
 import {
   Select,
   SelectContent,
@@ -35,22 +37,25 @@ export function AIReqProposalFilters({
   onChange: (field: keyof ProposalFilters, value: string) => void;
   onReleaseChange: (id?: string) => void;
 }) {
+  const additionalCount = Number(submitter !== "all") + Number(version !== "all");
+  const moreLabel = zh ? "更多筛选" : "More filters";
+  const submitterLabel = zh ? "提交人" : "Submitter";
+  const statusLabel = zh ? "定版状态" : "Confirmation status";
+  const searchLabel = zh ? "搜索标题、编号或原文" : "Search title, ID, or original text";
   return (
-    <div className="grid shrink-0 grid-cols-2 gap-2 @min-[640px]/conversation:grid-cols-[minmax(0,1fr)_9rem_9rem_10rem]">
-      <div className="relative min-w-0">
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 @min-[480px]/conversation:grid-cols-[minmax(0,1fr)_minmax(8rem,12rem)_auto]">
+      <div className="relative col-span-full min-w-0 @min-[480px]/conversation:col-span-1">
         <Search
           aria-hidden="true"
           className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-foreground-subtle"
         />
         <Input
           ref={searchInput}
-          aria-label={zh ? "搜索需求名称或原始需求" : "Search requirement name or original request"}
-          placeholder={
-            zh ? "搜索需求名称或原始需求" : "Search requirement name or original request"
-          }
+          aria-label={searchLabel}
+          placeholder={searchLabel}
           value={query}
           onChange={(event) => onChange("query", event.target.value)}
-          className="h-9 rounded-lg bg-surface pl-9"
+          className="h-8 rounded-lg pl-9"
         />
       </div>
       <Select
@@ -62,7 +67,8 @@ export function AIReqProposalFilters({
       >
         <SelectTrigger
           aria-label={zh ? "筛选 Release" : "Filter by Release"}
-          className="h-9 w-full min-w-0 rounded-lg bg-surface"
+          size="lg"
+          className="w-full min-w-0"
         >
           <SelectValue />
         </SelectTrigger>
@@ -75,37 +81,46 @@ export function AIReqProposalFilters({
           ))}
         </SelectContent>
       </Select>
-      <Select value={submitter} onValueChange={(value) => onChange("submitter", value)}>
-        <SelectTrigger
-          aria-label={zh ? "筛选提交人" : "Filter by submitter"}
-          className="h-9 w-full min-w-0 rounded-lg bg-surface"
-        >
-          <SelectValue>
-            {submitter === "all" ? (zh ? "全部提交人" : "All submitters") : submitter}
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent position="popper" align="start">
-          <SelectItem value="all">{zh ? "全部提交人" : "All submitters"}</SelectItem>
-          {submitters.map((id) => (
-            <SelectItem key={id} value={id}>
-              {id}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Select value={version} onValueChange={(value) => onChange("version", value)}>
-        <SelectTrigger
-          aria-label={zh ? "筛选定版状态" : "Filter by confirmation status"}
-          className="h-9 w-full min-w-0 rounded-lg bg-surface"
-        >
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent position="popper" align="start">
-          <SelectItem value="all">{zh ? "全部定版状态" : "All confirmation states"}</SelectItem>
-          <SelectItem value="confirmed">{zh ? "已定版" : "Confirmed"}</SelectItem>
-          <SelectItem value="unconfirmed">{zh ? "未定版" : "Unconfirmed"}</SelectItem>
-        </SelectContent>
-      </Select>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button type="button" variant={additionalCount ? "secondary" : "outline"} size="lg">
+            <ListFilter aria-hidden="true" />
+            {moreLabel}
+            {additionalCount > 0 && <span className="ml-0.5 tabular-nums">{additionalCount}</span>}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" aria-label={moreLabel} className="w-64 gap-3 p-3">
+          <div className="space-y-1.5">
+            <p className="text-ui-caption font-medium">{submitterLabel}</p>
+            <Select value={submitter} onValueChange={(value) => onChange("submitter", value)}>
+              <SelectTrigger size="lg" aria-label={submitterLabel} className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper" align="start">
+                <SelectItem value="all">{zh ? "全部提交人" : "All submitters"}</SelectItem>
+                {submitters.map((id) => (
+                  <SelectItem key={id} value={id}>
+                    {id}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <p className="text-ui-caption font-medium">{statusLabel}</p>
+            <Select value={version} onValueChange={(value) => onChange("version", value)}>
+              <SelectTrigger size="lg" aria-label={statusLabel} className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper" align="start">
+                <SelectItem value="all">{zh ? "全部状态" : "All states"}</SelectItem>
+                <SelectItem value="confirmed">{zh ? "已定版" : "Confirmed"}</SelectItem>
+                <SelectItem value="unconfirmed">{zh ? "未定版" : "Unconfirmed"}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }

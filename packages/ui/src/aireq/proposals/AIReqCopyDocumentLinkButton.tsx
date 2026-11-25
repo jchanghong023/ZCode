@@ -69,25 +69,27 @@ export function AIReqCopyDocumentLinkButton({
           <Button
             type="button"
             variant="ghost"
-            size="icon-sm"
-            className="aria-disabled:opacity-60"
+            size="lg"
+            className="w-full justify-start gap-2 aria-disabled:opacity-60"
             aria-disabled={!command || undefined}
             aria-label={`${label} · ${title}`}
             data-testid="copy-document-link-command"
             onClick={() => void copy()}
           >
             <Icon aria-hidden="true" />
+            {label}
           </Button>
         </TooltipTrigger>
         <TooltipContent
           align="end"
+          side="bottom"
           sideOffset={4}
           aria-label={description}
           onEscapeKeyDown={() => setFeedback(undefined)}
           className={
             command && !feedback
-              ? "max-w-[min(38rem,calc(100vw-2rem))] flex-col items-start gap-1.5 py-2 text-left"
-              : undefined
+              ? "z-[70] max-w-[min(38rem,calc(100vw-2rem))] flex-col items-start gap-1.5 py-2 text-left"
+              : "z-[70]"
           }
         >
           {feedback ? (
