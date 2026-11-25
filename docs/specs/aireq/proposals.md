@@ -2,7 +2,7 @@
 
 ## 黄区需求澄清与云龙对接
 
-黄区负责需求澄清和讨论。方案设计在内网进行。云龙持有项目和 IR 的业务记录。AIReq 从 `clouddragon projects` 读取当前账号可访问的项目，只显示名称包含「开发」的项目。每个项目对应一个需求域。进入项目时，服务端先用 `clouddragon domains` 取得该域的 ID，再用 `clouddragon irs` 分页读取对应的 IR。按 IR 的 `pi` 汇总项目内的 Release，并以 `piName` 显示名称。讨论和需求文档由 AIReq 工作流管理。澄清结束后，用户可以将当前最新需求文档的正文作为一条评论同步到对应 IR。
+黄区负责需求澄清和讨论。方案设计在内网进行。云龙持有项目和 IR 的业务记录。AIReq 通过 `clouddragon projects --name 开发` 读取当前账号可访问且名称包含「开发」的项目。每个项目对应一个需求域。进入项目时，服务端先用 `clouddragon domains` 取得该域的 ID，再用 `clouddragon irs` 分页读取对应的 IR。按 IR 的 `pi` 汇总项目内的 Release，并以 `piName` 显示名称。讨论和需求文档由 AIReq 工作流管理。澄清结束后，用户可以将当前最新需求文档的正文作为一条评论同步到对应 IR。
 
 原型服务直接执行 `clouddragon` 读取项目及 IR 列表。「所有项目」和「项目配置」使用同一份项目目录。设置页只从云龙同步项目名，仓库地址、默认分支和工作目录由 AIReq 按项目 ID 保存。同步文档时使用 `comment-add`。读取失败应显示错误，空列表只表示云龙确实返回空结果。使用真实的云龙数据验收，不使用预置项目、IR 或评论补齐结果。
 
@@ -11,6 +11,9 @@
 ```sh
 # 列出当前账号可访问的项目
 clouddragon projects
+
+# 按名称模糊匹配，忽略大小写
+clouddragon projects --name 开发
 
 # 列出所选项目下的需求域
 clouddragon --project gexample0001 domains
@@ -107,7 +110,7 @@ clouddragon --project gexample0001 irs --domain 900001 --process 完成 --page 1
 
 - `data.project` 是当前项目的组 ID，`current` 标识当前项目。样本中的 `data.count` 等于 `data.projects` 的长度。
 - AIReq 以每条记录的 `id` 作为项目 ID，并将其传入 `--project`。`project_id` 是返回中的另一个标识字段。
-- 从 `name` 读取显示名并按是否包含「开发」筛选。示例中的前两条符合此条件。
+- 从 `name` 读取显示名。指定 `--name` 时，CLI 按项目名称模糊匹配并忽略大小写。示例中的前两条符合 `--name 开发`。
 
 ### `domains` 成功响应
 

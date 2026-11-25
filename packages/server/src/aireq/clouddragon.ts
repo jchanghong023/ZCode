@@ -126,11 +126,12 @@ function runCloudDragon<T extends { project: string }>(
 }
 
 export async function readCloudDragonProjects(): Promise<CloudDragonProject[]> {
+  const nameFilter = "开发";
   const { projects } = await runCloudDragon(
-    ["projects"],
+    ["projects", "--name", nameFilter],
     z.object({ project: projectId, projects: z.array(project) }),
   );
-  const visible = projects.filter(({ name }) => name.includes("开发"));
+  const visible = projects.filter(({ name }) => name.includes(nameFilter));
   logger.info(undefined, "云龙项目读取完成", {
     returned: projects.length,
     matched: visible.length,
