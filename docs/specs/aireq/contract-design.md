@@ -118,7 +118,7 @@ AIReq 工作区 `kind` 仅为 `proposal`（已登记项目）或 `unavailable`�
 
 工作流读取失败通过 RPC 拒绝返回，`view` 不含通用 `error` 字段。工作区和单份材料的错误仍随各自的投影返回。
 
-`view.releases` 是全项目唯一 Release 目录，每项含 `id`、`projectId`、`title`、`createdAt`、`requirementCount` 和 `confirmedRequirementCount`。后者统计当前文档版本已确认的需求，未定版数为总数减去已定版数。计数按同一 owner 的 `(projectId, id)` 派生，含零需求 Release。详情、材料与会话按查询项目返回。项目无 Release 与视图未加载是不同状态。
+`view.releases` 包含各项目云龙 IR 中存在的 Release，每项提供 `id`、`projectId`、`title`、`createdAt` 和统计字段。`view.projectRequirementCounts` 按项目 ID 提供相同的统计字段，项目级别包含未分配 Release 的 IR。`requirementCount` 是总数，`completedRequirementCount` 统计云龙状态为「完成」的 IR，`confirmedRequirementCount` 统计当前文档版本已确认的需求。详情、材料与会话按查询项目返回。
 
 项目公开投影只含 `id`、`name`、`revision`、`defaultBranch` 和可选 `repositoryUrl`。项目工作区、存储元数据和完整操作身份由服务端持有。命令回执返回实际操作者工号 `actorEmployeeId`，不下发身份对象或 `clientId`；幂等记录不作为工作流历史下发。`readWorkflow.view.requirements` 返回当前项目的全部需求，不含录入来源或重复的文件清单，当前文件统一从 `view.materials` 读取。
 

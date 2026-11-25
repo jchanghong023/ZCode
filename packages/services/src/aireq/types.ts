@@ -54,10 +54,13 @@ export interface AIReqRelease {
   createdAt: string;
 }
 
-export interface AIReqReleaseSummary extends AIReqRelease {
+export interface AIReqRequirementCounts {
   requirementCount: number;
+  completedRequirementCount: number;
   confirmedRequirementCount: number;
 }
+
+export interface AIReqReleaseSummary extends AIReqRelease, AIReqRequirementCounts {}
 
 export interface AIReqDocumentConfirmation {
   employeeId: string;
@@ -143,6 +146,7 @@ export interface AIReqWorkflowView {
   documentFormats: AIReqDocumentFormats;
   revision: number;
   projects: AIReqProject[];
+  projectRequirementCounts?: Record<string, AIReqRequirementCounts>;
   /** 唯一 Release 目录及同一快照的跨项目只读统计。 */
   releases: AIReqReleaseSummary[];
   /** 项目总览中本次未能更新 Release 的项目。 */

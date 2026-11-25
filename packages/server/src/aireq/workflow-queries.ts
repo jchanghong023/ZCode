@@ -3,6 +3,7 @@ import type {
   AIReqNativeSessionRef,
   AIReqProject,
   AIReqReleaseSummary,
+  AIReqRequirementCounts,
   AIReqRequirementGroup,
   AIReqSystemRequirement,
   AIReqWorkspace,
@@ -50,6 +51,7 @@ export function projectRequirement(
 ): AIReqRequirementGroup {
   const {
     clientDraftId: _clientDraftId,
+    process: _process,
     releaseName: _releaseName,
     documentVersion,
     documentReviews,
@@ -71,14 +73,28 @@ export function projectRequirement(
   };
 }
 
-export function projectReleaseSummaries({
+function emptyRequirementCounts(): AIReqRequirementCounts {
+  return { requirementCount: 0, completedRequirementCount: 0, confirmedRequirementCount: 0 };
+}
+
+function countRequirement(counts: AIReqRequirementCounts, requirement: RequirementGroup) {
+  counts.requirementCount++;
+  if (requirement.process === "完成") counts.completedRequirementCount++;
+  if (requirement.documentVersion?.confirmation) counts.confirmedRequirementCount++;
+}
+
+export function projectRequirementSummaries({
   projects,
   requirements,
-}: Pick<WorkflowState, "projects" | "requirements">): AIReqReleaseSummary[] {
-  const active = new Set(projects.map(({ id }) => id));
+}: Pick<WorkflowState, "projects" | "requirements">) {
+  const projectCounts = new Map(projects.map(({ id }) => [id, emptyRequirementCounts()]));
   const releases = new Map<string, AIReqReleaseSummary>();
-  for (const { projectId, releaseId, releaseName, documentVersion } of requirements) {
-    if (!active.has(projectId) || !releaseId) continue;
+  for (const requirement of requirements) {
+    const { projectId, releaseId, releaseName } = requirement;
+    const counts = projectCounts.get(projectId);
+    if (!counts) continue;
+    countRequirement(counts, requirement);
+    if (!releaseId) continue;
     const key = JSON.stringify([projectId, releaseId]);
     let release = releases.get(key);
     if (!release) {
@@ -87,20 +103,21 @@ export function projectReleaseSummaries({
         projectId,
         title: releaseName || releaseId,
         createdAt: "",
-        requirementCount: 0,
-        confirmedRequirementCount: 0,
+        ...emptyRequirementCounts(),
       };
       releases.set(key, release);
     } else if (release.title === releaseId && releaseName) {
       release.title = releaseName;
     }
-    release.requirementCount++;
-    if (documentVersion?.confirmation) release.confirmedRequirementCount++;
+    countRequirement(release, requirement);
   }
-  return [...releases.values()].sort(
-    (a, b) =>
-      b.title.localeCompare(a.title, undefined, { numeric: true }) || a.id.localeCompare(b.id),
-  );
+  return {
+    projectRequirementCounts: Object.fromEntries(projectCounts),
+    releases: [...releases.values()].sort(
+      (a, b) =>
+        b.title.localeCompare(a.title, undefined, { numeric: true }) || a.id.localeCompare(b.id),
+    ),
+  };
 }
 
 /** 原生会话热路径只读取其所属对象，不构建完整工作流投影。 */

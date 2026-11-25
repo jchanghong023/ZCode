@@ -12,10 +12,10 @@
 # 列出当前账号可访问的项目
 clouddragon projects
 
-# 读取所选项目的唯一需求域
+# 列出所选项目下的需求域
 clouddragon --project gexample0001 domains
 
-# 按项目组 ID 和需求域 ID 读取 IR
+# 列出指定需求域的全部 IR，可重复传入 --domain
 clouddragon --project gexample0001 irs --domain 900001
 
 # 按业务号查看 IR，省略 --domain 时跨所有域查找
@@ -36,12 +36,14 @@ clouddragon create --domain "示例需求域" --name "新需求" \
 
 `projects` 返回的项目 `id` 即 `group_id`，用于子命令前的 `--project`。AIReq 取 `domains` 返回的唯一一条记录的 `id` 作为 `irs --domain` 的值。需求域返回零条或多条时，页面报读取错误。
 
-### `irs` 分页
+### `irs` 筛选与分页
 
 | 参数            | 类型           | 默认行为           | 含义                               |
 | --------------- | -------------- | ------------------ | ---------------------------------- |
 | `--page NO`     | 大于等于 1 的整数 | 省略时自动取完各页 | 指定时只取第 `NO` 页，页码从 1 开始 |
 | `--page-size N` | 大于等于 1 的整数 | `200`              | 每次请求的页大小，适用于两种模式   |
+
+`--domain` 接受需求域 ID 或名称，可重复传入。`--process` 按进展在服务端筛选，可选初始、分析、开发、测试、完成。指定 `--page` 时，响应按域返回 `page`、`page_size` 和 `total`。使用 `--page 1 --page-size 1` 计数时，读取 `data.domains[].total`，它是应用筛选条件后的匹配总数。`count` 是当前页返回的条数。
 
 ```sh
 # 自动翻页，每次请求 200 条
@@ -49,6 +51,12 @@ clouddragon --project gexample0001 irs --domain 900001
 
 # 只取第 2 页，页大小为 50
 clouddragon --project gexample0001 irs --domain 900001 --page 2 --page-size 50
+
+# 自动翻页，每次请求 50 条
+clouddragon --project gexample0001 irs --domain 900001 --page-size 50
+
+# 服务端筛选已完成的 IR，从 total 读取完成数
+clouddragon --project gexample0001 irs --domain 900001 --process 完成 --page 1 --page-size 1
 ```
 
 ### CLI 输出契约
@@ -227,7 +235,7 @@ clouddragon --project gexample0001 irs --domain 900001 --page 3 --page-size 7
             "sumWorkloadManday": "",
             "expectedImplementationDate": "2000-02-01 00:00:00",
             "category": "",
-            "process": "示例进展",
+            "process": "初始",
             "developEndTime": "",
             "testingEndTime": "",
             "parentId": "",
@@ -298,8 +306,9 @@ clouddragon --project gexample0001 irs --domain 900001 --page 3 --page-size 7
 ```
 
 - `data.domains` 按需求域分组，每组的 `id` 和 `name` 分别是需求域 ID 和名称。样本中，IR 的 `domain` 和 `domainName` 与所在组的 `id` 和 `name` 对应。
-- `page` 和 `page_size` 是当前页码和页大小。`total` 是该域的 IR 总数，`count` 是该页返回的条数，与 `irs` 数组长度一致。分页字段均为整数。
+- `page` 和 `page_size` 是当前页码和页大小。`total` 是该域符合筛选条件的 IR 总数，`count` 是该页返回的条数，与 `irs` 数组长度一致。分页字段均为整数。
 - `businessNo` 是 IR 业务号。`id` 和 `mksId` 在样本中为值相同的字符串。`customProps` 的元素包含字符串 `name` 和 `value`。样本中的 `labels`、`items` 为空数组，`collaborationAmount` 为空对象。
+- `process` 是 IR 的云龙状态，取值为初始、分析、开发、测试、完成。项目总览的「完成」只统计 `process` 为「完成」的 IR。
 - `pi` 是 Release ID，`piName` 是 Release 名称。两者均为字符串。相同项目中 `pi` 相同的 IR 归入同一个 Release。未分配 `pi` 的 IR 可从「全部需求」查看。
 - 本样本展示单页模式。自动翻页模式的响应字段以对应命令输出为准。
 

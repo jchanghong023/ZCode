@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button.js";
 import { Card } from "@/components/ui/card.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
+import type { AIReqRequirementCounts } from "../contract.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
 
 export function AIReqProjectDocumentsPage({
@@ -31,6 +32,8 @@ export function AIReqProjectDocumentsPage({
             const releases =
               ai.view?.releases.filter((item) => item.projectId === project.id) ?? [];
             const releaseReadFailed = ai.view?.releaseReadFailures?.includes(project.id);
+            const counts = ai.view?.projectRequirementCounts?.[project.id];
+            const showCounts = !releaseReadFailed && !ai.error;
             return (
               <Card key={project.id} className="min-w-0 gap-4 p-4">
                 <div className="flex min-w-0 flex-wrap items-center gap-3">
@@ -64,10 +67,11 @@ export function AIReqProjectDocumentsPage({
                 {releaseReadFailed && (
                   <p className="text-ui-sm text-destructive" role="status">
                     {zh
-                      ? "Release 读取失败，请刷新项目。"
-                      : "Could not refresh releases. Refresh projects to retry."}
+                      ? "需求统计读取失败，请刷新项目。"
+                      : "Could not read requirement totals. Refresh projects to retry."}
                   </p>
                 )}
+                {showCounts && counts && <RequirementCounts counts={counts} zh={zh} />}
                 {releases.length > 0 && (
                   <div className="grid min-w-0 grid-cols-1 gap-3 @min-[48rem]/conversation:grid-cols-2">
                     {releases.map((release) => (
@@ -82,15 +86,7 @@ export function AIReqProjectDocumentsPage({
                           />
                           <span className="wrap-anywhere">{release.title}</span>
                         </h3>
-                        <p className="flex flex-wrap gap-x-4 gap-y-1 text-ui-sm text-foreground-subtle">
-                          <span>
-                            {zh ? "已定版" : "Confirmed"} {release.confirmedRequirementCount}
-                          </span>
-                          <span>
-                            {zh ? "未定版" : "Unconfirmed"}{" "}
-                            {release.requirementCount - release.confirmedRequirementCount}
-                          </span>
-                        </p>
+                        {showCounts && <RequirementCounts counts={release} zh={zh} />}
                         <Button
                           className="self-start"
                           size="sm"
@@ -122,5 +118,21 @@ export function AIReqProjectDocumentsPage({
         </section>
       </div>
     </main>
+  );
+}
+
+function RequirementCounts({ counts, zh }: { counts: AIReqRequirementCounts; zh: boolean }) {
+  return (
+    <p className="flex flex-wrap gap-x-4 gap-y-1 text-ui-sm text-foreground-subtle tabular-nums">
+      <span>
+        {zh ? "总数" : "Total"} {counts.requirementCount}
+      </span>
+      <span>
+        {zh ? "完成" : "Completed"} {counts.completedRequirementCount ?? "—"}
+      </span>
+      <span>
+        {zh ? "需求已定版" : "Requirements confirmed"} {counts.confirmedRequirementCount}
+      </span>
+    </p>
   );
 }

@@ -28,6 +28,7 @@ export type {
   AIReqRemotePath,
   AIReqRemoteResult,
   AIReqRemoteWorkflow,
+  AIReqRequirementCounts,
   AIReqRequirementGroup,
   AIReqSystemRequirement,
   AIReqSkillDesignDraft,

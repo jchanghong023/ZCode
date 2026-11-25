@@ -18,7 +18,7 @@ import { createPrototypeEvent } from "./events.js";
 import {
   projectNativeContext,
   projectDirectory,
-  projectReleaseSummaries,
+  projectRequirementSummaries,
   projectRequirement,
   projectSummary,
   projectSystemRequirement,
@@ -115,6 +115,7 @@ function refreshRequirements(projectId: string): Promise<void> {
             .replace(/&nbsp;/gi, " ")
             .trim() || title;
         const submittedBy = item.submitter.trim() || item.creator.trim();
+        const process = item.process || undefined;
         const releaseId = item.pi?.trim() ?? "";
         const releaseName = releaseId ? item.piName?.trim() || undefined : undefined;
         const sourceDate = item.createDate.trim();
@@ -126,6 +127,7 @@ function refreshRequirements(projectId: string): Promise<void> {
             existing.title === title &&
             existing.originalText === originalText &&
             existing.submittedBy === submittedBy &&
+            existing.process === process &&
             existing.releaseId === releaseId &&
             existing.releaseName === releaseName &&
             existing.createdAt === createdAt
@@ -136,6 +138,7 @@ function refreshRequirements(projectId: string): Promise<void> {
             title,
             originalText,
             submittedBy,
+            process,
             releaseId,
             releaseName,
             createdAt,
@@ -150,6 +153,7 @@ function refreshRequirements(projectId: string): Promise<void> {
           title,
           originalText,
           submittedBy,
+          process,
           createdAt,
           documentPath: `${prototypeIrRoot(item.businessNo)}/requirements.md`,
           revision: 1,
@@ -278,7 +282,7 @@ export function getPrototypeWorkflow(selection: AIReqWorkflowTarget = {}): AIReq
     roleAdministrator: getEmployeeId() === AIREQ_ROLE_ADMINISTRATOR,
     projectRoleMembers: state.projectRoleMembers,
     projects: state.projects.map(projectSummary),
-    releases: projectReleaseSummaries(state),
+    ...projectRequirementSummaries(state),
     requirements: requirements.map((item) => projectRequirement(item, solution)),
     srs: state.srs.filter((item) => item.projectId === projectId).map(projectSystemRequirement),
     materials: state.materials

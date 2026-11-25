@@ -20,6 +20,7 @@ const requirement = z.object({
   submitter: z.string(),
   createDate: z.string(),
   domain: domainId,
+  process: z.string().trim().nullish(),
   pi: z.string().nullish(),
   piName: z.string().nullish(),
 });
