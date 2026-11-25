@@ -38,7 +38,7 @@ AIReq 页面使用 `/ws` 和工号身份。独立聊天页面 `/chat` 使用 `/w
 
 服务端校验身份、参数和项目角色，再提交并通知。原生执行绑定对象和会话。材料变化更新当前未确认版本，或在上一版已确认时开启下一版。服务端提供只读文件检查。定版再次校验完整性与格式，通过后在同一事务保存当前全部文件。按需评审绑定发起时的文件快照。
 
-`bun run dev` 在服务端启用本地云龙样例，工作流通过与真实云龙相同的读取入口同步项目和 IR。`bun run dev --use-clouddragon` 与直接启动服务端使用真实 CLI。角色、材料及项目仓库配置由内存后端管理。见[云龙对接](../specs/aireq/proposals.md#黄区需求澄清与云龙对接)。
+`bun run dev` 由服务端调用[独立离线云龙 CLI](clouddragon-cli.md#家庭开发机)，与真实云龙共用进程输出解析和数据校验。`bun run dev --use-clouddragon` 与直接启动服务端默认使用真实 CLI。角色、材料及项目仓库配置由内存后端管理。
 
 云龙读取合并并发请求，完成后的结果共享 3 秒。项目可以包含多个需求域，评论定位保留并使用各 IR 自己的需求域。连接 owner 按工号、客户端和可选 `pageId` 保留页面快照，最后一个连接断开后仍可在 30 分钟内复用；没有 `pageId` 的快照只属于当前连接。首次普通读取可取得部分成功的目录，刷新必须等项目目录及所有 IR 列表完整成功才替换该页快照。刷新在途、失败或其他页面刷新均不更换本页普通读取的目录，本地材料和配置仍反映当前事实。
 
@@ -105,7 +105,7 @@ Skill 主入口隐藏，但私有会话、附件、预览、保存和草稿门�
 
 - `packages/server/src/entry-http.ts`、`mock/index.ts`：入口与 `createMockServices`。
 - `packages/server/src/http.ts`：`publicMembers`、`setupChannelServer`、`createMockHttpServer`。
-- `packages/server/src/aireq/clouddragon.ts`：云龙读取与本地项目、IR 样例。
+- `packages/server/src/aireq/clouddragon.ts`：云龙 CLI 调用、返回校验与业务投影。
 - `packages/server/src/aireq/service.ts`：`MockAIReqService`、`getConnectionServices`。
 - `packages/server/src/mock/runtime.ts`、`mock/zcodeAgent.ts`：会话、水位与附件。
 - 精确原生契约：`packages/services/src/zcode-agent/zcodeAgent.ts`、`packages/shared/src/zcode-protocol-v4/`。

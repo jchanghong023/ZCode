@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { resolve } from "node:path";
 import {
   AIREQ_CLOUD_PROPOSAL_COLUMNS,
   type AIReqCloudProposalFields,
@@ -62,75 +62,10 @@ const commentDeleteResponse = z.object({ project: projectId.optional() });
 export type CloudDragonProject = z.infer<typeof project>;
 export type CloudDragonRequirement = z.infer<typeof requirement>;
 
-const useMockCloudDragon = process.env["ZCODE_CLOUDDRAGON_MODE"] === "mock";
-const mockProjects = [
-  { id: "gmockdev01", name: "协作平台开发" },
-  { id: "gmockdev02", name: "工作台开发" },
-] satisfies CloudDragonProject[];
-const mockDomainNames = new Map([
-  ["900001", mockProjects[0]!.name],
-  ["900002", mockProjects[1]!.name],
-]);
-
-const mockRequirements = [
-  {
-    projectId: "gmockdev01",
-    domain: "900001",
-    businessNo: "IR20990101000001",
-    name: "按需求域筛选需求列表",
-    description: [
-      "## 背景\n\n项目成员需要快速定位自己负责的需求。切换需求域后保留已选择的进展筛选。",
-      ...Array.from(
-        { length: 12 },
-        (_, index) =>
-          `### 验收场景 ${index + 1}\n\n从项目总览进入需求列表，选择需求域并设置进展筛选。返回列表时，仍可查看筛选结果和打开过的需求。无匹配项时可以清空筛选条件，再次查看全部需求。`,
-      ),
-    ].join("\n\n"),
-    process: "开发",
-    delivererOwner: "a00000003",
-    owner: null,
-    pi: "101",
-    piName: "体验优化",
-  },
-  {
-    projectId: "gmockdev01",
-    domain: "900001",
-    businessNo: "IR20990101000002",
-    name: "统一需求列表的空状态提示",
-    description: "<p>筛选无结果时提示用户调整筛选条件。</p>",
-    process: "完成",
-    delivererOwner: "a00000002",
-    owner: "a00000004",
-    seId: "a00000005",
-    de: "a00000006",
-    te: "a00000007",
-    pi: "101",
-    piName: "体验优化",
-  },
-  {
-    projectId: "gmockdev01",
-    domain: "900001",
-    businessNo: "IR20990101000003",
-    name: "明确需求延期的通知范围",
-    description: "<p>梳理延期时需要通知的项目角色。</p>",
-    process: "分析",
-    owner: "a00000008",
-    pi: null,
-    piName: null,
-  },
-  {
-    projectId: "gmockdev02",
-    domain: "900002",
-    businessNo: "IR20990101000004",
-    name: "展示最近访问的项目",
-    description: "<p>从工作台快速打开最近访问的项目。</p>",
-    process: "测试",
-    pi: "201",
-    piName: "工作台导航",
-  },
-] satisfies (Omit<CloudDragonRequirement, "creator" | "submitter" | "createDate"> & {
-  projectId: string;
-})[];
+const mockCli =
+  process.env["ZCODE_CLOUDDRAGON_MODE"] === "mock"
+    ? resolve("scripts/mock-clouddragon/cli.mjs")
+    : undefined;
 
 const failure = z.object({
   ok: z.literal(false),
@@ -170,11 +105,15 @@ function runCloudDragon<T extends { project?: string | undefined }>(
   const projectArgs = selectedProjectId ? ["--project", selectedProjectId] : [];
   return new Promise((resolve, reject) => {
     execFile(
-      "clouddragon",
-      [...projectArgs, ...args],
+      mockCli ? process.execPath : "clouddragon",
+      [...(mockCli ? [mockCli] : []), ...projectArgs, ...args],
       {
         encoding: "buffer",
-        env: { ...process.env, PYTHONIOENCODING: "utf-8" },
+        env: {
+          ...process.env,
+          PYTHONIOENCODING: "utf-8",
+          ...(mockCli && writingComment && { ZCODE_CLOUDDRAGON_MOCK_ACTOR: getEmployeeId() }),
+        },
         maxBuffer: 32 * 1024 * 1024,
         timeout: 60_000,
         windowsHide: true,
@@ -226,7 +165,6 @@ function runCloudDragon<T extends { project?: string | undefined }>(
 }
 
 export async function readCloudDragonProjects(): Promise<CloudDragonProject[]> {
-  if (useMockCloudDragon) return mockProjects;
   const nameFilter = "开发";
   const { items } = await runCloudDragon(
     ["project", "list", "--name", nameFilter],
@@ -243,42 +181,10 @@ export async function readCloudDragonProjects(): Promise<CloudDragonProject[]> {
   return visible;
 }
 
-export async function readCloudDragonRequirements(
-  project: string,
-): Promise<{
+export async function readCloudDragonRequirements(project: string): Promise<{
   items: CloudDragonRequirement[];
   domainNames: ReadonlyMap<string, string | undefined>;
 }> {
-  if (useMockCloudDragon)
-    return {
-      domainNames: mockDomainNames,
-      items: mockRequirements
-        .filter(({ projectId }) => projectId === project)
-        .map(({ projectId: _projectId, ...item }) =>
-          requirement.parse({
-            ...item,
-            creator: "a00000001",
-            submitter: "a00000001",
-            createDate: "2026-11-01 09:00:00",
-            customProps: [{ name: "来源", value: "需求共创" }],
-            labels:
-              item.businessNo === "IR20990101000001"
-                ? [{ name: "体验优化" }, { name: "需求域" }]
-                : item.businessNo === "IR20990101000002"
-                  ? [{ name: "体验优化" }]
-                  : [],
-            estimatedWorkloadManday: item.businessNo === "IR20990101000001" ? 3 : 8,
-            sumWorkloadManday: item.businessNo === "IR20990101000001" ? 5 : 9,
-            priorityLevel: item.businessNo === "IR20990101000001" ? "高" : "中",
-            needBreak: false,
-            ...(item.businessNo === "IR20990101000001" && {
-              rrBusinessNo: "RR20990101000001",
-              completedAnalysisTime: "2026-11-02 08:00:00",
-            }),
-            archived: false,
-          }),
-        ),
-    };
   const { domains } = await runCloudDragon(["ir", "list", "--all"], requirementResponse, project);
   const items: CloudDragonRequirement[] = [];
   const domainNames = new Map<string, string | undefined>();
@@ -338,34 +244,9 @@ export function cloudDragonRequirementDetails(ir: CloudDragonRequirement): AIReq
   };
 }
 
-const mockComments: AIReqRequirementComment[] = [
-  {
-    id: "00000000000040008000000000000001",
-    author: "a00000002",
-    createdAt: "2026-11-02 14:00:00",
-    body: [
-      "## 需求澄清记录\n\n讨论后补充以下验收要点。",
-      ...Array.from(
-        { length: 12 },
-        (_, index) =>
-          `### 验收要点 ${index + 1}\n\n检查有结果、无结果和切换需求域三种场景。记录实际显示的条目数，确认重新进入列表后仍可读取需求。`,
-      ),
-    ].join("\n\n"),
-  },
-  {
-    id: "00000000-0000-4000-8000-000000000002",
-    author: "a00000003",
-    createdAt: "2026-11-03 09:00:00",
-    body: "请补充一个无权限需求域的验收场景。\n确认筛选项只包含当前账号可见的需求域。",
-  },
-];
-
 type CommentTarget = AIReqObjectRef & { domain: string };
 
 const commentIdentifier = /^(?:[0-9a-f]{32}|[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12})$/i;
-const mockCommentsByTarget = new Map<string, AIReqRequirementComment[]>([
-  [JSON.stringify(["gmockdev01", "900001", "IR20990101000001"]), mockComments],
-]);
 const pendingCommentLists = new Map<string, Promise<AIReqRequirementComment[]>>();
 
 function commentKey({ projectId, domain, irId }: CommentTarget) {
@@ -391,7 +272,6 @@ function projectComment(
 
 export function readCloudDragonComments(target: CommentTarget): Promise<AIReqRequirementComment[]> {
   const key = commentKey(target);
-  if (useMockCloudDragon) return Promise.resolve(mockCommentsByTarget.get(key) ?? []);
   const pending = pendingCommentLists.get(key);
   if (pending) return pending;
   const request = runCloudDragon(
@@ -412,16 +292,6 @@ export async function addCloudDragonComment(
   body: string,
 ): Promise<AIReqRequirementComment> {
   const key = commentKey(target);
-  if (useMockCloudDragon) {
-    const comment = {
-      id: randomUUID(),
-      body,
-      author: getEmployeeId(),
-      createdAt: new Date().toISOString(),
-    };
-    mockCommentsByTarget.set(key, [...(mockCommentsByTarget.get(key) ?? []), comment]);
-    return comment;
-  }
   // 用户正文作为单个位置参数传入，允许多行以及以短横线开头的文本。
   const { comment } = await runCloudDragon(
     ["comment", "add", "--domain", target.domain, "--", target.irId, body],
@@ -438,18 +308,11 @@ export async function deleteCloudDragonComment(
 ): Promise<null> {
   if (!commentIdentifier.test(commentId)) throw businessRule("评论 ID 无效，请重新加载评论。");
   const key = commentKey(target);
-  if (useMockCloudDragon) {
-    const current = mockCommentsByTarget.get(key) ?? [];
-    const remaining = current.filter(({ id }) => id !== commentId);
-    if (current.length === remaining.length) throw businessRule("该需求下没有这条评论。");
-    mockCommentsByTarget.set(key, remaining);
-  } else {
-    await runCloudDragon(
-      ["comment", "delete", target.irId, commentId, "--domain", target.domain],
-      commentDeleteResponse,
-      target.projectId,
-    );
-    pendingCommentLists.delete(key);
-  }
+  await runCloudDragon(
+    ["comment", "delete", target.irId, commentId, "--domain", target.domain],
+    commentDeleteResponse,
+    target.projectId,
+  );
+  pendingCommentLists.delete(key);
   return null;
 }

@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun scripts/dev.mjs",
+    "clouddragon": "bun scripts/mock-clouddragon/cli.mjs",
     "dev:server": "bun run --cwd packages/server dev",
     "dev:web": "bun run --cwd packages/web dev",
     "build": "bun run build:server && bun run build:web",

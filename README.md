@@ -34,7 +34,7 @@ bun run dev
 
 浏览器打开 <http://localhost:5174>。Vite 监听 `5174`，模拟后端监听 `3031`，开发代理转发 `/api` 和 `/ws`。
 
-默认使用本地云龙样例，无需内网、CLI 或凭据。输入示例工号 `a00000001` 进入「所有项目」，从 Release 卡片打开对应版本工作区。产品范围与各功能规格见[文档索引](docs/README.md)。
+默认使用独立的离线云龙 CLI，无需内网或凭据。输入示例工号 `a00000001` 进入「所有项目」。可在仓库根目录运行 `bun run clouddragon project list` 查项目，或用 `bun run clouddragon --project gmockdev01 ir list --all` 查全部需求域。命令行和开发服务共用本地云龙数据，详见[云龙 CLI 实现参考](docs/architecture/clouddragon-cli.md#家庭开发机)。
 
 在可访问云龙门户和企业 SSO 的黄区，在 CLI 源码目录使用 Python 3.10 或更高版本运行 `pip install .`，确保服务端账号的 `PATH` 可找到 `clouddragon`。为服务进程设置 `w3Account` 和 `password` 后可启用真实 CLI。直接启动服务端也默认使用真实 CLI。
 
