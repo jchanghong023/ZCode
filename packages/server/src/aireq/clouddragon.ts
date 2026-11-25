@@ -7,11 +7,6 @@ const logger = createServiceLogger("clouddragon");
 const projectId = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/);
 const project = z.object({ id: projectId, name: z.string() });
 const domainId = z.string().regex(/^[0-9]+$/);
-const domainResponse = z.object({
-  project: projectId,
-  count: z.number().int().nonnegative(),
-  domains: z.array(z.object({ id: domainId })),
-});
 const requirement = z.object({
   businessNo: z.string().regex(/^IR[0-9]+$/),
   name: z.string(),
@@ -24,17 +19,15 @@ const requirement = z.object({
   pi: z.string().nullish(),
   piName: z.string().nullish(),
 });
-const domainPage = z.object({
-  id: domainId,
-  page: z.number().int().positive(),
-  page_size: z.number().int().positive(),
-  total: z.number().int().nonnegative(),
-  count: z.number().int().nonnegative(),
-  irs: z.array(requirement),
-});
 const requirementResponse = z.object({
   project: projectId,
-  domains: z.array(domainPage),
+  domains: z.array(
+    z.object({
+      id: domainId,
+      count: z.number().int().nonnegative().optional(),
+      irs: z.array(requirement),
+    }),
+  ),
 });
 export type CloudDragonProject = z.infer<typeof project>;
 type CloudDragonRequirement = z.infer<typeof requirement>;
@@ -140,44 +133,18 @@ export async function readCloudDragonProjects(): Promise<CloudDragonProject[]> {
   return visible;
 }
 
-function readRequirementPage(project: string, domain: string, page: number, size: number) {
-  return runCloudDragon(
-    ["irs", "--domain", domain, "--page", String(page), "--page-size", String(size)],
-    requirementResponse,
-    project,
-  );
-}
-
 export async function readCloudDragonRequirements(
   project: string,
 ): Promise<CloudDragonRequirement[]> {
-  const directory = await runCloudDragon(["domains"], domainResponse, project);
-  const [domain] = directory.domains;
-  if (directory.count !== 1 || directory.domains.length !== 1 || !domain)
-    throw businessRule("云龙项目应对应一个需求域，请检查需求域配置。");
-
-  const requirements = new Map<string, CloudDragonRequirement>();
-  let pageSize = 200;
-  let pageCount = 1;
-  for (let page = 1; page <= pageCount; page++) {
-    const result = await readRequirementPage(project, domain.id, page, pageSize);
-    const [group] = result.domains;
-    if (page === 1 && result.domains.length === 0) return [];
-    if (
-      result.domains.length !== 1 ||
-      !group ||
-      group.id !== domain.id ||
-      group.page !== page ||
-      (page > 1 && group.page_size !== pageSize) ||
-      group.count !== group.irs.length ||
-      group.irs.some((item) => item.domain !== domain.id)
-    )
-      throw businessRule("云龙返回的需求页与请求范围不匹配，请重试。");
-    if (page === 1) {
-      pageSize = group.page_size;
-      pageCount = Math.ceil(group.total / pageSize);
-    }
-    for (const item of group.irs) requirements.set(item.businessNo, item);
-  }
+  const { domains } = await runCloudDragon(["irs"], requirementResponse, project);
+  const [group] = domains;
+  if (!group) return [];
+  if (
+    domains.length !== 1 ||
+    (group.count !== undefined && group.count !== group.irs.length) ||
+    group.irs.some((item) => item.domain !== group.id)
+  )
+    throw businessRule("云龙返回的需求与项目需求域不匹配，请重试。");
+  const requirements = new Map(group.irs.map((item) => [item.businessNo, item]));
   return [...requirements.values()];
 }

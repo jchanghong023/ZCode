@@ -2,7 +2,7 @@
 
 ## 黄区需求澄清与云龙对接
 
-黄区负责需求澄清和讨论。方案设计在内网进行。云龙持有项目和 IR 的业务记录。AIReq 通过 `clouddragon projects --name 开发` 读取当前账号可访问且名称包含「开发」的项目。每个项目对应一个需求域。进入项目时，服务端先用 `clouddragon domains` 取得该域的 ID，再用 `clouddragon irs` 分页读取对应的 IR。按 IR 的 `pi` 汇总项目内的 Release，并以 `piName` 显示名称。讨论和需求文档由 AIReq 工作流管理。澄清结束后，用户可以将当前最新需求文档的正文作为一条评论同步到对应 IR。
+黄区负责需求澄清和讨论。方案设计在内网进行。云龙持有项目和 IR 的业务记录。AIReq 通过 `clouddragon projects --name 开发` 读取当前账号可访问且名称包含「开发」的项目。每个项目对应一个需求域。首页为每个项目并行执行一次 `clouddragon --project <项目组 ID> irs`，由 CLI 自动翻页，读取项目内全部 IR。服务端按 IR 的 `pi` 在本地汇总 Release 和需求统计，以 `piName` 显示 Release 名称。讨论和需求文档由 AIReq 工作流管理。澄清结束后，用户可以将当前最新需求文档的正文作为一条评论同步到对应 IR。
 
 原型服务直接执行 `clouddragon` 读取项目及 IR 列表。「所有项目」和「项目配置」使用同一份项目目录。设置页只从云龙同步项目名，仓库地址、默认分支和工作目录由 AIReq 按项目 ID 保存。同步文档时使用 `comment-add`。读取失败应显示错误，空列表只表示云龙确实返回空结果。使用真实的云龙数据验收，不使用预置项目、IR 或评论补齐结果。
 
@@ -17,6 +17,9 @@ clouddragon projects --name 开发
 
 # 列出所选项目下的需求域
 clouddragon --project gexample0001 domains
+
+# 自动翻页读取所选项目的全部 IR
+clouddragon --project gexample0001 irs
 
 # 列出指定需求域的全部 IR，可重复传入 --domain
 clouddragon --project gexample0001 irs --domain 900001
@@ -37,7 +40,7 @@ clouddragon create --domain "示例需求域" --name "新需求" \
   --priority 高 --expected-date 2026-12-31
 ```
 
-`projects` 返回的项目 `id` 即 `group_id`，用于子命令前的 `--project`。AIReq 取 `domains` 返回的唯一一条记录的 `id` 作为 `irs --domain` 的值。需求域返回零条或多条时，页面报读取错误。
+`projects` 返回的项目 `id` 即 `group_id`，用于子命令前的 `--project`。`irs` 省略 `--domain` 时查询指定项目下的全部需求域，省略 `--page` 时由 CLI 自动取完各页。AIReq 从全量响应读取需求域和 IR。
 
 ### `irs` 筛选与分页
 
@@ -313,7 +316,7 @@ clouddragon --project gexample0001 irs --domain 900001 --page 3 --page-size 7
 - `businessNo` 是 IR 业务号。`id` 和 `mksId` 在样本中为值相同的字符串。`customProps` 的元素包含字符串 `name` 和 `value`。样本中的 `labels`、`items` 为空数组，`collaborationAmount` 为空对象。
 - `process` 是 IR 的云龙状态，取值为初始、分析、开发、测试、完成。项目总览的「完成」只统计 `process` 为「完成」的 IR。
 - `pi` 是 Release ID，`piName` 是 Release 名称。两者均为字符串。相同项目中 `pi` 相同的 IR 归入同一个 Release。未分配 `pi` 的 IR 可从「全部需求」查看。
-- 本样本展示单页模式。自动翻页模式的响应字段以对应命令输出为准。
+- 本样本展示单页模式。AIReq 读取全量模式时使用 `data.project` 和 `data.domains[]` 中的 `id`、`irs`，并核对返回项目与 IR 的需求域归属。全量读取无需单页响应中的 `page`、`page_size` 和 `total`。
 
 ## 入口与权限
 
