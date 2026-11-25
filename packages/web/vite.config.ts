@@ -38,8 +38,11 @@ export default defineConfig(({ mode }) => {
     ZCODE_ENV: zcodeEnv,
   };
   const zcodeEndpointOrigin = resolveRuntimeZCodeEndpointOrigin(endpointEnv);
+  const backendPort = Number(env.PORT || 3031);
+  const webPort = Number(env.ZCODE_WEB_PORT || 5174);
 
   return {
+    cacheDir: resolve(HERE, "node_modules", `.vite-${webPort}`),
     plugins: [
       react(),
       tailwindcss(),
@@ -96,12 +99,13 @@ export default defineConfig(({ mode }) => {
     },
     // 局域网机器必须能直接通过 HTTP IP 访问，不能只绑定 loopback。
     server: {
-      host: "0.0.0.0",
-      port: 5174,
+      host: env.ZCODE_WEB_HOST || "0.0.0.0",
+      port: webPort,
+      strictPort: true,
       proxy: {
         // main 使用独立后端端口，避免同时运行 base 时代理到另一套内存状态。
-        "/ws": { target: "ws://localhost:3031", ws: true },
-        "/api": { target: "http://localhost:3031" },
+        "/ws": { target: `ws://127.0.0.1:${backendPort}`, ws: true },
+        "/api": { target: `http://127.0.0.1:${backendPort}` },
       },
     },
     optimizeDeps: {

@@ -26,6 +26,13 @@ import {
 import type { AIReqMaterialView } from "@zcode/services/aireq";
 import { businessRule } from "./errors.js";
 import { prototypeChangeRoot, prototypeIrRoot } from "./proposal-storage.js";
+import type { ProductionStore } from "./production-store.js";
+
+export const sharedPublicationPrefix = "shared-publication:";
+
+export function queueSharedDocument(store: ProductionStore, projectId: string, irId: string): void {
+  store.set(sharedPublicationPrefix + JSON.stringify([projectId, irId]), { projectId, irId });
+}
 
 const usePhysicalSnapshots = process.platform === "win32";
 const snapshotOwnerFile = ".aireq-ir";

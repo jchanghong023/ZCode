@@ -2,6 +2,7 @@ import type { IAIReqService } from "@zcode/services/aireq";
 import type { ModelSelection } from "@zcode/shared";
 import type { NativeRuntimeModel } from "./agent-models.js";
 import type { AIReqNativeTurnResult } from "./native-business.js";
+import type { BusinessOmpTurn } from "./workflow-state.js";
 
 /** Business callbacks only; rows, attachments, topics and subscriptions remain with native mock owner. */
 export interface AIReqNativeBridge {
@@ -19,6 +20,11 @@ export interface AIReqNativeBridge {
   ): void;
   /** Stage structured output without modifying the workflow. */
   prepareNativeResult(sessionId: string, commandIds: readonly string[]): AIReqNativeTurnResult;
+  prepareOmpTurn(
+    sessionId: string,
+    commandId: string,
+    signal?: AbortSignal,
+  ): Promise<BusinessOmpTurn>;
   /** Commit only after the original execution is still current. */
   completeNative(sessionId: string, result: AIReqNativeTurnResult): string;
   /** Release a canceled or failed execution's uncommitted input. */
@@ -35,8 +41,20 @@ export interface AIReqNativeBridge {
 export type { AIReqNativeReviewWork } from "./document-review.js";
 export type MockAIReqOwner = IAIReqService & AIReqNativeBridge;
 export { presenceIP } from "./presence.js";
+export type { KnowledgeMcpSdk } from "./research-tools.js";
+export { configureBusinessResearch } from "./omp-materials.js";
+export {
+  production,
+  openProduction,
+  ProductionStore,
+  type DeploymentZone,
+} from "./production-store.js";
+export { fileTransfer } from "./file-exchange.js";
+export { startRedZoneImport } from "./workflow.js";
+export { initializeProductionAgentModels } from "./agent-models.js";
 export { MockAIReqService, getConnectionServices, registerAIReqConnection } from "./service.js";
 export { withAIReqIdentity, validateAIReqIdentity } from "./identity.js";
 export { readPrototypeSkillNode } from "./skills.js";
+export { productionSkillRoots } from "./published-skills.js";
 export { assertSkillSession, prototypeSkillDesignWorkspaceIdentity } from "./skill-design.js";
 export { readPrototypeProjectDirectory } from "./workflow.js";

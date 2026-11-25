@@ -5,10 +5,10 @@ import {
   assertSkillSession,
   prototypeSkillDesignWorkspaceIdentity,
   readPrototypeProjectDirectory,
-} from "../aireq/contract.js";
-import { businessRule } from "../aireq/errors.js";
-import { currentIdentity } from "../aireq/identity.js";
-import { isListedSession, type MockRuntime, type MockSession } from "./runtime.js";
+} from "./aireq/contract.js";
+import { businessRule } from "./aireq/errors.js";
+import { currentIdentity } from "./aireq/identity.js";
+import { isListedSession, type MockRuntime, type MockSession } from "./mock/runtime.js";
 
 const sessionDirectoryRequestSchema = z.strictObject({
   taskId: z.string(),
@@ -25,7 +25,7 @@ type Projection = {
   skillWorkspaces: Workspace[];
 };
 
-export class MockProjectService implements WebProjectService {
+export class ProjectDirectoryService implements WebProjectService {
   constructor(private readonly runtime: MockRuntime) {}
 
   private projection(): Projection {

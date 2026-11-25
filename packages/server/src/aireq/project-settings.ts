@@ -4,11 +4,13 @@ import { businessRule } from "./errors.js";
 import {
   prepareProjectDocuments,
   publishInitialProjectDocuments,
+  queueSharedDocument,
   resolveProjectDirectory,
   type ProjectDocumentSnapshot,
 } from "./project-files.js";
 import type { CloudDragonProject } from "./clouddragon.js";
 import type { Project } from "./workflow-state.js";
+import { onProductionOpen, production } from "./production-store.js";
 
 type RepositorySettings = Pick<
   Project,
@@ -17,7 +19,10 @@ type RepositorySettings = Pick<
 
 // 云龙目录与本地代码配置各自持有自己的字段，通过稳定的项目组 ID 关联。
 let projectNames = new Map<string, string>();
-const repositories = new Map<string, RepositorySettings>();
+let repositories = new Map<string, RepositorySettings>();
+onProductionOpen((store) => {
+  repositories = new Map(store.get<[string, RepositorySettings][]>("repositories"));
+});
 
 export function syncPrototypeProjectNames(projects: readonly CloudDragonProject[]): void {
   projectNames = new Map(projects.map(({ id, name }) => [id, name]));
@@ -27,10 +32,18 @@ export function readPrototypeProjectSettings(): { projects: Project[] } {
   return { projects: mapPrototypeProjectSettings((project) => project) };
 }
 
+export function configuredStorageDirectory(projectId: string): string | undefined {
+  return repositories.get(projectId)?.storageDirectory;
+}
+
 export function readPrototypeProjectSetting(projectId?: string): Project | undefined {
   if (projectId === undefined) return;
   const name = projectNames.get(projectId);
   if (!name) return;
+  return projectSettingsForSource({ id: projectId, name });
+}
+
+export function projectSettingsForSource({ id: projectId, name }: CloudDragonProject): Project {
   return {
     id: projectId,
     name,
@@ -56,8 +69,11 @@ function containsDirectory(root: string, candidate: string): boolean {
 export function savePrototypeRepository(
   input: AIReqRemoteRepositoryInput,
   captureDocuments: (projectId: string) => ProjectDocumentSnapshot,
+  commitReceipt?: () => void,
 ): Promise<boolean> {
-  const save = projectSaves.then(() => prepareAndSaveRepository(input, captureDocuments));
+  const save = projectSaves.then(() =>
+    prepareAndSaveRepository(input, captureDocuments, commitReceipt),
+  );
   projectSaves = save.then(
     () => {},
     () => {},
@@ -68,6 +84,7 @@ export function savePrototypeRepository(
 async function prepareAndSaveRepository(
   input: AIReqRemoteRepositoryInput,
   captureDocuments: (projectId: string) => ProjectDocumentSnapshot,
+  commitReceipt?: () => void,
 ): Promise<boolean> {
   const id = input.projectId;
   // 项目身份由云龙目录提供，仓库配置不能凭请求创建或重命名项目。
@@ -115,8 +132,10 @@ async function prepareAndSaveRepository(
     existing.repositoryUrl === repositoryUrl &&
     existing.defaultBranch === defaultBranch &&
     existing.workDirectory === workDirectory
-  )
+  ) {
+    commitReceipt?.();
     return false;
+  }
   const storageDirectory = await resolveProjectDirectory(workDirectory);
   if (dirname(storageDirectory) === storageDirectory)
     throw businessRule("请输入可用于项目的独立工作目录。");
@@ -130,12 +149,12 @@ async function prepareAndSaveRepository(
     })
   )
     throw businessRule("该工作目录已由其他项目使用，请选择独立目录。");
+  const alreadyOwned =
+    existing.storageDirectory !== undefined &&
+    relative(existing.storageDirectory, storageDirectory) === "";
   try {
-    const alreadyOwned =
-      existing.storageDirectory !== undefined &&
-      relative(existing.storageDirectory, storageDirectory) === "";
     const documents = await prepareProjectDocuments(workDirectory, storageDirectory, alreadyOwned);
-    if (!alreadyOwned) {
+    if (!alreadyOwned && !production) {
       const snapshot = captureDocuments(id);
       const discard = await publishInitialProjectDocuments(documents, snapshot.requirements);
       // 发布时原目录仍可能接收文档更新。核对成功后才能把新目录设为当前配置。
@@ -148,13 +167,26 @@ async function prepareAndSaveRepository(
     if (error instanceof Error && "publicMessage" in error) throw error;
     throw businessRule("无法准备项目工作目录，请检查服务端路径和写入权限。");
   }
-  repositories.set(id, {
+  const entry = {
     repositoryUrl,
     defaultBranch,
     workDirectory,
     storageDirectory,
     revision: existing.revision + 1,
-  });
+  };
+  if (production) {
+    const store = production;
+    store.db.transaction(() => {
+      store.set("repositories", [...new Map(repositories).set(id, entry)]);
+      if (!alreadyOwned) {
+        // 先发布到磁盘再提交配置会在崩溃后留下无主目录，重试也会因目录非空被拒绝。
+        for (const { irId } of captureDocuments(id).requirements)
+          queueSharedDocument(store, id, irId);
+      }
+      commitReceipt?.();
+    })();
+  }
+  repositories.set(id, entry);
   return true;
 }
 

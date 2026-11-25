@@ -1,10 +1,15 @@
 import type { AIReqMaterialView } from "@zcode/services/aireq";
 import { SUPPORTED_AIREQ_DEMOS } from "./scenarios.js";
+import { onProductionOpen } from "./production-store.js";
 
 /** Explicit in-memory failure fixtures, without filesystem or network probing. */
-export const prototypeRecoveryScenario = SUPPORTED_AIREQ_DEMOS.find(
+export let prototypeRecoveryScenario = SUPPORTED_AIREQ_DEMOS.find(
   (value) => value === process.env.AIREQ_DEMO,
 );
+// 模块可能先于生产库加载；切换正式装配后必须忽略宿主遗留的原型故障环境变量。
+onProductionOpen(() => {
+  prototypeRecoveryScenario = undefined;
+});
 const defaultMaterial = "docs/requirements/draft-automation/requirements.md";
 const defaultSession = "demo-aurora-draft-automation-ir-requirements";
 const recoveredMaterials = new Set<string>();

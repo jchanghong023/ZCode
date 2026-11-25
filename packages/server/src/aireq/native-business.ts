@@ -2,16 +2,19 @@ import { businessRule } from "./errors.js";
 import { prototypeRecoveryScenario } from "./recovery.js";
 import type { AIReqIdentity } from "@zcode/services/aireq";
 import type { ModelSelection } from "@zcode/shared";
-import type { NativeDocumentOutput } from "./workflow-state.js";
+import type { BusinessOmpContext, BusinessOmpTurn, NativeDocumentOutput } from "./workflow-state.js";
 import {
   preparePrototypeNativeDocuments,
   commitPrototypeNativeDocuments,
   readPrototypeNativeContext,
+  ensureProductionDiscussionBinding,
+  captureNativeDocumentInputs,
   requireSolutionAccess,
   canAccessSolution,
 } from "./workflow.js";
 import {
   stagePrototypeSkillDiscussion,
+  createSkillDesignTurn,
   commitPrototypeSkillDiscussion,
   prototypeSkillDesignBinding,
   assertSkillSession,
@@ -19,6 +22,9 @@ import {
 } from "./skill-design.js";
 import { currentIdentity, withAIReqIdentity } from "./identity.js";
 import { consumePrototypeSendFailure, prototypeSessionReadIssue } from "./recovery.js";
+import { production } from "./production-store.js";
+import { prepareDocumentTools, prepareReviewTools } from "./omp-materials.js";
+import type { DocumentReviewRun } from "./document-review.js";
 
 export interface AIReqNativeTurnResult {
   commandIds: readonly string[];
@@ -56,7 +62,8 @@ export class AIReqNativeBusiness {
     original: () => boolean,
     exists: () => boolean,
   ): void {
-    if (this.nativeDrafts.has(sessionId)) throw businessRule("原生草稿已登记。");
+    // 原生写入回滚会撤销草稿，旧登记不能阻止同一会话编号重试。
+    if (this.nativeDrafts.get(sessionId)?.exists()) throw businessRule("原生草稿已登记。");
     this.nativeDrafts.set(sessionId, { actor: this.actorKey(), ...workspace, original, exists });
   }
   actorKey(): string {
@@ -126,6 +133,8 @@ export class AIReqNativeBusiness {
       throw businessRule("消息未发送成功，请重试。");
     }
     this.assertNativeWritable(sessionId);
+    if (production && !sessionId.startsWith("prototype-skill-design:"))
+      ensureProductionDiscussionBinding(sessionId);
     this.admissions.set(key, { actor: { ...identity }, text });
   }
   /** Admission is immutable; freeze actual turn selection and its session's instructions at dispatch. */
@@ -170,6 +179,11 @@ export class AIReqNativeBusiness {
     const target = readPrototypeNativeContext(sessionId);
     if (!target || prototypeSessionReadIssue(sessionId))
       throw businessRule("会话不属于当前可达 AIReq 业务。");
+    if (
+      production &&
+      target.ref.phase !== (production.zone === "red" ? "solution" : "requirements")
+    )
+      throw businessRule("此会话不属于当前部署区。");
     if (target.ref.phase === "solution") requireSolutionAccess(target.ref.projectId);
     return target;
   }
@@ -196,7 +210,81 @@ export class AIReqNativeBusiness {
     return { actor: admitted.actor, text: execution.effectiveText };
   }
 
+  async prepareOmpTurn(
+    sessionId: string,
+    commandId: string,
+    signal?: AbortSignal,
+  ): Promise<BusinessOmpTurn> {
+    const store = production;
+    if (!store) throw businessRule("正式 OMP 执行环境不可用。");
+    const first = this.currentExecution(sessionId, commandId);
+    const assertAccess = () => {
+      signal?.throwIfAborted();
+      this.currentExecution(sessionId, commandId);
+    };
+    const commit = (
+      ids: readonly string[],
+      reply: string,
+      output: AIReqNativeTurnResult["output"],
+    ) => {
+      assertAccess();
+      if (ids[0] !== commandId) throw businessRule("回合输入已改变。");
+      this.completeNative(sessionId, { commandIds: ids, reply, output });
+    };
+    return withAIReqIdentity(first.actor, async () => {
+      if (sessionId.startsWith("prototype-skill-design:")) {
+        const skill = await createSkillDesignTurn(sessionId, first.text);
+        return {
+          cwd: skill.cwd,
+          options: skill.options,
+          prompt: skill.prompt,
+          dispose: async () => {},
+          finish: (ids, reply) =>
+            withAIReqIdentity(first.actor, () =>
+              commit(ids, reply, { kind: "skill", discussion: skill.finish(reply) }),
+            ),
+        };
+      }
+      const { ref } = this.requireDiscussion(sessionId);
+      const snapshot = captureNativeDocumentInputs(sessionId);
+      const turn = await prepareDocumentTools(
+        store,
+        ref.projectId,
+        ref.phase,
+        snapshot,
+        ref.modelConfig?.promptSnapshot ?? "",
+        assertAccess,
+        signal,
+      );
+      return {
+        cwd: turn.cwd,
+        options: turn.options,
+        prompt: first.text,
+        dispose: turn.dispose,
+        finish: (ids, reply) => {
+          const changes = turn.output();
+          commit(ids, reply, changes ? { kind: "documents", changes } : { kind: "none" });
+        },
+      };
+    });
+  }
+
+  async prepareOmpReview(
+    run: DocumentReviewRun,
+    signal?: AbortSignal,
+  ): Promise<BusinessOmpContext> {
+    const store = production;
+    const actor = currentIdentity();
+    if (!store || !actor) throw businessRule("正式评审环境或会话身份不可用。");
+    const assertAccess = () =>
+      withAIReqIdentity(actor, () => {
+        this.requireDiscussion(run.sessionId);
+      });
+    return prepareReviewTools(store, run, assertAccess, signal);
+  }
+
   prepareNativeResult(sessionId: string, commandIds: readonly string[]): AIReqNativeTurnResult {
+    if (production) throw businessRule("正式讨论必须通过 OMP 会话处理。");
     const started = commandIds.map((id) => this.currentExecution(sessionId, id));
     const first = started[0];
     if (!first) throw businessRule("本轮没有已执行输入。");

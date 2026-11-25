@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun scripts/dev.mjs",
+    "start:prod": "bun scripts/start-production.ts",
     "clouddragon": "bun scripts/mock-clouddragon/cli.mjs",
     "dev:server": "bun run --cwd packages/server dev",
     "dev:web": "bun run --cwd packages/web dev",
@@ -13,6 +14,7 @@
     "build:server": "bun run --cwd packages/server build",
     "build:web": "bun run --cwd packages/web build",
     "build:standalone": "bun scripts/build-standalone.ts",
+    "build:prod": "bun scripts/build-standalone.ts --production",
     "typecheck": "bun --bun run tsc -b packages/shared/tsconfig.testing.json packages/rpc packages/provider packages/model-option-map packages/session-control packages/shared packages/services packages/client packages/server packages/ui packages/web",
     "lint": "bun --bun run oxlint",
     "lint:fix": "bun --bun run oxlint --fix --fix-suggestions",

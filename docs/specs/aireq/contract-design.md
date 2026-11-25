@@ -26,7 +26,7 @@ Git、文件监听、MCP 同步、独立媒体预览、client-config RPC、skill
 
 Web 不公开 `system.info`，不读取也不返回宿主主目录或平台。工作区目录继续使用业务工作区标识及路径。
 
-Web 不公开 `provider-settings`。AIReq 和 `/chat` 通过 `model-selection.getView` 读取模型目录，不订阅目录事件。供应商条目不包含 `templateId`；供应商的 `config` 只包含可选的 `logo`、`api` 和 `access`，不下发分组、可见性规则或模型 ID／排序配置。`config.api` 只投影 `type`，不下发 `baseUrl` 或 `headers`；`config.access` 只投影访问类型和套餐展示字段，不下发 `apiKey` 或 `apiKeyManagementUrl`。Web 发送遥测保留模型与供应商 ID，不上报端点主机名。模型候选和顺序以 `providers[].models` 为准，模型配置不另返回 `enabled`；服务端供应商可见性与模型可用性判断不变。模型的 `config.optionSpecs` 只包含 `reasoningLevel.values`，用于展示与校验思考档位；`config.properties` 只包含 `inputFormat.supportsImage`，用于展示图片能力。运行中的上下文窗口由会话用量快照提供。AIReq 业务模型设置仍由 AIReq 管理，变更通过 `aireq.onDidChange` 的 `models` 通知投影失效。
+Web 不公开 `provider-settings`。AIReq 和 `/chat` 通过 `model-selection.getView` 读取模型目录，不订阅目录事件。供应商条目不包含 `templateId`；供应商的 `config` 只包含可选的 `logo`、`api` 和 `access`，不下发分组、可见性规则或模型 ID／排序配置。`config.api` 只投影 `type`，不下发 `baseUrl` 或 `headers`；`config.access` 只投影访问类型和套餐展示字段，不下发 `apiKey` 或 `apiKeyManagementUrl`。Web 发送遥测保留模型与供应商 ID，不上报端点主机名。服务端决定可选供应商及模型；Web 选择器按 `providers[].models` 显示候选和顺序，不因缺少可选的 `config.api` 隐藏候选。模型配置不另返回 `enabled`。模型的 `config.optionSpecs` 只包含 `reasoningLevel.values`，用于展示与校验思考档位；`config.properties` 只包含 `inputFormat.supportsImage`，用于展示图片能力。运行中的上下文窗口由会话用量快照提供。AIReq 业务模型设置仍由 AIReq 管理，变更通过 `aireq.onDidChange` 的 `models` 通知投影失效。
 
 `model-selection.getView` 可无参调用，或接收一个 `{ selection }` 参数；第二个实参在读取目录前拒绝。`selection` 为 `null` 时和无参查询一样使用当前入口的默认选择；非空选择只包含 `providerId`、`modelId` 和可选的 `options.reasoningLevel`。请求及嵌套对象中的额外字段在读取目录前拒绝，响应只使用校验后的选择。
 
@@ -248,6 +248,8 @@ Agent 讨论的完成回调核验项目、IR、会话、写权限及原生执行
 
 Web 文件接口只接收一个请求对象；搜索、读取属性、批量存在检查、媒体预览和分段读取均在访问文件前拒绝额外实参或对象字段。分段读取的请求对象只包含 `path`、`offset` 和 `length`。
 
+正式服务仅向文件接口提供本区数据目录中 `files/` 下的共享文件和已发布的共享／项目 Skill 文件。文件搜索与直接读取使用相同的路径边界，私有预览通过对应的 Skill 会话读取。Web 设置在补丁验证通过后写入本区 SQLite，重启继续使用已保存值。
+
 文件 stat.size、分片 offset 按实际 UTF-8 原始字节；readFileRange 的 offset、length 必须是非负安全整数，非法范围在读取前拒绝，不取整、不把负偏移解释为从文件尾部计数。length=0 返回空字节；到达或超过 EOF 返回短数组或空数组。目录误读与缺失失败，零字节文件成功，next offset 按原契约。没有公开目录全量索引下载或宿主写盘。
 
 Web 的 `file.searchWorkspaceFiles` 请求只接收 `rootPath`、`query` 和可选的 `limit`，在搜索前拒绝 `workspaceIdentity`、客户端索引刷新参数 `refresh` 和其他额外字段。文件提及仍在会话归属校验和前端结果隔离中使用 `workspaceIdentity`。搜索按当前可读文件事实匹配，只返回文件条目的 `path` 和 `relativePath`；`relativePath` 使用 `/` 分隔，最后一段是文件名，目录不进入结果。未命中直接返回空结果；文件目录或索引的新鲜度由服务端负责。
@@ -289,6 +291,10 @@ Web 的 `broadcast.send` 只接收一个含 `channel` 和 `payload` 的对象，
 参数版本、幂等和事件时序见[连接身份](connection-identity.md)，不得为表中没有版本／操作标识的接口添加虚构保证。
 
 ## 发布边界
+
+正式服务按 Windows x64、Linux x64 分别发布离线 ZIP，在对应平台用同版本 OMP SDK 和 Bun 编译。解压目录包含宿主程序、Web 构建和许可证。宿主按同源 HTTP 提供两个 Web 入口，独立于解压目录保存各区的持久数据。家庭运行包也能调用独立模拟云龙命令。原型使用自己的启动与构建入口。
+
+正式服务分黄区与红区，分别持有自己的 SQLite、工作目录与会话。原型仍独立运行。开发机默认端口为原型 5174/3031、黄区 5175/3032、红区 5176/3033（前端/后端）。正式包由后端同源提供两个 Web 入口。工号用于留痕和项目角色判断，用户无需登录。黄区读取云龙目录，家庭联调使用独立 mock CLI。红区只导入文件交接包。两区均在事务提交后通知浏览器，接收端保留本区材料和确认记录。
 
 原型阶段按已确认的业务要求完善实现、公开契约和测试。原型验收通过的版本作为正式对接基线。切换正式后端时复用同一份前端构建产物、SDK、二进制传输、descriptor、DTO、协议 schema 和测试。接入 OMP、只读代码源和持久化使用后端实现与部署配置。前端 UT 和后端 ST 的源码、步骤及断言沿用基线。
 

@@ -48,9 +48,21 @@ export interface SystemRequirement extends AIReqSystemRequirement {
 
 export interface NativeDocumentOutput {
   agent: AIReqDiscussionAgent;
+  expectedInputs?: string;
   materials: AIReqMaterialView[];
   removedPaths?: string[];
   srs?: SystemRequirement[];
+}
+
+export interface BusinessOmpContext {
+  cwd: string;
+  options: Record<string, unknown>;
+  prompt: string;
+  dispose(): Promise<void>;
+}
+
+export interface BusinessOmpTurn extends BusinessOmpContext {
+  finish(commandIds: readonly string[], reply: string): void;
 }
 
 /** 需求、材料、确认与评审事实由工作流统一提交。 */
@@ -62,4 +74,6 @@ export interface WorkflowState {
   requirements: RequirementGroup[];
   srs: SystemRequirement[];
   materials: AIReqMaterialView[];
+  /** Imported yellow-zone requirements have a separate owner from red-zone documents. */
+  importedRequirements?: AIReqMaterialView[];
 }

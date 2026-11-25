@@ -8,6 +8,7 @@ import {
   type Locale,
 } from "@zcode/shared";
 import localDefaultAppConfig from "../../../config/default.json" with { type: "json" };
+import { deploymentAuthHeaders } from "./deploymentAccess.js";
 
 interface ResolveWebCommunityUrlOptions {
   fetchImpl?: typeof fetch;
@@ -43,7 +44,7 @@ export async function resolveWebHelpConfig(options: ResolveWebCommunityUrlOption
       options.fetchImpl
         ? createHelpAppConfigReader({ fetchImpl: options.fetchImpl })
         : readHelpConfig
-    )(url);
+    )(url, deploymentAuthHeaders(url));
   } catch {
     // 远端不可用时保留内置入口，不使用旧 CDN 作为第二个远端配置源。
   }

@@ -6,7 +6,7 @@ AIReq 面向芯片团队，使用电脑浏览器。业务在黄区澄清 IR，�
 
 `/chat` 是独立的个人入口，方便用户用手机或电脑浏览器远程与自己电脑上的 Agent 做基本聊天。当前原型支持的操作见[Web Agent 聊天](specs/web-agent-chat.md)。
 
-当前阶段在单进程内存原型上开发和验证业务，重启会重新初始化。正式产品的聊天使用 OMP 原生 Agent，见[会话产品要求与原型范围](specs/aireq/conversation.md#会话产品要求与原型范围)。模型执行、Git 托管、数据库持久化和宿主业务文件写入见[发布边界](specs/aireq/contract-design.md#发布边界)。启动与部署见[快速开始](../README.md)。
+原型服务与正式黄区、正式红区可在同一开发机独立启动。正式服务通过 OMP SDK 执行模型，业务数据各自保存在 SQLite。运行方式见[开发与产品入口](../README.md#开发与产品入口)，服务契约见[发布边界](specs/aireq/contract-design.md#发布边界)。
 
 ## 产品与交互
 

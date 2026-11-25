@@ -1,7 +1,12 @@
 import { digestValue } from "./content-digest.js";
 import { businessRule } from "./errors.js";
 import { createHash } from "node:crypto";
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { z } from "zod";
 import { currentIdentity } from "./identity.js";
+import { production } from "./production-store.js";
+import { publishSkillFiles, skillMetadata } from "./published-skills.js";
 import type {
   AIReqSkillDesignDraft,
   AIReqSkillDesignDraftFields,
@@ -59,21 +64,40 @@ const emptyDraft: AIReqSkillDesignDraft = {
   example: "",
   notes: [],
 };
-const modelBindings = new Map<string, NativeRuntimeModel>();
+function privateRecords<T>(name: string) {
+  const memory = new Map<string, T>();
+  const key = (id: string) => "skill-design:" + name + ":" + id;
+  return {
+    get(id: string) {
+      return production ? production.get<T>(key(id)) : memory.get(id);
+    },
+    set(id: string, value: T) {
+      if (production) production.set(key(id), value);
+      else memory.set(id, value);
+    },
+  };
+}
+const modelBindings = privateRecords<NativeRuntimeModel>("models");
 export function prototypeSkillDesignBinding(sessionId: string): NativeRuntimeModel {
   assertSkillSession(sessionId);
   let binding = modelBindings.get(sessionId);
   if (!binding) {
     const model = readPrototypeWorkflowDefaultModel();
-    binding = { providerId: model.providerId, modelId: model.name, reasoning: "default" };
+    binding = {
+      providerId: model.providerId,
+      modelId: model.modelId ?? model.name,
+      reasoning: "default",
+    };
     modelBindings.set(sessionId, binding);
   }
   return structuredClone(binding);
 }
-const drafts = new Map<string, AIReqSkillDesignDraft>();
+const drafts = privateRecords<AIReqSkillDesignDraft>("drafts");
 const supplements = createPrototypeEvent<string>();
 export const onPrototypeSkillDesignSupplement = supplements.event;
-const scopes = new Map<string, { projectId: string; employeeId: string; clientId: string }>();
+const scopes = privateRecords<{ projectId: string; employeeId: string; clientId: string }>(
+  "scopes",
+);
 export function prototypeSkillDesignWorkspaceIdentity(projectId: string): string {
   return `${PROTOTYPE_WORKSPACE_IDENTITY}:${projectId}:skill-design`;
 }
@@ -117,11 +141,12 @@ export function savePrototypeSkillDesignDraft(
   assertSkillSession(sessionId);
   drafts.set(sessionId, { ...value, notes: drafts.get(sessionId)?.notes ?? [] });
 }
-const previews = new Map<string, AIReqSkillDesignPreview>();
+const previews = privateRecords<AIReqSkillDesignPreview>("previews");
 function prototypeSkillDesignDirectory(sessionId: string): string {
   assertSkillSession(sessionId);
   const prefix = `prototype-skill-design:${PROTOTYPE_BACKEND.id}:`;
   const projectKey = sessionId.startsWith(prefix) ? sessionId.slice(prefix.length) : sessionId;
+  if (production) return "aireq-preview://" + encodeURIComponent(projectKey);
   return `/tmp/omp-aireq/skill-design/${encodeURIComponent(projectKey)}`;
 }
 export function preparePrototypeSkillDesignPrompt(
@@ -158,10 +183,111 @@ export interface StagedSkillDiscussion {
   preview?: AIReqSkillDesignPreview;
 }
 
+const candidateSchema = z.strictObject({
+  name: z
+    .string()
+    .max(64)
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+  files: z.array(z.strictObject({ path: z.string().min(1), content: z.string() })).min(1),
+});
+
+/** Keep published names valid on both Windows and Linux; reject aliases before creating any file. */
+function validateCandidate(candidate: Pick<AIReqSkillDesignPreview, "name" | "files">) {
+  const paths = new Set<string>();
+  const directories = new Set<string>();
+  const windowsDevice = /^(?:aux|con|prn|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/i;
+  const partsValid = (s: string) =>
+    Boolean(s) &&
+    s !== "." &&
+    s !== ".." &&
+    !/[\\:<>"|?*\p{Cc}]/u.test(s) &&
+    !/[. ]$/.test(s) &&
+    !windowsDevice.test(s);
+  if (!partsValid(candidate.name)) throw businessRule("技能标识不适合作为目录名。");
+  for (const file of candidate.files) {
+    const parts = file.path.split("/");
+    const key = file.path.toLowerCase();
+    if (!parts.every(partsValid) || paths.has(key) || directories.has(key))
+      throw businessRule("候选文件路径无效或重复。");
+    paths.add(key);
+    for (let index = 1; index < parts.length; index++) {
+      const parent = parts.slice(0, index).join("/").toLowerCase();
+      if (paths.has(parent)) throw businessRule("候选文件和目录同名。");
+      directories.add(parent);
+    }
+  }
+  const main = candidate.files.find((file) => file.path === "SKILL.md");
+  if (!main) throw businessRule("候选技能缺少 SKILL.md。");
+  return skillMetadata(main.content, candidate.name);
+}
+
+export function createSkillDesignTurn(sessionId: string, text: string) {
+  const projectId = assertSkillSession(sessionId);
+  if (!production) throw businessRule("正式技能设计服务未启动。");
+  const preview = previews.get(sessionId);
+  const draft = drafts.get(sessionId) ?? emptyDraft;
+  const cwd = join(
+    production.root,
+    "private-skills",
+    createHash("sha256").update(sessionId).digest("hex"),
+  );
+  mkdirSync(cwd, { recursive: true });
+  let staged: z.infer<typeof candidateSchema> | undefined;
+  const tool = {
+    name: "propose_skill_files",
+    label: "准备技能文件预览",
+    approval: "write",
+    loadMode: "essential",
+    description:
+      "提交完整候选技能目录的预览，包含 SKILL.md 和全部配套文件。用户确认后才发布。再次调用会替换本回合候选。",
+    parameters: z.toJSONSchema(candidateSchema),
+    async execute(_callId: string, input: unknown) {
+      const candidate = candidateSchema.parse(input);
+      validateCandidate(candidate);
+      staged = candidate;
+      return {
+        content: [{ type: "text", text: "已准备候选预览，将随成功完成的讨论回合提交。" }],
+        details: {},
+      };
+    },
+  };
+  return {
+    cwd,
+    prompt: text,
+    options: {
+      toolNames: [tool.name],
+      restrictToolNames: true,
+      allowRestrictedCustomTools: true,
+      customTools: [tool],
+      enableMCP: false,
+      enableLsp: false,
+      noContextFiles: true,
+      disableExtensionDiscovery: true,
+      systemPrompt: (base: string[]) => [
+        ...base,
+        "你负责设计可复用的 OMP Skill。根据用户意图澄清需求或调用 propose_skill_files 准备实际文件，不能自行发布。SKILL.md 需要合法的 YAML name、description。现有说明和预览如下。",
+        JSON.stringify({
+          projectId,
+          draft,
+          preview: preview && { name: preview.name, files: preview.files },
+        }),
+      ],
+    },
+    finish(reply: string): StagedSkillDiscussion {
+      return {
+        reply,
+        note: text.includes(prototypeSkillDesignDirectory(sessionId)) ? undefined : text,
+        ...(staged && { preview: { ...staged, revision: (preview?.revision ?? 0) + 1 } }),
+      };
+    },
+  };
+}
+
 export function stagePrototypeSkillDiscussion(
   sessionId: string,
   message: string,
 ): StagedSkillDiscussion {
+  if (production) throw businessRule("正式技能讨论必须由 OMP 会话生成。");
   const directory = prototypeSkillDesignDirectory(sessionId);
   // 完整表单消息已在会话历史中保留，避免再次填入时递归嵌套此前整份提示词。
   const note = message.includes(directory) ? undefined : message;
@@ -193,19 +319,29 @@ export function commitPrototypeSkillDiscussion(
   output: StagedSkillDiscussion,
 ): void {
   assertSkillSession(sessionId);
-  if (output.note !== undefined) {
-    // 回合准备后表单仍可保存；完成时只向当前草稿追加备注。
-    const draft = drafts.get(sessionId);
-    if (draft) draft.notes.push(output.note);
-    else drafts.set(sessionId, { ...emptyDraft, notes: [output.note] });
-  }
-  if (output.preview) previews.set(sessionId, output.preview);
+  const commit = () => {
+    if (output.note !== undefined) {
+      // 回合准备后表单仍可保存；完成时只向当前草稿追加备注。
+      const draft = drafts.get(sessionId);
+      drafts.set(sessionId, {
+        ...(draft ?? emptyDraft),
+        notes: [...(draft?.notes ?? []), output.note],
+      });
+    }
+    if (output.preview) {
+      if (production && output.preview.revision !== (previews.get(sessionId)?.revision ?? 0) + 1)
+        throw businessRule("技能预览已变化，请基于最新版继续讨论。");
+      previews.set(sessionId, output.preview);
+    }
+  };
+  if (production) production.db.transaction(commit)();
+  else commit();
   supplements.fire(sessionId);
 }
-const saves = new Map<
-  string,
-  { digest: string; receipt: import("@zcode/services/aireq").AIReqSkillSaveReceipt }
->();
+const saves = privateRecords<{
+  digest: string;
+  receipt: import("@zcode/services/aireq").AIReqSkillSaveReceipt;
+}>("receipts");
 export function savePrototypeSkillDesignPreview(
   sessionId: string,
   target: "project" | "user",
@@ -261,17 +397,32 @@ export function savePrototypeSkillDesignPreview(
     )
   )
     throw businessRule("临时文件路径无效，请重新生成并预览。");
-  const path = savePrototypeDesignedSkill(
-    workspacePath,
-    name,
-    "接口变更评审：检查接口契约的向后兼容性",
-    preview.files,
-    target === "user" ? "user" : "workspace",
-    preview.revision,
-  );
+  if (production) validateCandidate(candidateSchema.parse({ name, files: preview.files }));
+  const path = production
+    ? publishSkillFiles(
+        production,
+        workspacePath,
+        name,
+        preview.files,
+        target === "user" ? "user" : "workspace",
+        saveKey,
+        digest,
+      )
+    : savePrototypeDesignedSkill(
+        workspacePath,
+        name,
+        "接口变更评审：检查接口契约的向后兼容性",
+        preview.files,
+        target === "user" ? "user" : "workspace",
+        preview.revision,
+      );
   const receipt = { path, revision: preview.revision, target };
-  preview.savedReceipt = receipt;
-  saves.set(saveKey, { digest, receipt });
+  const commit = () => {
+    previews.set(sessionId, { ...preview, savedReceipt: receipt });
+    saves.set(saveKey, { digest, receipt });
+  };
+  if (production) production.db.transaction(commit)();
+  else commit();
   supplements.fire(sessionId);
   return structuredClone(receipt);
 }

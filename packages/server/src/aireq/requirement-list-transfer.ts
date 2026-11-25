@@ -3,8 +3,10 @@ import type {
   AIReqRequirementListSyncReceipt,
   AIReqRequirementPersonnel,
 } from "@zcode/services/aireq";
+import type { CloudDragonRequirement } from "./clouddragon.js";
 
 interface RequirementListEntry extends AIReqRequirementPersonnel {
+  source?: CloudDragonRequirement;
   irId: string;
   title: string;
   description: string;

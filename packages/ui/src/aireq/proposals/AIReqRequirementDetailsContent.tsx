@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Maximize2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Textarea } from "@/components/ui/textarea.js";
@@ -29,6 +29,7 @@ import {
 import { useAIReqDataSource } from "../data-source.js";
 import { AIReqMarkdownDocument } from "./AIReqMarkdownDocument.js";
 import { proposalColumns } from "./proposalColumns.js";
+import { documentCommentDelivery } from "./document-comment-delivery.js";
 
 type ReadResult = { source: AIReqDataSource; attempt: number } & (
   | { detail: AIReqRequirementDetails; error?: never }
@@ -224,7 +225,11 @@ function RequirementComments({
   const deleteTrigger = useRef<HTMLButtonElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
   const restoreComposer = useRef(false);
-  const busy = Boolean(writing) || read.pending;
+  const delivery = documentCommentDelivery(source, projectId, irId);
+  const document = useSyncExternalStore(delivery.subscribe, delivery.snapshot);
+  const { commentsRevision } = document;
+  const sendingDocument = document.phase === "loading" || document.phase === "sending";
+  const busy = Boolean(writing) || read.pending || sendingDocument;
   const writeUnconfirmed = feedback?.status === "failed";
   const needsReload = Boolean(read.failure) || writeUnconfirmed;
   const writeBlocked = busy || needsReload;
@@ -256,6 +261,7 @@ function RequirementComments({
     void source.readRequirementComments({ projectId, irId }).then(
       (items) => {
         if (!active) return;
+        delivery.observeComments(items, commentsRevision);
         setRead({ items, pending: false });
         setFeedback((previous) => (previous?.status === "failed" ? undefined : previous));
       },
@@ -266,7 +272,7 @@ function RequirementComments({
     return () => {
       active = false;
     };
-  }, [source, projectId, irId, attempt]);
+  }, [source, projectId, irId, attempt, delivery, commentsRevision]);
 
   function reloadComments() {
     setRead((previous) => ({ ...previous, pending: true }));
@@ -369,11 +375,67 @@ function RequirementComments({
               </Button>
             )}
           </div>
-          <Button type="submit" className="ml-auto" disabled={writeBlocked || !body.trim()}>
-            {writing === "add" ? (zh ? "发布中…" : "Posting…") : zh ? "发表评论" : "Post comment"}
-          </Button>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {read.items && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={writeBlocked || document.phase === "unknown"}
+                onClick={() => void delivery.send()}
+              >
+                {document.phase === "remaining"
+                  ? zh
+                    ? `补发剩余 ${document.total - document.sent} 条`
+                    : `Send remaining ${document.total - document.sent}`
+                  : zh
+                    ? "同步需求文档到云龙评论"
+                    : "Post requirements document to CloudDragon"}
+              </Button>
+            )}
+            <Button type="submit" disabled={writeBlocked || !body.trim()}>
+              {writing === "add" ? (zh ? "发布中…" : "Posting…") : zh ? "发表评论" : "Post comment"}
+            </Button>
+          </div>
         </div>
       </form>
+      {document.phase !== "idle" && (
+        <p
+          role={
+            ["read-error", "unavailable", "unknown", "remaining"].includes(document.phase)
+              ? "alert"
+              : "status"
+          }
+          className="text-ui-caption text-foreground-subtle"
+        >
+          {document.phase === "loading" &&
+            (zh ? "正在读取最新需求文档…" : "Reading the latest saved document…")}
+          {document.phase === "unavailable" &&
+            (zh
+              ? "此 IR 尚无可发送的需求文档正文。"
+              : "This IR has no readable requirements document to send.")}
+          {document.phase === "read-error" &&
+            formatUserFacingError(
+              document.failure,
+              zh ? "读取需求文档失败。" : "Could not read the requirements document.",
+            )}
+          {document.phase === "sending" &&
+            (zh
+              ? `正在发送 V${document.version}，已发送 ${document.sent}/${document.total} 条。`
+              : `Sending V${document.version}: ${document.sent}/${document.total} posted.`)}
+          {document.phase === "unknown" &&
+            (zh
+              ? `已发送 ${document.sent}/${document.total} 条，第 ${document.sent + 1} 条待回读核对。`
+              : `${document.sent}/${document.total} posted. Checking part ${document.sent + 1}.`)}
+          {document.phase === "remaining" &&
+            (zh
+              ? `V${document.version} 已发送 ${document.sent}/${document.total} 条，剩余部分等待补发。`
+              : `V${document.version}: ${document.sent}/${document.total} posted. The remaining parts can be sent manually.`)}
+          {document.phase === "done" &&
+            (zh
+              ? `需求文档 V${document.version} 已发送，共 ${document.total} 条评论。`
+              : `Requirements V${document.version} posted in ${document.total} comment(s).`)}
+        </p>
+      )}
       {read.pending && (
         <p role="status" className="text-ui-caption text-foreground-subtle">
           {zh ? "正在加载评论…" : "Loading comments…"}

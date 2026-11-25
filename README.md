@@ -4,7 +4,7 @@
 
 项目配置指定服务器工作目录和 Git 仓库。开发可在「需求共创」复制项目文档目录的软链接命令，并在自己的仓库中查看最新文档。[查看最新文档](docs/specs/aireq/proposals.md#在开发仓库中查看最新文档)
 
-业务讨论仍使用模拟 Agent。工号沿用原型身份机制。原型保存仓库地址和分支作为配置，准备项目共享目录并发布当前文档。服务重启会重新初始化内存业务数据。完整能力边界见[系统范围](docs/README.md#系统范围)与[服务端说明](docs/architecture/mock-backend.md)。
+原型保留内存业务和模拟 Agent。正式服务使用 SQLite 和 OMP SDK。团队入口输入工号即可进入，个人 Chat 单独使用当前机器上的 OMP 配置。[系统范围](docs/README.md#系统范围)
 
 ## 环境与安装
 
@@ -27,6 +27,27 @@ bun x --bun --package pnpm@10.33.2 pnpm install
 不要使用 `bun install` 或系统 pnpm／Corepack shim 替代上述安装入口。首次获取包管理器和依赖需要 registry 或预先准备的缓存。
 
 ## 开发与产品入口
+
+| 实例 | 仓库根目录启动命令 | Web | 后端 |
+| --- | --- | --- | --- |
+| 原型 | `bun run dev` | 5174 | 3031 |
+| 正式黄区，家庭云龙样例 | `bun run start:prod` | 5175 | 3032 |
+| 正式黄区，公司云龙 | `bun run start:prod --zone yellow --use-clouddragon` | 5175 | 3032 |
+| 正式红区 | `bun run start:prod --zone red` | 5176 | 3033 |
+
+三个实例各自从同源 `/` 进入 AIReq，从 `/chat` 进入个人聊天。正式服务使用对应平台的 **OMP SDK ZIP**。本地开发默认读取 `.zcode-runtime/sdk/omp-sdk-win32-x64.zip` 或 `.zcode-runtime/sdk/omp-sdk-linux-x64.zip`，也可通过 `OMP_SDK_ZIP` 指定归档路径、`OMP_SDK_SHA256` 指定校验值。发布版使用由同一类 SDK ZIP 编入的运行时，解压应用包即可启动。模型和凭据沿用本机 OMP TUI 配置。
+
+开发启动首次遇到新的 ZIP 时，会按归档内的锁文件准备依赖并生成 SDK 资源，需要本机已有依赖缓存或可访问包源。相同 SHA-256 的后续启动复用已准备的缓存；发布包启动无需这一步。
+
+家庭联调时，原型和正式黄区各有自己的模拟云龙库。单独运行 CLI 要操作正式黄区数据时，设置 `ZCODE_CLOUDDRAGON_MOCK_DB` 为黄区数据目录里的 `clouddragon.sqlite`。
+
+两套正式服务的数据库默认分别在 `.zcode-runtime/yellow/aireq.sqlite` 和 `.zcode-runtime/red/aireq.sqlite`。部署时用 `ZCODE_DATA_DIR` 单独设置本区持久目录。黄区写入 `outbox/aireq-transfer.json`，红区读取 `inbox/aireq-transfer.json`，可分别用 `ZCODE_EXCHANGE_DIR` 指定公司工具的交接目录。本机联调将黄区完成的文件复制到红区收件目录，或将两边的交接目录指向同一测试目录。正式红区使用回滚日志模式，实际 NFS 挂载需支持 SQLite 文件锁与持久写入。
+
+业务会话和评审的原生日志保存在本区数据目录的 `omp-sessions/aireq/`；不与 TUI 共用的个人 Chat 日志在 `omp-sessions/chat/`。备份时停服并同时保存 SQLite 和这些日志目录。
+
+仅在本机回环黄区且未配置对外来源或受信反代时，Web Chat 与同一用户的 OMP TUI 共用个人会话日志。启动黄区时和 TUI 使用同一个 `OMP_CONFIG_ROOT`（未设置时默认 `~/.omp`）。任一端可新建会话，另一端可恢复并继续；要先结束另一端对该会话的占用。同一会话不会为续聊创建副本。共用会话的备份另包含 OMP 的会话目录。
+
+### 原型开发
 
 ```bash
 bun run dev
@@ -57,7 +78,19 @@ Web 生产构建按依赖和页面模块分包，保持 Vite 默认的 500 kB Ja
 
 PowerShell 先设置 `$env:ZCODE_WEB_STATIC_ROOT = (Resolve-Path packages/web/dist).Path`，再运行后端产物。`PORT` 控制后端端口，`ZCODE_SERVER_HOST` 控制监听地址；部署访问控制、HTTP 资源和 WebSocket 必须保持同源契约，详见[服务端部署说明](docs/architecture/mock-backend.md)。
 
-### Windows x64 单文件
+### 正式服务离线 ZIP
+
+在目标平台的 x64 构建机上，使用该平台的 OMP SDK ZIP 及其 SHA-256 构建。Windows 使用系统自带的 `tar.exe`，Linux 使用 `zip` 和 `unzip`。SDK 方的构建脚本需要能够获取其锁定的依赖。Windows 和 Linux 发布同一应用版本时，应选用同一 OMP 版本。
+
+```sh
+bun run build:prod <omp-sdk.zip> <sha256> [output.zip] [--web-dist <前端构建目录>]
+```
+
+默认生成 `dist/zcode-<版本>-win32-x64.zip` 或 `dist/zcode-<版本>-linux-x64.zip`。发布两种平台时可先执行一次 `bun run build:web`，将同一份 `packages/web/dist` 作为两次打包的 `--web-dist` 输入。解压得到 `zcode.exe` 或 `zcode`、`web/` 与 `LICENSES.txt`。程序使用自带的 Bun 与 OMP SDK，从同级的 `web/` 提供两个页面入口。设置 `ZCODE_DATA_DIR` 指向本区独立的持久目录后，在 Windows 运行 `.\zcode.exe --zone yellow`，在 Linux 运行 `./zcode --zone red`。黄区默认使用离线云龙，可追加 `--use-clouddragon` 切换为已安装的公司 CLI。红区从文件接收数据。
+
+使用 `zcode.exe clouddragon project list` 或 `./zcode clouddragon project list` 可直接操作包内的离线云龙。与黄区服务采用相同的工作目录、`ZCODE_DATA_DIR` 和可选的 `ZCODE_CLOUDDRAGON_MOCK_DB`，即可读写同一模拟库。实际 Agent 会话使用运行账号的 OMP 配置与可访问的模型，红区代码和知识库取自现场配置的 Git 和 MCP 服务。`--version` 显示应用与 SDK 版本。
+
+### 原型 Windows x64 单文件
 
 从 OMP fork 的 `bun run pack:sdk` 取得 SDK ZIP 和 SHA-256。安装本仓库依赖后执行：
 

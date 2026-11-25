@@ -11,8 +11,8 @@ import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Button } from "@/components/ui/button.js";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.js";
 import { useAIReq } from "../AIReqContext.js";
-import { type AIReqRequirementGroup, hasProjectRole } from "../contract.js";
-import { getEmployeeId } from "../identity.js";
+import type { AIReqRequirementGroup } from "../contract.js";
+import { primaryDiscussionAgent } from "../proposalRoutes.js";
 import { useAIReqSidePane } from "../side-pane/AIReqSidePaneContext.js";
 import { AIReqCopyDocumentLinkButton } from "./AIReqCopyDocumentLinkButton.js";
 import { AIReqProposalDetails, AIReqProposalText } from "./AIReqProposalText.js";
@@ -65,21 +65,19 @@ export function AIReqProposalRow({
     document.getElementById(`aireq-tab-${activeTab.id}`)?.focus({ preventScroll: true });
     if (rowRef.current) return revealAfterPaneLayout(rowRef.current);
   }, [activeTab, documentsOpen]);
-  const employee = getEmployeeId();
-  const canUseSolution =
-    hasProjectRole(ai.view, item.projectId, employee, "development") ||
-    hasProjectRole(ai.view, item.projectId, employee, "testing");
+  const primaryAgent = primaryDiscussionAgent(item);
+  const hasAlternateSolution =
+    primaryAgent === "requirements" &&
+    item.sessions.some((session) => session.phase === "solution");
   const requirementsLabel = zh ? "讨论需求" : "Discuss requirements";
   const solutionLabel = zh ? "讨论方案" : "Discuss solution";
+  const primaryLabel = primaryAgent === "solution" ? solutionLabel : requirementsLabel;
   const documentsLabel = zh ? "查看文档" : "View documents";
   const detailsLabel = zh ? "查看需求详情" : "View requirement details";
   const moreLabel = zh ? "更多操作" : "More actions";
-  const solutionHint = zh
-    ? "仅项目开发和测试可进入"
-    : "Available to project developers and testers";
   const locale = zh ? "zh-CN" : "en-US";
-  function discussRequirements() {
-    ai.select({ ...selection, discussionPhase: "requirements" });
+  function discussPrimary() {
+    if (primaryAgent) ai.select({ ...selection, discussionPhase: primaryAgent });
   }
   function openDocuments(trigger: HTMLButtonElement) {
     trigger.focus({ preventScroll: true });
@@ -142,18 +140,20 @@ export function AIReqProposalRow({
               </Button>
             </AIReqProposalDetails>
           )}
-          <Button
-            type="button"
-            variant="secondary"
-            data-aireq-proposal-entry={item.id}
-            data-aireq-theme-discuss
-            data-aireq-agent="requirements"
-            aria-label={`${requirementsLabel} · ${item.title}`}
-            className="@max-[620px]/conversation:hidden"
-            onClick={discussRequirements}
-          >
-            {zh ? requirementsLabel : "Discuss"}
-          </Button>
+          {primaryAgent && (
+            <Button
+              type="button"
+              variant="secondary"
+              data-aireq-proposal-entry={item.id}
+              data-aireq-theme-discuss
+              data-aireq-agent={primaryAgent}
+              aria-label={`${primaryLabel} · ${item.title}`}
+              className="@max-[620px]/conversation:hidden"
+              onClick={discussPrimary}
+            >
+              {zh ? primaryLabel : "Discuss"}
+            </Button>
+          )}
           <ControlHintTooltip title={documentsLabel}>
             <Button
               type="button"
@@ -176,7 +176,7 @@ export function AIReqProposalRow({
                 size="icon"
                 variant="ghost"
                 data-aireq-proposal-entry={item.id}
-                data-aireq-agent="solution"
+                data-aireq-agent={hasAlternateSolution ? "solution" : primaryAgent}
                 aria-label={`${moreLabel} · ${item.title}`}
                 title={moreLabel}
               >
@@ -194,19 +194,21 @@ export function AIReqProposalRow({
                 if (actionTrigger.current) openDocuments(actionTrigger.current);
               }}
             >
-              <Button
-                type="button"
-                size="lg"
-                variant="ghost"
-                className="w-full justify-start gap-2"
-                onClick={() => {
-                  setActionsOpen(false);
-                  discussRequirements();
-                }}
-              >
-                <MessagesSquare aria-hidden="true" />
-                {requirementsLabel}
-              </Button>
+              {primaryAgent && (
+                <Button
+                  type="button"
+                  size="lg"
+                  variant="ghost"
+                  className="w-full justify-start gap-2"
+                  onClick={() => {
+                    setActionsOpen(false);
+                    discussPrimary();
+                  }}
+                >
+                  <MessagesSquare aria-hidden="true" />
+                  {primaryLabel}
+                </Button>
+              )}
               <Button
                 type="button"
                 size="lg"
@@ -231,25 +233,21 @@ export function AIReqProposalRow({
                   {detailsLabel}
                 </Button>
               </AIReqProposalDetails>
-              <Button
-                type="button"
-                size="lg"
-                variant="ghost"
-                aria-label={`${solutionLabel} · ${item.title}`}
-                aria-disabled={!canUseSolution || undefined}
-                aria-description={!canUseSolution ? solutionHint : undefined}
-                className="w-full justify-start gap-2 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
-                onClick={() => {
-                  if (!canUseSolution) return;
-                  setActionsOpen(false);
-                  ai.select({ ...selection, discussionPhase: "solution" });
-                }}
-              >
-                <MessagesSquare aria-hidden="true" />
-                {solutionLabel}
-              </Button>
-              {!canUseSolution && (
-                <p className="px-2.5 pb-1 text-ui-sm text-foreground-subtle">{solutionHint}</p>
+              {hasAlternateSolution && (
+                <Button
+                  type="button"
+                  size="lg"
+                  variant="ghost"
+                  aria-label={`${solutionLabel} · ${item.title}`}
+                  className="w-full justify-start gap-2"
+                  onClick={() => {
+                    setActionsOpen(false);
+                    ai.select({ ...selection, discussionPhase: "solution" });
+                  }}
+                >
+                  <MessagesSquare aria-hidden="true" />
+                  {solutionLabel}
+                </Button>
               )}
               <AIReqCopyDocumentLinkButton
                 workDirectory={

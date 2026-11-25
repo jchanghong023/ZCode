@@ -5,10 +5,8 @@ import { Button } from "@/components/ui/button.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { V4PaneConversationProvider } from "@/v4/V4ConversationContext.js";
 import { useAIReq } from "../AIReqContext.js";
-import { hasProjectRole } from "../contract.js";
 import { AIReqSessionPane } from "../conversation/AIReqSessionPane.js";
 import { useAIReqDataSource } from "../data-source.js";
-import { getEmployeeId } from "../identity.js";
 import { useAIReqSidePane } from "../side-pane/AIReqSidePaneContext.js";
 import { AIReqRequirementReturnButton } from "./AIReqRequirementNavigation.js";
 import { AIREQ_CONTENT_WIDTH_CLASSNAME } from "./pageLayout.js";
@@ -23,13 +21,10 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
   const group = ai.view?.requirements.find(
     (item) => item.projectId === projectId && item.id === irId,
   );
-  const employee = getEmployeeId();
-  const canUseSolution =
-    hasProjectRole(ai.view, projectId, employee, "development") ||
-    hasProjectRole(ai.view, projectId, employee, "testing");
-  const canEnter = agent === "requirements" || canUseSolution;
+  const canEnter = group?.sessions.some((session) => session.phase === agent) ?? false;
   const alternateAgent = agent === "requirements" ? "solution" : "requirements";
-  const canSwitchAgent = alternateAgent === "requirements" || canUseSolution;
+  const canSwitchAgent =
+    group?.sessions.some((session) => session.phase === alternateAgent) ?? false;
   const agentLabels = {
     requirements: zh ? "需求 Agent" : "Requirements Agent",
     solution: zh ? "方案 Agent" : "Solution Agent",
@@ -38,9 +33,6 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
   const alternateLabel = zh
     ? `切换到${agentLabels[alternateAgent]}`
     : `Switch to the ${agentLabels[alternateAgent]}`;
-  const solutionAccessHint = zh
-    ? "该项目的开发和测试可以进入方案 Agent。"
-    : "The Solution Agent is available to this project's developers and testers.";
   const materialsOpened = useRef(false);
   const focusOpenedDocuments = useRef(false);
   const reviewInFlight = useRef(false);
@@ -151,16 +143,12 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
     : zh
       ? "当前会话暂不可用。"
       : "This conversation is unavailable.";
-  const switchAgentButton = group && (
+  const switchAgentButton = canEnter && canSwitchAgent && group && (
     <Button
       type="button"
       size="lg"
       variant="outline"
-      aria-disabled={!canSwitchAgent || undefined}
-      aria-description={!canSwitchAgent ? solutionAccessHint : undefined}
-      className="aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
       onClick={() => {
-        if (!canSwitchAgent) return;
         // 沿用工作台导航和回焦，仅改变会话阶段，保留同一需求及文档定位。
         ai.navigate(() =>
           ai.select({
@@ -196,13 +184,7 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
         </div>
         {selectionReady && group && (
           <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1">
-            {canSwitchAgent ? (
-              switchAgentButton
-            ) : (
-              <ControlHintTooltip title={solutionAccessHint}>
-                {switchAgentButton}
-              </ControlHintTooltip>
-            )}
+            {switchAgentButton}
             {canEnter && !currentDocumentsOpen && (
               <Button
                 type="button"
@@ -222,7 +204,9 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
       </header>
       {selectionReady && !canEnter ? (
         <p role="status" className="m-auto p-6 text-ui-base text-foreground-subtle">
-          {solutionAccessHint}
+          {zh
+            ? "当前需求没有可访问的此类会话。"
+            : "This discussion is unavailable for the selected requirement."}
         </p>
       ) : session ? (
         <>

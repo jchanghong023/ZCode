@@ -4,16 +4,17 @@ import { join } from "node:path";
 import type { AIReqProposalTablePreferences } from "@zcode/services/aireq";
 import { getEmployeeId, isEmployeeId } from "./identity.js";
 import { businessRule } from "./errors.js";
+import { production } from "./production-store.js";
 import { proposalTablePreferencesSchema } from "./wire-schemas.js";
 
 export function createProposalTablePreferencesStore(workspacePath: string) {
   const directory = join(workspacePath, ".zcode-runtime", "aireq", "proposal-table");
   const pending = new Map<string, Promise<unknown>>();
 
-  function employeePath(): string {
+  function employee(): string {
     const employeeId = getEmployeeId();
     if (!isEmployeeId(employeeId)) throw businessRule("连接身份无效，请重新进入工作区。");
-    return join(directory, `${employeeId}.json`);
+    return employeeId;
   }
 
   async function readFileValue(path: string): Promise<AIReqProposalTablePreferences | null> {
@@ -27,12 +28,23 @@ export function createProposalTablePreferencesStore(workspacePath: string) {
 
   return {
     async read() {
-      const path = employeePath();
+      const id = employee();
+      if (production)
+        return production.get<AIReqProposalTablePreferences>("table-preferences:" + id) ?? null;
+      const path = join(directory, `${id}.json`);
       await pending.get(path);
       return readFileValue(path);
     },
     async save(preferences: AIReqProposalTablePreferences, initializeOnly: boolean) {
-      const path = employeePath();
+      const id = employee();
+      if (production) {
+        const key = "table-preferences:" + id;
+        const existing = initializeOnly && production.get<AIReqProposalTablePreferences>(key);
+        if (existing) return existing;
+        production.set(key, preferences);
+        return preferences;
+      }
+      const path = join(directory, `${id}.json`);
       const save = Promise.resolve(pending.get(path)).then(async () => {
         if (initializeOnly) {
           const existing = await readFileValue(path);

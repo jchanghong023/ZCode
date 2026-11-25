@@ -7,8 +7,9 @@ import {
   type AIReqDocumentValidation,
 } from "@zcode/services/aireq";
 import { digestValue } from "./content-digest.js";
+import { production } from "./production-store.js";
 import { businessRule } from "./errors.js";
-import { requirementMaterialsFor } from "./document-versions.js";
+import { confirmationMaterialsFor } from "./document-versions.js";
 import { prototypeIrRoot } from "./proposal-storage.js";
 import { readPrototypeMaterial } from "./recovery.js";
 import type { RequirementGroup, WorkflowState } from "./workflow-state.js";
@@ -19,15 +20,23 @@ export function validateDocumentVersion(
   expectedSnapshot?: string,
 ): AIReqDocumentValidation {
   const version = requirement.documentVersion?.number;
-  const materials = requirementMaterialsFor(state, requirement);
+  const materials = confirmationMaterialsFor(state, requirement);
   // 版本号不会随同版编辑变化；快照还须绑定需求和实际文件清单。
-  const snapshot = digestValue([requirement.projectId, requirement.id, version, fileVersions(materials)]);
+  const snapshot = digestValue([
+    requirement.projectId,
+    requirement.id,
+    version,
+    fileVersions(materials),
+  ]);
   if (expectedSnapshot !== undefined && expectedSnapshot !== snapshot)
     throw businessRule("文档已变化，请重新检查当前版本。");
   const dependencyPath = `${prototypeIrRoot(requirement.id)}/sr-dependencies.json`;
   const required = new Map<string, { name: AIReqDocumentName; srId?: string }>();
-  required.set(requirement.documentPath, { name: "requirements.md" });
-  for (const srId of requirement.srIds) {
+  const basisPath =
+    materials.find((file) => file.kind === "ir" && file.path.endsWith("/imports/requirements.md"))
+      ?.path ?? requirement.documentPath;
+  required.set(basisPath, { name: "requirements.md" });
+  for (const srId of production?.zone === "yellow" ? [] : requirement.srIds) {
     for (const [name, template] of Object.entries(AIREQ_DOCUMENT_PATHS)) {
       if (name === "requirements.md") continue;
       required.set(
@@ -42,7 +51,9 @@ export function validateDocumentVersion(
 
   const files = new Map(materials.map((file) => [file.path, readPrototypeMaterial(file)]));
   const issues: AIReqDocumentValidation["issues"] = [];
-  for (const path of [...required.keys(), dependencyPath]) {
+  const expectedPaths = [...required.keys()];
+  if (production?.zone !== "yellow") expectedPaths.push(dependencyPath);
+  for (const path of expectedPaths) {
     if (!files.has(path)) {
       issues.push({
         kind: "missing",

@@ -2,6 +2,8 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { AIReqPresence } from "./presence.js";
 import { digestValue } from "./content-digest.js";
 import { businessRule } from "./errors.js";
+import { production } from "./production-store.js";
+import { fileTransfer } from "./file-exchange.js";
 import { Emitter } from "@zcode/rpc";
 import { IZCodeAgentService, type ServiceCollection } from "@zcode/services";
 import { createServiceLogger } from "@zcode/services/logger";
@@ -79,6 +81,7 @@ const commands = [
 interface CataloguePage {
   catalogue?: PrototypeCatalogue;
 }
+type StoredCommand = { digest: string; result: AIReqWorkflowResult };
 
 const RECONNECT_GRACE_MS = 30 * 60_000;
 
@@ -98,7 +101,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     string,
     { digest: string; result?: Promise<unknown> }
   >();
-  private readonly operations = new Map<string, { digest: string; result: AIReqWorkflowResult }>();
+  private readonly operations = new Map<string, StoredCommand>();
   private readonly currentPage = new AsyncLocalStorage<CataloguePage>();
   private readonly defaultPage: CataloguePage = {};
   private readonly pages = new Map<
@@ -112,7 +115,9 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
   private readonly methods = new Map<string, (...args: unknown[]) => unknown>();
   constructor(
     workspacePath: string,
-    requirementTransfer: RequirementListTransfer = createMockRequirementListTransfer(),
+    requirementTransfer: RequirementListTransfer = production
+      ? fileTransfer(production)
+      : createMockRequirementListTransfer(),
   ) {
     super();
     const proposalTablePreferences = createProposalTablePreferencesStore(workspacePath);
@@ -131,14 +136,15 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
       return request;
     };
     let backgroundSync: Promise<unknown> | undefined;
-    setInterval(() => {
-      if (backgroundSync) return;
-      backgroundSync = publishRequirements(readPrototypeCatalogue)
-        .catch(() => logger.warn(undefined, "Automatic full red-zone sync failed"))
-        .finally(() => {
-          backgroundSync = undefined;
-        });
-    }, AIREQ_FULL_SYNC_INTERVAL_MINUTES * 60_000).unref();
+    if (production?.zone !== "red")
+      setInterval(() => {
+        if (backgroundSync) return;
+        backgroundSync = publishRequirements(readPrototypeCatalogue)
+          .catch(() => logger.warn(undefined, "Automatic full red-zone sync failed"))
+          .finally(() => {
+            backgroundSync = undefined;
+          });
+      }, AIREQ_FULL_SYNC_INTERVAL_MINUTES * 60_000).unref();
     remoteOwners.set(this.remote, this);
     prototypeWorkflowChanges.event(() => this.changed.fire({ type: "workflow" }));
     models.subscribePrototypeAgentModels(() => this.changed.fire({ type: "models" }));
@@ -152,6 +158,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
       readPrototypeRequirementDetails(target, await this.catalogueForPage()),
     );
     const commentTarget = async (target: AIReqObjectRef) => {
+      if (production?.zone === "red") throw businessRule("红区不连接云龙评论。");
       const { domain } = requirePrototypeCatalogueRequirement(
         target,
         await this.catalogueForPage(),
@@ -198,15 +205,9 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
       if (session?.sessionId !== sessionId) throw businessRule("会话已切换或不存在。");
       retryPrototypeSessionRead(sessionId);
     });
-    add("projects.saveRepository", async (input: Parameters<typeof savePrototypeRepository>[0]) => {
-      const page = this.currentPage.getStore() ?? this.defaultPage;
-      // 全局目录可能已被其他页面更新；首次保存还必须命中当前页目录，串行写入再核对项目是否仍有效。
-      if (!page.catalogue?.projects.some(({ id }) => id === input.projectId))
-        throw businessRule("当前页面未加载该云龙项目，请刷新项目后重试。");
-      if (await savePrototypeRepository(input, capturePrototypeProjectDocuments)) {
-        notifyPrototypeProjectSettingsChanged();
-      }
-    });
+    add("projects.saveRepository", (input: Parameters<typeof savePrototypeRepository>[0]) =>
+      this.saveRepository(input),
+    );
     // 配置读取统一经 bootstrap；仅保留保存 RPC，内部读取／绑定比较仍服务原生业务。
     add("models.save", models.savePrototypeAgentModels);
     add("prompts.save", (value: prompts.PrototypeAgentPrompts, revision: number) => {
@@ -221,24 +222,33 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     add("skillDesign.listSkills", skills.listPrototypeSkillDesignPaths);
     add("skillDesign.savePreview", skills.savePrototypeSkillDesignPreview);
   }
-  /** Preserve explicit business operation results across reconnect. */
-  invokeOnce(
-    path: string,
-    operationId: string,
-    payload: unknown,
-    operation: () => unknown,
-  ): Promise<unknown> {
+  private saveRepository(input: Parameters<typeof savePrototypeRepository>[0]): Promise<unknown> {
     const identity = currentIdentity();
+    const operationId = input.operationId;
     if (!identity || !operationId.trim() || operationId.length > 200)
       throw businessRule("操作身份无效，请重新进入工作区。");
-    const key = `${identity.employeeId}:${identity.clientId}:${path}:${operationId}`;
-    const digest = digestValue(payload);
+    const key =
+      "repository-receipt:" + JSON.stringify([identity.employeeId, identity.clientId, operationId]);
+    const digest = digestValue({ ...input, expectedRevision: undefined });
+    const committed = production?.get<string>(key);
+    if (committed !== undefined) {
+      if (committed !== digest) throw businessRule("操作编号不能复用于不同输入，请重新操作。");
+      return Promise.resolve(null);
+    }
     const prior = this.pendingOperations.get(key);
     if (prior) {
       if (prior.digest !== digest) throw businessRule("操作编号不能复用于不同输入，请重新操作。");
       if (prior.result) return prior.result;
     }
-    const result = Promise.resolve().then(operation);
+    const page = this.currentPage.getStore() ?? this.defaultPage;
+    if (!page.catalogue?.projects.some(({ id }) => id === input.projectId))
+      throw businessRule("当前页面未加载该云龙项目，请刷新项目后重试。");
+    const result = savePrototypeRepository(input, capturePrototypeProjectDocuments, () => {
+      production?.set(key, digest);
+    }).then((changed) => {
+      if (changed) notifyPrototypeProjectSettingsChanged();
+      if (production) this.pendingOperations.delete(key);
+    });
     this.pendingOperations.set(key, { digest, result });
     void result.catch(() => {
       const record = this.pendingOperations.get(key);
@@ -254,6 +264,14 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
   private enqueueDocumentReview(run: DocumentReviewRun, identity: AIReqIdentity): void {
     const { path, identity: workspaceIdentity } = readPrototypeProjectWorkspace(run.projectId);
     const settle: AIReqNativeReviewWork["settle"] = (status, report) => {
+      if (production && status === "completed") {
+        try {
+          withAIReqIdentity(identity, () => this.assertNativeWritable(run.sessionId));
+        } catch (error) {
+          settlePrototypeDocumentReview(run, "failed", "当前工号已无权提交这份评审报告。");
+          throw error;
+        }
+      }
       const stale = settlePrototypeDocumentReview(run, status, report);
       return stale ? report + "\n\n对应修改前的文件内容。" : report;
     };
@@ -269,8 +287,11 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
         prompt: run.prompt,
         additionalInstructions: run.promptSnapshot,
         model: run.model,
+        prepareOmp: (signal) =>
+          withAIReqIdentity(identity, () => this.prepareOmpReview(run, signal)),
         execute: () =>
           withAIReqIdentity(identity, () => {
+            if (production) throw businessRule("正式评审必须使用 OMP 运行时。");
             this.assertNativeWritable(run.sessionId);
             return simulateDocumentReview(run);
           }),
@@ -308,9 +329,9 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     refresh = false,
     page = this.currentPage.getStore() ?? this.defaultPage,
   ): Promise<PrototypeCatalogue> {
-    if (!refresh && page.catalogue) return page.catalogue;
+    if (!refresh && page.catalogue && production?.zone !== "red") return page.catalogue;
     // 云龙端口共享在途读取；首次普通读取可以接纳部分结果，显式刷新则必须完整成功。
-    const catalogue = await readPrototypeCatalogue();
+    const catalogue = await readPrototypeCatalogue(refresh);
     if (refresh && catalogue.failures.length)
       throw businessRule("部分云龙项目读取失败，请重试刷新项目。");
     page.catalogue = catalogue;
@@ -339,7 +360,9 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
       throw businessRule("此操作不可用，请刷新页面后重试。");
     if (!action.operationId.trim()) throw businessRule("操作参数无效，请刷新页面后重试。");
     const identity = currentIdentity()!;
-    const key = `${identity.employeeId}:${identity.clientId}:${action.operationId}`;
+    const key =
+      "command-receipt:" +
+      JSON.stringify([identity.employeeId, identity.clientId, action.operationId]);
     // 预期版本只约束首次接纳；重读后的同一业务请求先返原回执，避免丢失 ACK 后重复创建。
     const usesWorkflowRevision =
       action.type !== "confirmDocumentVersion" && action.type !== "reviewDocuments";
@@ -347,15 +370,17 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
       action,
       !usesWorkflowRevision || action.type === "saveDocumentFormats" ? undefined : selection,
     ]);
-    const prior = this.operations.get(key);
+    const prior = production ? production.get<StoredCommand>(key) : this.operations.get(key);
     if (prior) {
       if (prior.digest !== digest) throw businessRule("操作编号已被其他请求使用，请重新操作。");
       return prior.result;
     }
     if (usesWorkflowRevision && revision !== readPrototypeWorkflowRevision())
       throw businessRule("需求版本已变化，请重新读取当前版本。");
-    const { result, review } = applyPrototypeAction(action, selection);
-    this.operations.set(key, { digest, result: structuredClone(result) });
+    const { result, review } = applyPrototypeAction(action, selection, (receipt) => {
+      production?.set(key, { digest, result: receipt } satisfies StoredCommand);
+    });
+    if (!production) this.operations.set(key, { digest, result: structuredClone(result) });
     if (review) this.enqueueDocumentReview(review, identity);
     return result;
   }
@@ -369,7 +394,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
           workflowCommands: [...commands],
         },
         models: {
-          choices: models.PROTOTYPE_AGENT_MODELS.map(({ id, name, provider }) => ({
+          choices: models.readAgentModelChoices().map(({ id, name, provider }) => ({
             id,
             name,
             provider,
@@ -399,26 +424,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
           skills.assertSkillSession(String(args[0]));
         const method = this.methods.get(path);
         if (!method) throw businessRule("此操作不可用，请刷新页面后重试。");
-        const input = args[0];
-        const operationId =
-          input && typeof input === "object" && "operationId" in input
-            ? input.operationId
-            : undefined;
-        const result =
-          typeof operationId === "string" && path === "projects.saveRepository"
-            ? await this.invokeOnce(
-                path,
-                operationId,
-                // 项目配置 CAS 只用于首次接纳；丢失回执后重读不能使同一次保存变成冲突。
-                [
-                  {
-                    ...(input as AIReqRemoteArgs<"projects.saveRepository">[0]),
-                    expectedRevision: undefined,
-                  },
-                ],
-                () => method(...args),
-              )
-            : await method(...args);
+        const result = await method(...args);
         if (
           path === "projects.saveRepository" ||
           path === "models.save" ||

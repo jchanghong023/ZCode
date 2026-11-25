@@ -19,6 +19,7 @@ import type {
 } from "@zcode/shared/zcode-protocol-v4";
 
 import type { AIReqNativeReviewWork } from "../aireq/contract.js";
+import type { TuiChatSource } from "../production/tui-chat-history.js";
 
 export type WorkspaceRef = { workspacePath: string; workspaceIdentity?: string };
 
@@ -60,6 +61,8 @@ export interface MockSession {
   draftCreatorActor?: string;
   /** 独立聊天的归组目录，服务端解析路径别名后保存。 */
   chatDirectory?: string;
+  /** 本机个人聊天绑定的 OMP 配置根、原生日志和已投影版本。 */
+  tuiSource?: TuiChatSource;
   /** 首次初始化时冻结的可引用技能；目录更新不能泄漏进既有会话。 */
   skills: SkillSummary[];
   logEpoch: string;
@@ -81,6 +84,8 @@ export interface MockSession {
   activeTurn: MockActiveTurn | null;
   lastError?: SessionErrorInfo;
   nativeBindingApplied?: boolean;
+  /** 用户显式选择才覆盖个人 OMP 工作目录的默认模型。 */
+  explicitModelSelection?: boolean;
   /** 会话配置（createSession.config 合并 + switchModelConfig 更新）。 */
   config: {
     provider: string;
@@ -124,6 +129,7 @@ export interface VirtualFileNode {
 
 interface MockRuntimeOptions {
   workspacePath: string;
+  production?: boolean;
 }
 
 /** 全局 mock 状态：会话、任务与虚拟 FS。 */
@@ -136,7 +142,7 @@ export class MockRuntime {
 
   constructor(options: MockRuntimeOptions) {
     this.workspacePath = options.workspacePath;
-    this.virtualRoot = buildFixtureWorkspace();
+    this.virtualRoot = options.production ? dir("", []) : buildFixtureWorkspace();
   }
 
   newSessionId(): string {
@@ -234,11 +240,12 @@ const SNAPSHOT_TAIL_WINDOW_ROWS = 60;
 
 function projectMockControl(session: MockSession): SessionControl {
   const work = session.activeTurn?.work;
+  const stopping = session.activeTurn?.controller.signal.aborted === true;
   return {
     phase: session.phase,
     sessionEnded: session.phase === "completedSuccess" || session.phase === "completedInterrupted",
-    canStop: work !== undefined,
-    stopState: work ? "stoppable" : "idle",
+    canStop: work !== undefined && !stopping,
+    stopState: stopping ? "stopping" : work ? "stoppable" : "idle",
     stopTargetKind: work ? "assistant" : "unknown",
     activeWorks: work ? [work] : [],
     lastError: session.lastError ?? null,

@@ -36,7 +36,7 @@ export function AIReqProposalListActions({ zh }: { zh: boolean }) {
           size="lg"
           disabled={!ai.selection.projectId || ai.pending || refreshing || syncing}
           onClick={() => void ai.refreshProjects()}
-          title={zh ? "从云龙刷新需求" : "Refresh from CloudDragon"}
+          title={zh ? "刷新项目和需求" : "Refresh projects and requirements"}
         >
           <RefreshCw aria-hidden="true" />
           {refreshing ? (zh ? "刷新中…" : "Refreshing…") : zh ? "刷新项目" : "Refresh projects"}

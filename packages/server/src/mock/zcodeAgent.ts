@@ -6,7 +6,12 @@ import { createHash } from "node:crypto";
 import { setTimeout as wait } from "node:timers/promises";
 import { z } from "zod";
 import { Emitter } from "@zcode/rpc";
-import { createUuid, type SkillSummary } from "@zcode/shared";
+import { createServiceLogger } from "@zcode/services/logger";
+import {
+  buildPromptWithConversationSelections,
+  createUuid,
+  type SkillSummary,
+} from "@zcode/shared";
 import {
   COMMANDS_REQUIRING_BASE_REVISION,
   PROTOCOL_V4_LIMITS,
@@ -48,7 +53,21 @@ import type {
   WebAIReqAgent,
 } from "@zcode/services/zcode-agent";
 import { completeMockModelSelection, MOCK_DEFAULT_MODEL_SELECTION } from "./domains/contract.js";
-import type { AIReqNativeBridge, AIReqNativeReviewWork } from "../aireq/contract.js";
+import type {
+  AIReqNativeBridge,
+  AIReqNativeReviewWork,
+  ProductionStore,
+} from "../aireq/contract.js";
+import { withAIReqIdentity } from "../aireq/contract.js";
+import type { OmpEngine, OmpSessionManager, OmpTurn } from "../production/omp.js";
+import { NativeRows } from "../production/native-rows.js";
+import { NativeStorage } from "../production/native-storage.js";
+import {
+  compareRecentChats,
+  TuiChatConflict,
+  type TuiChatHistory,
+  type TuiChatSummary,
+} from "../production/tui-chat-history.js";
 import { businessFailureMessage, businessRule } from "../aireq/errors.js";
 import { readBuiltinPrototypeSkills, readPrototypeSkills } from "../aireq/skills.js";
 import {
@@ -67,6 +86,14 @@ import {
 type P<M> = M extends (first: infer A, ...rest: never) => unknown ? A : never;
 type AR<M> = M extends (...args: never) => infer RT ? Awaited<RT> : never;
 type MockTextSubmission = CommandPayloadMap["sendText"];
+export interface ProductionNativeOptions {
+  engine: OmpEngine;
+  store: ProductionStore;
+}
+type TuiWrite = { manager: OmpSessionManager; taken?: true };
+type TuiSnapshot = NonNullable<
+  NonNullable<Awaited<ReturnType<TuiChatHistory["open"]>>>["snapshot"]
+>;
 type MockInput = {
   commandId: string;
   clientId: string;
@@ -75,6 +102,7 @@ type MockInput = {
   conversationQuotes?: QueueItem["conversationQuotes"];
   context?: MockInputContext;
   documentReview?: AIReqNativeReviewWork;
+  writer?: OmpSessionManager;
 };
 type MockChatStarter = {
   workspacePath: string;
@@ -86,6 +114,7 @@ type StandaloneChat = {
   actorKey(): string;
   resolveDirectory(path: string): Promise<string>;
   starterSessions: readonly MockChatStarter[];
+  tuiHistory?: TuiChatHistory;
 };
 const BUILTIN_COMMANDS = [
   {
@@ -103,10 +132,12 @@ type MockParsedInput =
 
 // 单次请求可超过物理帧上限，但队列全量投影仍须给逻辑帧的其他字段留空间。
 const CHAT_COMMAND_MAX_BYTES = PROTOCOL_V4_LIMITS.logicalFrameAssemblyMaxBytes / 4;
+const RECENT_CHAT_LIMIT = 5;
 const CHAT_QUEUE_MAX_BYTES = PROTOCOL_V4_LIMITS.logicalFrameAssemblyMaxBytes / 2;
 const MOCK_REASONING_MIN_MS = 3_000;
 const MOCK_TOOL_MIN_MS = 2_000;
 const MOCK_REVIEW_MIN_MS = 5_000;
+const ompLog = createServiceLogger("omp-session");
 
 async function waitForMockStage(startedAt: number, minimumMs: number, signal: AbortSignal) {
   const deadline = startedAt + minimumMs;
@@ -165,7 +196,12 @@ function assertFrame<T>(schema: { parse: (value: unknown) => T }, value: unknown
 }
 
 export class MockZCodeAgentService implements IZCodeAgentService {
+  private readonly storage?: NativeStorage;
+  private readonly guideDispatch = new WeakMap<MockSession, () => void>();
+  private readonly renames = new Map<string, { digest: string; result: Promise<void> }>();
   private chatHistory?: Promise<void>;
+  private tuiChatIndex = new Map<string, TuiChatSummary>();
+  private readonly openingTuiChats = new Map<string, Promise<void>>();
   private readonly conversationFrameEmitter = new Emitter<ConversationTopicWireFrame>();
   private readonly conversationSubs = new Map<string, ConversationSubscription>();
 
@@ -204,6 +240,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       admitNative(sessionId: string, commandId: string, text: string): void;
       beginNative: AIReqNativeBridge["beginNative"];
       prepareNativeResult: AIReqNativeBridge["prepareNativeResult"];
+      prepareOmpTurn: AIReqNativeBridge["prepareOmpTurn"];
       completeNative: AIReqNativeBridge["completeNative"];
       discardNative(sessionId: string, commandId: string): void;
       getNativeBinding: AIReqNativeBridge["getNativeBinding"];
@@ -218,7 +255,34 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       ): void;
     },
     private readonly standalone?: StandaloneChat,
-  ) {}
+    private readonly production?: ProductionNativeOptions,
+  ) {
+    if (production) {
+      this.storage = new NativeStorage(production.store, standalone ? "chat" : "team");
+      this.storage.restore(runtime.sessions, this.commandResults, this.uploads, this.attachments);
+      for (const session of runtime.sessions.values()) {
+        if (!business || !session.draftCreatorActor) continue;
+        // 恢复创建者的私有读取权限；热连接自己的身份不能认领重启前的草稿。
+        const actor = session.draftCreatorActor;
+        const split = actor.indexOf(":");
+        withAIReqIdentity(
+          { employeeId: actor.slice(0, split), clientId: actor.slice(split + 1) },
+          () =>
+            business.registerNativeDraft(
+              session.sessionId,
+              session.workspaceRef,
+              () =>
+                runtime.sessions.get(session.sessionId) === session &&
+                session.phase === "draft" &&
+                !session.rows.length &&
+                !session.queuedInputs.length &&
+                session.activeTurn === null,
+              () => runtime.sessions.get(session.sessionId) === session,
+            ),
+        );
+      }
+    }
+  }
 
   private actorKey(): string | undefined {
     return this.standalone?.actorKey() ?? this.business?.actorKey();
@@ -234,34 +298,221 @@ export class MockZCodeAgentService implements IZCodeAgentService {
 
   async listRecentChatSessions(): Promise<RecentChatDirectory[]> {
     if (!this.standalone) throw new Error("当前连接不支持聊天最近列表。");
-    this.chatHistory ??= this.seedChatHistory(this.standalone);
-    await this.chatHistory;
-    const sessions = [...this.runtime.sessions.values()].filter(
-      (session) =>
-        session.chatDirectory !== undefined && session.rows.some((row) => row.kind === "userInput"),
-    );
-    sessions.sort(
-      (a, b) =>
-        b.lastActivityAt - a.lastActivityAt ||
-        b.createdAt - a.createdAt ||
-        a.sessionId.localeCompare(b.sessionId),
-    );
-    const directories = new Map<string, RecentChatDirectory>();
-    for (const session of sessions) {
-      const key = session.chatDirectory!;
-      const group = directories.get(key);
-      if (group ? group.sessions.length === 5 : directories.size === 5) continue;
-      const { workspacePath, workspaceIdentity } = session.workspaceRef;
-      const entry: RecentChatSession = {
-        workspacePath,
-        ...(workspaceIdentity === undefined ? {} : { workspaceIdentity }),
-        sessionId: session.sessionId,
-        title: session.meta.title,
-      };
-      if (group) group.sessions.push(entry);
-      else directories.set(key, { sessions: [entry] });
+    if (!this.production) {
+      this.chatHistory ??= this.seedChatHistory(this.standalone);
+      await this.chatHistory;
     }
+    const history = this.standalone.tuiHistory;
+    const tui = await history?.list(RECENT_CHAT_LIMIT);
+    const byNativeId = new Map<string, MockSession>();
+    const candidates: Array<{
+      sessionId: string;
+      directory: string;
+      createdAt: number;
+      lastActivityAt: number;
+      entry: RecentChatSession;
+      source?: TuiChatSummary;
+    }> = [];
+    for (const session of this.runtime.sessions.values()) {
+      if (!session.chatDirectory || (session.tuiSource && !history?.owns(session.tuiSource))) continue;
+      if (session.tuiSource?.file) {
+        if (session.tuiSource.nativeId) byNativeId.set(session.tuiSource.nativeId, session);
+        if (!session.activeTurn) continue;
+      }
+      if (!session.rows.some((row) => row.kind === "userInput")) continue;
+      const { workspacePath, workspaceIdentity } = session.workspaceRef;
+      candidates.push({
+        sessionId: session.sessionId,
+        directory: session.chatDirectory,
+        createdAt: session.createdAt,
+        lastActivityAt: session.lastActivityAt,
+        entry: {
+          workspacePath,
+          ...(workspaceIdentity === undefined ? {} : { workspaceIdentity }),
+          sessionId: session.sessionId,
+          title: session.meta.title,
+        },
+      });
+    }
+    for (const source of tui ?? []) {
+      const paired = byNativeId.get(source.nativeId) ?? this.runtime.sessions.get(source.sessionId);
+      if (paired?.activeTurn) continue;
+      const local = paired?.chatDirectory === source.directory ? paired : undefined;
+      const sessionId = local?.sessionId ?? source.sessionId;
+      candidates.push({
+        ...source,
+        sessionId,
+        entry: {
+          ...(local?.workspaceRef ?? workspaceRefOf({ workspacePath: source.directory })),
+          sessionId,
+          title: source.title,
+        },
+        source,
+      });
+    }
+    candidates.sort(compareRecentChats);
+    const directories = new Map<string, RecentChatDirectory>();
+    const index = new Map<string, TuiChatSummary>();
+    for (const { directory, entry, source } of candidates) {
+      const group = directories.get(directory);
+      if (
+        group ? group.sessions.length === RECENT_CHAT_LIMIT : directories.size === RECENT_CHAT_LIMIT
+      )
+        continue;
+      if (group) group.sessions.push(entry);
+      else directories.set(directory, { sessions: [entry] });
+      if (source) index.set(entry.sessionId, source);
+    }
+    this.tuiChatIndex = index;
     return [...directories.values()];
+  }
+
+  private async openTuiChat(params: {
+    sessionId: string;
+    workspacePath: string;
+    workspaceIdentity?: string;
+  }): Promise<void> {
+    const history = this.standalone?.tuiHistory;
+    const source = this.tuiChatIndex.get(params.sessionId);
+    const engine = this.production?.engine;
+    const existing = this.runtime.sessions.get(params.sessionId);
+    if (!history || !engine || existing?.activeTurn || (existing && !existing.tuiSource)) return;
+    if (existing?.tuiSource && !history.owns(existing.tuiSource)) return;
+    const target =
+      source ??
+      (existing?.tuiSource?.file
+        ? { ...existing.tuiSource, file: existing.tuiSource.file }
+        : undefined);
+    const directory = source?.directory ?? existing?.chatDirectory;
+    if (!target || !directory) return;
+    const workspaceRef = existing?.workspaceRef ?? workspaceRefOf({ workspacePath: directory });
+    const workspaceKey = workspaceKeyOf(workspaceRef);
+    if (
+      existing
+        ? !this.matchesWorkspace(existing, params)
+        : params.workspacePath !== directory || workspaceKeyOf(params) !== workspaceKey
+    )
+      throw this.sessionUnavailable();
+    const opening = this.openingTuiChats.get(params.sessionId);
+    if (opening) return opening;
+    const revision = existing?.revision;
+    const load = (async () => {
+      // 目录索引只给出 SDK 原生路径；实际正文始终从当前 journal 读取。
+      const opened = await history.open(
+        { ...target, version: existing?.tuiSource?.version },
+        directory,
+        params.sessionId,
+        false,
+      );
+      const snapshot = opened?.snapshot;
+      if (!snapshot) return;
+      if (existing) {
+        if (!existing.activeTurn && existing.revision === revision)
+          this.replaceTuiProjection(existing, snapshot);
+        return;
+      }
+      const skills = await engine.skills(directory);
+      const session: MockSession = {
+        sessionId: params.sessionId,
+        workspaceRef,
+        workspaceKey,
+        chatDirectory: directory,
+        skills,
+        logEpoch: this.runtime.newLogEpoch(),
+        seq: 0,
+        revision: 0,
+        phase: snapshot.phase,
+        createdAt: source?.createdAt ?? snapshot.lastActivityAt,
+        lastActivityAt: snapshot.lastActivityAt,
+        meta: { title: snapshot.title, titleSource: snapshot.customTitle ? "custom" : "generated" },
+        tuiSource: snapshot.source,
+        rows: snapshot.rows,
+        usage: {
+          contextWindow: null,
+          cumulative: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+        },
+        plan: null,
+        queuedInputs: [],
+        nextAdmissionSeq: 1,
+        activeTurn: null,
+        config: this.initialConfig(),
+      };
+      this.applyTuiModel(session, snapshot);
+      this.storeNewSession(session);
+    })();
+    this.openingTuiChats.set(params.sessionId, load);
+    try {
+      await load;
+    } catch {
+      throw this.sessionUnavailable();
+    } finally {
+      this.openingTuiChats.delete(params.sessionId);
+    }
+  }
+
+  private applyTuiModel(session: MockSession, snapshot: TuiSnapshot): void {
+    if (session.explicitModelSelection) return;
+    const engine = this.production!.engine;
+    const selection = snapshot.selection;
+    const config =
+      (selection && (engine.config(selection, session.chatDirectory) ?? engine.config(selection))) ||
+      engine.config(undefined, session.chatDirectory) ||
+      engine.config();
+    if (config) Object.assign(session.config, config);
+  }
+
+  private replaceTuiProjection(session: MockSession, snapshot: TuiSnapshot): void {
+    session.tuiSource = snapshot.source;
+    session.rows = snapshot.rows;
+    session.meta = { title: snapshot.title, titleSource: snapshot.customTitle ? "custom" : "generated" };
+    session.phase = snapshot.phase;
+    session.lastActivityAt = snapshot.lastActivityAt;
+    delete session.lastError;
+    session.logEpoch = this.runtime.newLogEpoch();
+    session.seq = 0;
+    session.revision += 1;
+    this.applyTuiModel(session, snapshot);
+    this.storage!.saveSession(session);
+    const payload = { kind: "snapshot", snapshot: buildConversationSnapshot(session) } as const;
+    for (const [id, sub] of this.conversationSubs) {
+      if (sub.sessionId === session.sessionId)
+        this.emitConversationFrame(session, payload, "recovery", id);
+    }
+  }
+
+  private async prepareTuiWrite(
+    sessionId: string,
+    workspace: { workspacePath: string; workspaceIdentity?: string },
+    envelope: CommandEnvelope,
+  ): Promise<TuiWrite | undefined> {
+    const history = this.standalone?.tuiHistory;
+    if (!history || envelope.type !== "sendText") return;
+    if (!this.runtime.sessions.has(sessionId)) await this.openTuiChat({ ...workspace, sessionId });
+    const session = this.ensureSession({ sessionId, workspace });
+    const source = session.tuiSource;
+    const directory = session.chatDirectory;
+    const payload = envelope.payload as MockTextSubmission;
+    if (
+      !source?.file ||
+      !directory ||
+      session.activeTurn ||
+      !payload.text.trim() ||
+      payload.expectedForegroundExecutionId ||
+      this.parseConversationInput(payload.text, session.skills).kind !== "text"
+    )
+      return;
+    let writer: OmpSessionManager | undefined;
+    try {
+      const opened = await history.open({ ...source, file: source.file }, directory, sessionId, true);
+      writer = opened?.manager;
+      if (!writer) throw this.sessionUnavailable();
+      if (opened?.snapshot) this.replaceTuiProjection(session, opened.snapshot);
+      return { manager: writer };
+    } catch (error) {
+      await writer?.close();
+      if (error instanceof TuiChatConflict) throw error;
+      throw new TuiChatConflict("无法打开原 OMP 会话，请重新打开历史后重试。");
+    }
   }
 
   private async seedChatHistory(standalone: StandaloneChat): Promise<void> {
@@ -407,9 +658,16 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       delivered.push(sub);
     }
     // 校验整批之后一起提交水位，分片不产生额外 seq 或订阅 ordinal。
-    if (isDelta) session.seq = toSeq;
+    if (isDelta) {
+      session.seq = toSeq;
+      this.storage?.saveSession(session, payload.deltas);
+    }
     for (const sub of delivered) sub.ordinal += 1;
-    for (const wire of wireFrames) this.conversationFrameEmitter.fire(wire);
+    const publish = () => {
+      for (const wire of wireFrames) this.conversationFrameEmitter.fire(wire);
+    };
+    if (this.storage) this.storage.afterCommit(publish);
+    else publish();
   }
 
   /** 应用一个 state patch 并以 deltas 帧下发（control/usage/plan 等 A 区键）。 */
@@ -699,15 +957,23 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         enter(this.queuedInput(queued), true);
       }
     };
-    signal.onabort = () => {
-      discard();
-      work?.settle("cancelled");
-      if (documentReview) documentReview.settle("failed", `${documentReview.title}已停止。`);
-      this.interruptTurn(session, turnHeader, owner);
-    };
+    if (!this.production)
+      signal.onabort = () => {
+        discard();
+        work?.settle("cancelled");
+        if (documentReview) documentReview.settle("failed", `${documentReview.title}已停止。`);
+        this.interruptTurn(session, turnHeader, owner);
+      };
 
     try {
       enter(input);
+      if (this.production) {
+        const reply = await this.runOmpTurn(session, input, owner, startedCommands, enter);
+        signal.throwIfAborted();
+        this.returnPendingInputs(session, false);
+        this.finalizeTurn(session, turnHeader, owner, startedAt, reply);
+        return;
+      }
       work = this.startMockTurnWork(session, turnId, responseId, documentReview);
       await wait(1_000, undefined, { signal });
       work.explain();
@@ -747,14 +1013,33 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       });
       this.finalizeTurn(session, turnHeader, owner, startedAt, reply);
     } catch (error) {
+      if (this.production && signal.aborted && session.activeTurn === owner) {
+        discard();
+        if (documentReview) documentReview.settle("failed", `${documentReview.title}已停止。`);
+        this.interruptTurn(session, turnHeader, owner);
+        return;
+      }
       if (signal.aborted || session.activeTurn !== owner) return;
       discard();
       work?.settle("failed");
+      const publicOmpError =
+        error instanceof Error && "publicMessage" in error && error.publicMessage === true
+          ? error.message
+          : "OMP 执行未完成，请检查本机模型配置后重试。";
+      if (this.production)
+        ompLog.warn(undefined, "OMP turn failed", {
+          kind: error instanceof Error ? error.name : "UnknownError",
+        });
       const message = documentReview
-        ? documentReview.settle("failed", `${documentReview.title}未完成，请重新发起。`)
-        : this.standalone
-          ? "Agent 未能完成回复，消息已保留。"
-          : `${businessFailureMessage(error, "业务处理失败，请稍后重试。")}\n\n消息已保留，请重新读取当前材料后重试。`;
+        ? documentReview.settle(
+            "failed",
+            this.production ? publicOmpError : `${documentReview.title}未完成，请重新发起。`,
+          )
+        : this.production
+          ? publicOmpError
+          : this.standalone
+            ? "Agent 未能完成回复，消息已保留。"
+            : `${businessFailureMessage(error, "业务处理失败，请稍后重试。")}\n\n消息已保留，请重新读取当前材料后重试。`;
       this.appendRow(session, {
         kind: "assistantText",
         rowId: this.nextRowId(session),
@@ -768,6 +1053,209 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         model,
       });
       this.interruptTurn(session, turnHeader, owner, message);
+    }
+  }
+
+  private ompInput(input: MockInput, prompt: string) {
+    const parts = [buildPromptWithConversationSelections(prompt, input.conversationQuotes ?? [])];
+    if (this.business && input.context) {
+      parts.push(
+        JSON.stringify({
+          skill: input.context.skill.name,
+          instructions: input.context.skill.body,
+          arguments: input.context.args,
+        }),
+      );
+    }
+    const images: NonNullable<OmpTurn["images"]> = [];
+    for (const ref of input.attachments ?? []) {
+      const file = this.attachments.get(ref.ref);
+      if (!file) throw businessRule("输入附件已失效，请重新上传。");
+      if (["image/png", "image/jpeg", "image/webp", "image/gif"].includes(file.mime)) {
+        images.push({ type: "image", mimeType: file.mime, data: file.bytes.toString("base64") });
+      } else {
+        // 只将可无损解码的文本作为正文；二进制数据不能替换为空字符串或伪装成已读取。
+        let content: string;
+        try {
+          content = new TextDecoder("utf-8", { fatal: true }).decode(file.bytes);
+        } catch {
+          throw businessRule(`当前模型输入不支持附件「${file.fileName}」的二进制格式。`);
+        }
+        if (content.includes("\0")) throw businessRule(`附件「${file.fileName}」不是可读文本。`);
+        parts.push(JSON.stringify({ attachment: file.fileName, content }));
+      }
+    }
+    return { prompt: parts.join("\n\n"), images };
+  }
+
+  private async runOmpTurn(
+    session: MockSession,
+    input: MockInput,
+    owner: MockActiveTurn,
+    startedCommands: readonly string[],
+    enter: (submitted: MockInput, fromPendingGuide: boolean) => void,
+  ): Promise<string> {
+    // 输入行与回执一并落库之后才能交给 SDK，防止事务回滚后仍产生外部工具副作用。
+    await this.storage!.waitForCommit();
+    const { engine } = this.production!;
+    const { signal } = owner.controller;
+    const review = input.documentReview;
+    const key = JSON.stringify([
+      this.standalone ? "chat" : "aireq",
+      session.sessionId,
+      review?.id ?? null,
+    ]);
+    const current = () => !signal.aborted && session.activeTurn === owner;
+    const businessTurn =
+      this.business && !review
+        ? await this.business.prepareOmpTurn(session.sessionId, input.commandId, signal)
+        : undefined;
+    const context = review ? await review.prepareOmp(signal) : businessTurn;
+    try {
+      signal.throwIfAborted();
+      const cwd = context?.cwd ?? session.chatDirectory;
+      if (!cwd) throw businessRule("未找到 OMP 会话的工作目录。");
+      const rows = new NativeRows({
+        turnId: owner.work.foregroundExecutionId,
+        model: review?.model.modelId ?? session.config.model,
+        base: () => ({
+          rowId: this.nextRowId(session),
+          createdAt: Date.now(),
+          createdAtSeq: session.seq,
+        }),
+        append: (row) => this.appendRow(session, row),
+        upsert: (row) => this.upsertRow(session, row),
+        appendText: (row, append) => {
+          const index = session.rows.findIndex((existing) => existing.rowId === row.rowId);
+          if (index < 0) throw new Error("OMP 增量缺少起始行。");
+          session.rows[index] = row;
+          this.emitConversationFrame(
+            session,
+            {
+              kind: "deltas",
+              deltas: [{ op: "row.delta", rowId: row.rowId, path: "text", append }],
+            },
+            "online",
+          );
+        },
+        addUsage: (delta) => {
+          const prior = session.usage.cumulative;
+          session.usage.cumulative = {
+            inputTokens: prior.inputTokens + delta.inputTokens,
+            outputTokens: prior.outputTokens + delta.outputTokens,
+            cacheReadTokens: prior.cacheReadTokens + delta.cacheReadTokens,
+            cacheWriteTokens: prior.cacheWriteTokens + delta.cacheWriteTokens,
+          };
+          this.patchState(session, { usage: session.usage });
+        },
+        setPlan: (plan) => {
+          session.plan = plan;
+          this.patchState(session, { plan });
+        },
+      });
+      const requested = new Set<string>();
+      let dispatching = false;
+      const dispatch = async () => {
+        if (dispatching || !current() || review) return;
+        dispatching = true;
+        try {
+          while (current()) {
+            const pending = session.queuedInputs.find(
+              ({ item }) =>
+                item.delivery.admitted === "guide" && !requested.has(item.sourceCommandId),
+            );
+            if (!pending) break;
+            requested.add(pending.item.sourceCommandId);
+            const submitted = this.queuedInput(pending);
+            // 队列接纳后项目名单可能已经改变，交给 SDK 前按原操作者重新检查。
+            this.business?.beginNative(
+              session.sessionId,
+              submitted.commandId,
+              submitted.text,
+              session.config.modelSelection,
+              submitted.context?.args,
+            );
+            const payload = this.ompInput(submitted, submitted.text);
+            await engine.steer(key, payload.prompt, payload.images, () => {
+              if (!current()) return;
+              const index = session.queuedInputs.indexOf(pending);
+              if (index < 0) return;
+              session.queuedInputs.splice(index, 1);
+              enter(submitted, true);
+            });
+          }
+        } finally {
+          dispatching = false;
+        }
+      };
+      const selection = review
+        ? {
+            providerId: review.model.providerId,
+            modelId: review.model.modelId,
+            options: { reasoningLevel: review.model.reasoning },
+          }
+        : !this.standalone || session.explicitModelSelection
+          ? session.config.modelSelection
+          : undefined;
+      try {
+        const payload = this.ompInput(input, context?.prompt ?? input.text);
+        const writer = input.writer;
+        delete input.writer;
+        const reply = await engine.run({
+          key,
+          scope: this.standalone ? "chat" : "aireq",
+          cwd,
+          ...payload,
+          signal,
+          options: context?.options,
+          tuiSource: session.tuiSource,
+          writer,
+          onSharedFile: (source) => {
+            session.tuiSource = source;
+            this.storage!.saveSession(session, []);
+          },
+          selection,
+          onReady: (config) => {
+            if (!current()) return;
+            if (!review) {
+              Object.assign(session.config, config);
+              this.patchState(session, { config: { ...session.config } });
+              // 引导输入在 SDK 确认已交付前始终停留于原队列。并发中断或 SDK 拒绝时退给原操作者。
+              const send = () => {
+                void dispatch().catch(() =>
+                  ompLog.warn(
+                    undefined,
+                    "OMP steering admission failed; undelivered input retained",
+                  ),
+                );
+              };
+              this.guideDispatch.set(session, send);
+              send();
+            }
+          },
+          onText: () => {},
+          onEvent: (event) => {
+            if (current()) rows.event(event);
+          },
+          onContextUsage: (window) => {
+            if (!current()) return;
+            session.usage.contextWindow = window;
+            this.patchState(session, { usage: session.usage });
+          },
+        });
+        signal.throwIfAborted();
+        if (review) review.settle("completed", reply);
+        if (businessTurn) await businessTurn.finish(startedCommands, reply);
+        rows.finish("complete", reply);
+        return reply;
+      } catch (error) {
+        rows.finish(signal.aborted ? "interrupted" : "failed");
+        throw error;
+      } finally {
+        this.guideDispatch.delete(session);
+      }
+    } finally {
+      await context?.dispose();
     }
   }
 
@@ -785,7 +1273,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     session.lastActivityAt = endedAt;
     if (error)
       session.lastError = {
-        code: "fault.prototype.executionFailed",
+        code: this.production ? "fault.omp.executionFailed" : "fault.prototype.executionFailed",
         message: error,
         recoverable: true,
         at: endedAt,
@@ -811,7 +1299,10 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         this.business?.discardNative(session.sessionId, sourceCommandId);
         for (const { ref } of attachments) {
           const attachment = this.attachments.get(ref);
-          if (attachment) attachment.returnedToDraft = true;
+          if (attachment) {
+            attachment.returnedToDraft = true;
+            this.storage?.returnAttachment(ref);
+          }
         }
         const returned = (session.returnedInputs ??= new Map());
         const inputs = returned.get(actor) ?? [];
@@ -847,9 +1338,9 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       state: "completedSuccess",
       endedAt: session.lastActivityAt,
       activeMs: session.lastActivityAt - startedAt,
-      ...(this.business ? { outputTokens: Math.ceil(reply.length / 2) } : {}),
+      ...(this.business && !this.production ? { outputTokens: Math.ceil(reply.length / 2) } : {}),
     });
-    if (this.business)
+    if (this.business && !this.production)
       session.usage = {
         contextWindow: {
           usedTokens: 1200 + Math.ceil(reply.length / 2),
@@ -863,7 +1354,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
           cacheWriteTokens: session.usage.cumulative.cacheWriteTokens + 200,
         },
       };
-    if (session.meta.titleSource === "default" && this.business) {
+    if (session.meta.titleSource === "default" && this.business && !this.production) {
       session.meta = { title: textToTitle(reply), titleSource: "generated" };
     }
     this.patchExecution(session);
@@ -889,6 +1380,8 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         workspaceKeyOf(params.workspace),
       );
     if (!session) throw this.sessionUnavailable();
+    if (session.tuiSource && !this.standalone?.tuiHistory?.owns(session.tuiSource))
+      throw this.sessionUnavailable();
     if (this.business?.captureNativeReadPermission(session.sessionId)() === false)
       throw this.sessionUnavailable();
     if (params.workspace && !this.matchesWorkspace(session, params.workspace))
@@ -1038,7 +1531,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       },
     };
     session.activeTurn = owner;
-    void this.runTurn(session, input, owner);
+    void this.runTurn(session, input, owner).finally(() => input.writer?.close());
   }
 
   private maybeStartFollowUp(session: MockSession): void {
@@ -1105,15 +1598,55 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     this.patchState(session, { meta: session.meta });
   }
 
-  private createSessionInternal(envelope: CommandEnvelope, directory?: string): CommandAck {
+  private initialConfig(): MockSession["config"] {
+    if (this.production)
+      return {
+        provider: "",
+        model: "",
+        thought: "default",
+        thoughtLevels: [],
+        followupMode: "queue",
+        mode: "build",
+      };
+    return {
+      provider: "account:bigmodel-start-plan",
+      model: "GLM-5.3-Flash",
+      thought: "max",
+      thoughtLevels: ["low", "medium", "high", "max"],
+      followupMode: "queue",
+      mode: "build",
+      modelSelection: {
+        providerId: "bigmodel",
+        modelId: "GLM-5.3-Flash",
+        options: { reasoningLevel: "max" },
+      },
+    };
+  }
+
+  private createSessionInternal(
+    envelope: CommandEnvelope,
+    directory?: string,
+    directorySkills?: SkillSummary[],
+  ): CommandAck {
     const payload = envelope.payload as WebCreateSessionPayload;
     // 首发无法执行时必须在创建会话/索引之前拒绝，不能返回“创建并发送”空成功。
     if (payload.firstInput && !this.business && !this.standalone)
       return this.rejectUnsupported(envelope, null);
+    const selection = payload.config?.modelSelection;
+    const globalDefault = this.production?.engine.config()?.modelSelection;
+    const selectedExplicitly =
+      selection !== undefined &&
+      (selection.providerId !== globalDefault?.providerId ||
+        selection.modelId !== globalDefault?.modelId ||
+        (selection.options?.reasoningLevel ?? "default") !==
+          (globalDefault?.options?.reasoningLevel ?? "default"));
     const chatConfig = this.standalone
-      ? completeMockModelSelection(payload.config?.modelSelection ?? MOCK_DEFAULT_MODEL_SELECTION)
+      ? this.production
+        ? this.production.engine.config(selectedExplicitly ? selection : undefined, directory)
+        : completeMockModelSelection(payload.config?.modelSelection ?? MOCK_DEFAULT_MODEL_SELECTION)
       : null;
-    if (this.standalone && !chatConfig) return this.rejectUnsupported(envelope, null);
+    if (this.standalone && !chatConfig && (!this.production || payload.config?.modelSelection))
+      return this.rejectUnsupported(envelope, null);
     if (!envelope.workspace) throw new Error("创建会话缺少请求工作区。");
     // 对客户端保留它选择的路径，规范身份由已校验的真实目录生成，不回传真实宿主路径。
     const sessionRef =
@@ -1124,6 +1657,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
             workspaceIdentity: workspaceKeyOf({ workspacePath: directory }),
           };
     const sessionId = payload.sessionId ?? this.runtime.newSessionId();
+    if (sessionId.startsWith("tui-")) return this.rejectUnsupported(envelope, null);
     const actor = this.business?.actorKey();
     const existing = this.runtime.sessions.get(sessionId);
     // 刷新/重复准备不能用新 createSession 覆盖已接纳 rows；首发重放由 commandId 收据对账。
@@ -1131,6 +1665,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       if (
         existing.workspaceKey !== workspaceKeyOf(sessionRef) ||
         existing.workspaceRef.workspacePath !== sessionRef.workspacePath ||
+        (existing.tuiSource && !this.standalone?.tuiHistory?.owns(existing.tuiSource)) ||
         (existing.draftCreatorActor && existing.draftCreatorActor !== actor)
       )
         throw this.sessionUnavailable();
@@ -1142,7 +1677,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         workspace: existing.workspaceRef,
       });
     }
-    const skills = this.readEnabledSkills(sessionRef.workspacePath);
+    const skills = directorySkills ?? this.readEnabledSkills(sessionRef.workspacePath);
     const firstInput = payload.firstInput;
     const parsed = firstInput ? this.parseConversationInput(firstInput.text, skills) : undefined;
     if (parsed?.kind === "rejected")
@@ -1163,6 +1698,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       },
       ...(actor ? { draftCreatorActor: actor } : {}),
       ...(directory ? { chatDirectory: directory } : {}),
+      ...(this.standalone?.tuiHistory && { tuiSource: { root: this.standalone.tuiHistory.root } }),
       skills,
       logEpoch: this.runtime.newLogEpoch(),
       seq: 0,
@@ -1180,19 +1716,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       queuedInputs: [],
       nextAdmissionSeq: 1,
       activeTurn: null,
-      config: {
-        provider: "account:bigmodel-start-plan",
-        model: "GLM-5.3-Flash",
-        thought: "max",
-        thoughtLevels: ["low", "medium", "high", "max"],
-        followupMode: "queue",
-        mode: "build",
-        modelSelection: {
-          providerId: "bigmodel",
-          modelId: "GLM-5.3-Flash",
-          options: { reasoningLevel: "max" },
-        },
-      },
+      config: this.initialConfig(),
     };
     const config = payload.config;
     if (config) {
@@ -1204,10 +1728,12 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       if (modelSelection !== undefined) session.config.modelSelection = modelSelection;
     }
     if (chatConfig) Object.assign(session.config, chatConfig);
+    if (this.production && this.standalone) session.explicitModelSelection = selectedExplicitly;
     this.validateInputAttachments(session, firstInput?.attachments ?? []);
     if (firstInput) {
       this.applyNativeBinding(session);
       this.business?.admitNative(sessionId, envelope.commandId, firstInput.text);
+      this.storage?.onRollback(() => this.business?.discardNative(sessionId, envelope.commandId));
     }
     try {
       this.business?.registerNativeDraft(
@@ -1225,7 +1751,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       if (firstInput) this.business?.discardNative(sessionId, envelope.commandId);
       throw error;
     }
-    this.runtime.sessions.set(sessionId, session);
+    this.storeNewSession(session);
     // AIReq 私有预热不进入普通任务产品；显式业务首发负责发布提案。
     if (!this.business && !this.standalone) {
       this.runtime.tasks.set(sessionId, {
@@ -1322,8 +1848,14 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     );
   }
 
-  private sendTextInternal(session: MockSession, envelope: CommandEnvelope): CommandAck {
+  private sendTextInternal(
+    session: MockSession,
+    envelope: CommandEnvelope,
+    writer?: TuiWrite,
+  ): CommandAck {
     if (!this.business && !this.standalone) return this.rejectUnsupported(envelope, session);
+    if (session.activeTurn?.controller.signal.aborted)
+      return this.reject(envelope, session, "guard.session.busy", "当前执行正在停止，草稿已保留。");
     const payload = envelope.payload as MockTextSubmission;
     if (
       payload.expectedForegroundExecutionId &&
@@ -1358,7 +1890,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         "请选择引导当前执行或随后运行。",
       );
     this.validateInputAttachments(session, payload.attachments ?? []);
-    return this.admitText(session, envelope, payload, parsed.context);
+    return this.admitText(session, envelope, payload, parsed.context, writer);
   }
 
   private admitText(
@@ -1366,6 +1898,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     envelope: CommandEnvelope,
     payload: MockTextSubmission,
     context?: MockInputContext,
+    writer?: TuiWrite,
   ): CommandAck {
     const input = this.makeInput(envelope, payload, context);
     // 评审使用冻结快照，期间未交付的引导输入在评审结束后退回草稿。
@@ -1380,15 +1913,22 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       );
     this.applyNativeBinding(session);
     this.business?.admitNative(session.sessionId, envelope.commandId, payload.text);
+    this.storage?.onRollback(() => this.business?.discardNative(session.sessionId, envelope.commandId));
     if (queued) {
       session.nextAdmissionSeq += 1;
       session.queuedInputs.push({ item: queued, context, actor: this.actorKey() ?? "mock" });
       this.patchQueue(session);
+      if (delivery === "guide")
+        this.storage?.afterCommit(() => this.guideDispatch.get(session)?.());
       return this.ackAccepted(envelope, {
         type: "inputAccepted",
         delivery,
         inputId: queued.queueItemId,
       });
+    }
+    if (writer) {
+      input.writer = writer.manager;
+      writer.taken = true;
     }
     this.startSubmittedTurn(session, input);
     return this.ackAccepted(envelope, {
@@ -1419,9 +1959,14 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     this.startTurn(session, input);
   }
 
-  private handleEnvelope(envelope: CommandEnvelope, directory?: string): CommandAck {
+  private handleEnvelope(
+    envelope: CommandEnvelope,
+    directory?: string,
+    directorySkills?: SkillSummary[],
+    writer?: TuiWrite,
+  ): CommandAck {
     if (envelope.type === "createSession") {
-      return this.createSessionInternal(envelope, directory);
+      return this.createSessionInternal(envelope, directory, directorySkills);
     }
     // 会话范围、产品能力和载荷已在收据入口检查；退役命令不能借归属检查补建会话。
     const session = this.ensureSession({
@@ -1443,7 +1988,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       this.business?.assertNativeWritable(session.sessionId);
     switch (envelope.type) {
       case "sendText":
-        return this.sendTextInternal(session, envelope);
+        return this.sendTextInternal(session, envelope, writer);
       case "acknowledgeReturnedInputs": {
         const actor = this.actorKey() ?? "mock";
         const returned = session.returnedInputs?.get(actor);
@@ -1469,7 +2014,13 @@ export class MockZCodeAgentService implements IZCodeAgentService {
             "guard.stop.foregroundChanged",
             "当前执行已变化，未中断其他执行。",
           );
-        active.controller.abort();
+        if (this.storage)
+          this.storage.afterCommit(() => {
+            if (session.activeTurn !== active || active.controller.signal.aborted) return;
+            active.controller.abort();
+            if (session.activeTurn === active) this.patchExecution(session);
+          });
+        else active.controller.abort();
         return this.ackAccepted(envelope);
       }
       case "renameSession": {
@@ -1480,15 +2031,19 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       case "switchModelConfig": {
         const payload = envelope.payload as CommandPayloadMap["switchModelConfig"];
         const previous = session.config;
-        const chatConfig = completeMockModelSelection({
+        const selected = {
           providerId: payload.provider,
           modelId: payload.model,
           options: { reasoningLevel: payload.thought },
-        });
+        };
+        const chatConfig = this.production
+          ? this.production.engine.config(selected)
+          : completeMockModelSelection(selected);
         if (!chatConfig) return this.rejectUnsupported(envelope, session);
         if (session.activeTurn)
           return this.reject(envelope, session, "guard.session.busy", "当前回合结束后可切换模型。");
         session.config = { ...session.config, ...chatConfig };
+        if (this.production) session.explicitModelSelection = true;
         // 配置边界行先进入权威集合，实时帧与恢复/分页才能看到相同事实。
         this.patchState(session, { config: { ...session.config } });
         this.appendRow(session, {
@@ -1520,7 +2075,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     return {
       kind: "hello",
       protocolVersion: 3,
-      connectionId: `mock-conn-${createUuid()}`,
+      connectionId: `${this.production ? "omp" : "mock"}-conn-${createUuid()}`,
       clientMode: "web-remote-replayable",
       deliveryProfile: "replayable",
       serverTime: Date.now(),
@@ -1559,6 +2114,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   async subscribeConversationV4(params: P<WebAIReqAgent["subscribeConversationV4"]>) {
     // 必须先验证原始入参，不能在预热／订阅之前只挑已知字段导致额外键被吞掉。
     conversationSubscribeInputSchema.parse(params);
+    await this.openTuiChat(params);
     const workspaceKey = workspaceKeyOf(params);
     const session = this.ensureOrSeedDraftSession(params, workspaceKey);
     this.applyNativeBinding(session);
@@ -1631,22 +2187,26 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       queuedInputs: [],
       nextAdmissionSeq: 1,
       activeTurn: null,
-      config: {
-        provider: "account:bigmodel-start-plan",
-        model: "GLM-5.3-Flash",
-        thought: "max",
-        thoughtLevels: ["low", "medium", "high", "max"],
-        followupMode: "queue",
-        mode: "build",
-        modelSelection: {
-          providerId: "bigmodel",
-          modelId: "GLM-5.3-Flash",
-          options: { reasoningLevel: "max" },
-        },
-      },
+      config: this.initialConfig(),
     };
-    this.runtime.sessions.set(params.sessionId, session);
+    this.storeNewSession(session);
     return session;
+  }
+
+  private storeNewSession(session: MockSession): void {
+    const install = () => {
+      this.runtime.sessions.set(session.sessionId, session);
+      this.storage?.onRollback(() => {
+        this.runtime.sessions.delete(session.sessionId);
+        this.runtime.tasks.delete(session.sessionId);
+        const turn = session.activeTurn;
+        session.activeTurn = null;
+        turn?.controller.abort();
+      });
+      this.storage?.saveSession(session);
+    };
+    if (this.storage) this.storage.transaction(install);
+    else install();
   }
 
   async resyncConversationV4(params: P<WebAIReqAgent["resyncConversationV4"]>) {
@@ -1656,6 +2216,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       throw new Error("fault.subscription.unknownSubscription");
     }
     this.ensureSession({ sessionId: session.sessionId, workspace: params, allowSeed: false });
+    await this.openTuiChat({ ...session.workspaceRef, sessionId: session.sessionId });
     const snapshot = buildConversationSnapshot(session, !this.business);
     this.emitConversationFrame(
       session,
@@ -1684,6 +2245,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     if (params.residency === "resident-only" && !this.runtime.sessions.has(params.sessionId)) {
       throw new Error("proto.sessionNotResident");
     }
+    await this.openTuiChat(params);
     const session = this.ensureSession({ sessionId: params.sessionId, workspace: params });
     const rows = session?.rows ?? [];
     const beforeRowId = params.beforeRowId ?? Number.MAX_SAFE_INTEGER;
@@ -1743,6 +2305,13 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     };
     const prior = replay();
     if (prior) return prior;
+    const remember = (decision: CommandAck) => {
+      const value = { digest, ack: decision };
+      this.storage?.saveReceipt(key, value);
+      if (this.storage) this.storage.afterCommit(() => this.commandResults.set(key, value));
+      else this.commandResults.set(key, value);
+      return decision;
+    };
     let ack: CommandAck;
     if (!supported) {
       ack = this.rejectUnsupported(envelope, null);
@@ -1761,18 +2330,90 @@ export class MockZCodeAgentService implements IZCodeAgentService {
         this.standalone && envelope.type === "createSession"
           ? await this.standalone.resolveDirectory(params.workspacePath)
           : undefined;
-      const concurrent = replay();
-      if (concurrent) return concurrent;
-      ack = this.handleEnvelope(
-        {
-          ...envelope,
-          workspace: { ...requestWorkspace, workspaceKey: workspaceKeyOf(requestWorkspace) },
-        },
-        directory,
-      );
+      const directorySkills =
+        directory && this.production ? await this.production.engine.skills(directory) : undefined;
+      if (this.production && envelope.sessionId && !directory) {
+        const title =
+          envelope.type === "renameSession"
+            ? (envelope.payload as CommandPayloadMap["renameSession"]).title
+            : envelope.type === "sendText" &&
+                !(envelope.payload as MockTextSubmission).attachments?.length
+              ? /^\/rename\s+([^\r\n]+)$/
+                  .exec((envelope.payload as MockTextSubmission).text.trim())?.[1]
+                  ?.trim()
+              : undefined;
+        if (title) {
+          const session = this.ensureSession({
+            sessionId: envelope.sessionId,
+            workspace: requestWorkspace,
+          });
+          this.business?.assertNativeWritable(session.sessionId);
+          const pending = this.renames.get(key);
+          if (pending && pending.digest !== digest)
+            throw businessRule("原生消息编号不能用于不同输入。");
+          const rename = pending ?? {
+            digest,
+            result: this.production.engine.rename(
+              JSON.stringify([this.standalone ? "chat" : "aireq", session.sessionId, null]),
+              title,
+              session.tuiSource && session.chatDirectory
+                ? {
+                    source: session.tuiSource,
+                    directory: session.chatDirectory,
+                    sessionId: session.sessionId,
+                  }
+                : undefined,
+            ),
+          };
+          this.renames.set(key, rename);
+          try {
+            await rename.result;
+          } catch (error) {
+            if (error instanceof TuiChatConflict)
+              return (
+                replay() ??
+                remember(this.reject(envelope, session, "guard.session.busy", error.message))
+              );
+            throw error;
+          } finally {
+            if (this.renames.get(key) === rename) this.renames.delete(key);
+          }
+        }
+      }
+      let writer: TuiWrite | undefined;
+      try {
+        if (envelope.sessionId)
+          writer = await this.prepareTuiWrite(envelope.sessionId, requestWorkspace, envelope);
+        const concurrent = replay();
+        if (concurrent) return concurrent;
+        const decide = () => {
+          const existing = envelope.sessionId && this.runtime.sessions.get(envelope.sessionId);
+          if (existing) this.storage?.checkpoint(existing);
+          return remember(
+            this.handleEnvelope(
+              {
+                ...envelope,
+                workspace: { ...requestWorkspace, workspaceKey: workspaceKeyOf(requestWorkspace) },
+              },
+              directory,
+              directorySkills,
+              writer,
+            ),
+          );
+        };
+        return this.storage ? this.storage.transaction(decide) : decide();
+      } catch (error) {
+        if (!(error instanceof TuiChatConflict)) throw error;
+        const session = envelope.sessionId ? this.runtime.sessions.get(envelope.sessionId) : undefined;
+        return (
+          replay() ??
+          remember(this.reject(envelope, session ?? null, "guard.session.busy", error.message))
+        );
+      } finally {
+        if (writer && !writer.taken) await writer.manager.close();
+      }
     }
-    this.commandResults.set(key, { digest, ack });
-    return ack;
+    return remember(ack);
   }
 
   private receiptKey(
@@ -1796,6 +2437,9 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     const actor = this.actorKey() ?? "mock";
     return {
       results: commands.map((key) => {
+        const source = key.sessionId && this.runtime.sessions.get(key.sessionId)?.tuiSource;
+        if (source && !this.standalone?.tuiHistory?.owns(source))
+          return { key, result: "unknown" };
         const ack = this.commandResults.get(this.receiptKey(actor, params, key))?.ack;
         return { key, result: ack ? projectWebCommandAck(ack) : "unknown" };
       }),
@@ -1859,6 +2503,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       checksum: params.checksum,
       chunks: [],
     };
+    if (!existing) this.storage?.saveUpload(key, upload);
     this.uploads.set(key, upload);
     return upload.ref
       ? {
@@ -1900,6 +2545,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
           upload.totalBytes
       )
         throw new Error("附件块顺序或大小不符。");
+      this.storage?.saveChunk(`${upload.actor}:${params.uploadId}`, params.chunkIndex, chunk);
       upload.chunks.push(chunk);
     }
     return { nextChunkIndex: upload.chunks.length };
@@ -1915,14 +2561,19 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     )
       throw new Error("附件大小或 SHA-256 校验失败。");
     const ref = `att_${createUuid()}`;
-    this.attachments.set(ref, {
+    const value = {
       actor: upload.actor,
       sessionId: upload.sessionId,
       workspaceKey: upload.workspaceKey,
       bytes,
       mime: upload.mime,
       fileName: upload.fileName,
+    };
+    this.storage?.transaction(() => {
+      this.storage!.saveAttachment(ref, value);
+      this.storage!.saveUpload(`${upload.actor}:${params.uploadId}`, { ...upload, ref });
     });
+    this.attachments.set(ref, value);
     upload.ref = ref;
     return { ref };
   }
@@ -1930,7 +2581,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     const actor = this.business?.actorKey() ?? "mock";
     const value = this.uploads.get(`${actor}:${params.uploadId}`);
     if (value && value.sessionId !== params.sessionId) throw new Error("上传归属不符。");
-    if (
+    const mayDropAttachment = Boolean(
       value?.ref &&
       !this.attachments.get(value.ref)?.returnedToDraft &&
       ![...this.runtime.sessions.values()].some(
@@ -1944,9 +2595,13 @@ export class MockZCodeAgentService implements IZCodeAgentService {
               row.kind === "userInput" &&
               row.attachments?.some((attachment) => attachment.ref === value.ref),
           ),
-      )
-    )
-      this.attachments.delete(value.ref);
+      ),
+    );
+    this.storage?.transaction(() => {
+      this.storage!.remove("upload", `${actor}:${params.uploadId}`);
+      if (mayDropAttachment && value?.ref) this.storage!.remove("attachment", value.ref);
+    });
+    if (mayDropAttachment && value?.ref) this.attachments.delete(value.ref);
     this.uploads.delete(`${actor}:${params.uploadId}`);
   }
   private attachmentFor(params: {
@@ -2021,6 +2676,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   // ── 当前产品保留的 Skill 与命令目录 ──
 
   private readEnabledSkills(workspacePath: string): SkillSummary[] {
+    if (this.production && this.standalone) return [];
     return (
       this.standalone ? readBuiltinPrototypeSkills() : readPrototypeSkills(workspacePath)
     ).filter((skill) => skill.enabled && skill.body.trim().length > 0);
@@ -2046,7 +2702,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
     if (params.sessionId === undefined)
       return {
         authority: "workspace",
-        skills: this.skillReferences(this.readEnabledSkills(params.workspacePath)),
+        skills: this.skillReferences(await this.workspaceSkills(params.workspacePath)),
       };
     // 目录必须属于已驻留且可访问的会话；补建或回退 workspace 会让新技能进入旧对话。
     const session = this.ensureSession({
@@ -2064,6 +2720,7 @@ export class MockZCodeAgentService implements IZCodeAgentService {
   ): Promise<{ commands: ConversationCommandCatalogEntry[] }> {
     conversationCatalogInputSchema.parse(params);
     if (params.sessionId !== undefined) {
+      await this.openTuiChat({ ...params, sessionId: params.sessionId });
       const session = this.ensureSession({
         sessionId: params.sessionId,
         workspace: params,
@@ -2072,8 +2729,15 @@ export class MockZCodeAgentService implements IZCodeAgentService {
       this.business?.getNativeBinding(session.sessionId);
       return { commands: [...BUILTIN_COMMANDS, ...this.skillCommands(session.skills)] };
     }
-    if (this.standalone) await this.standalone.resolveDirectory(params.workspacePath);
-    return { commands: this.skillCommands(this.readEnabledSkills(params.workspacePath)) };
+    return { commands: this.skillCommands(await this.workspaceSkills(params.workspacePath)) };
+  }
+
+  private async workspaceSkills(workspacePath: string): Promise<SkillSummary[]> {
+    if (this.standalone) {
+      const directory = await this.standalone.resolveDirectory(workspacePath);
+      if (this.production) return this.production.engine.skills(directory);
+    }
+    return this.readEnabledSkills(workspacePath);
   }
 
   private skillCommands(skills: readonly SkillSummary[]): ConversationCommandCatalogEntry[] {

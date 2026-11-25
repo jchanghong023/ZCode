@@ -7,6 +7,7 @@ import "core-js/stable/array/to-sorted";
 import "core-js/stable/array/to-reversed";
 import "core-js/stable/object/group-by";
 import { createWebPlatform } from "#src/platform/index.js";
+import { deploymentToken } from "#src/deploymentAccess.js";
 import { createRoot } from "react-dom/client";
 import type { ReactNode } from "react";
 import {
@@ -209,6 +210,8 @@ async function bootstrapWebApp(generation: number, employeeNumber: string) {
     let attemptClosed = false;
     try {
       const nativeUrl = new URL(bootstrap.wsUrl);
+      const token = deploymentToken();
+      if (token) nativeUrl.searchParams.set("token", token);
       nativeUrl.searchParams.set("employeeId", employeeNumber);
       nativeUrl.searchParams.set("clientId", webClientId);
       nativeUrl.searchParams.set("pageId", pageId);

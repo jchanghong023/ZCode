@@ -10,7 +10,7 @@ import {
 import { readPrototypeAgentModelBinding, type NativeRuntimeModel } from "./agent-models.js";
 import { requirementMaterialsFor } from "./document-versions.js";
 import { businessRule } from "./errors.js";
-import type { RequirementGroup, WorkflowState } from "./workflow-state.js";
+import type { BusinessOmpContext, RequirementGroup, WorkflowState } from "./workflow-state.js";
 
 const prompts: Record<AIReqDiscussionAgent, string> = {
   requirements:
@@ -32,6 +32,7 @@ export interface AIReqNativeReviewWork {
   additionalInstructions: string;
   model: NativeRuntimeModel;
   execute: () => string;
+  prepareOmp(signal?: AbortSignal): Promise<BusinessOmpContext>;
   settle: (status: "completed" | "failed", report: string) => string;
 }
 

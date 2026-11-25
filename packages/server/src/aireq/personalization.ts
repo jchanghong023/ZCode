@@ -1,4 +1,5 @@
 import { businessRule } from "./errors.js";
+import { onProductionOpen, production } from "./production-store.js";
 import { AIREQ_AGENT_ROLES, type AIReqAgentRole } from "@zcode/services/aireq";
 import { USER_INSTRUCTIONS_MAX_BYTES } from "@zcode/shared";
 
@@ -8,6 +9,13 @@ export interface PrototypeAgentPrompts {
 }
 let saved: PrototypeAgentPrompts = {};
 let revision = 1;
+onProductionOpen((store) => {
+  const state = store.get<ReturnType<typeof readPrototypeAgentPrompts>>("prompts");
+  if (state) {
+    saved = state.saved;
+    revision = state.revision;
+  }
+});
 
 export function readPrototypeAgentPrompt(role: AIReqAgentRole): string {
   return saved[role] ?? "";
@@ -31,6 +39,7 @@ export function savePrototypeAgentPrompts(
   validate(value);
   if (expectedRevision !== revision) throw businessRule("追加指令版本已变化，请重新读取。");
   if (JSON.stringify(saved) === JSON.stringify(value)) return;
+  production?.set("prompts", { saved: value, revision: revision + 1 });
   saved = { ...value };
   revision += 1;
 }

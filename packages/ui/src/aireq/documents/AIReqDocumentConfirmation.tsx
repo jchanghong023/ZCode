@@ -16,6 +16,7 @@ import {
   requirementMaterialName,
   type AIReqDiscussionAgent,
   type AIReqDocumentValidation,
+  type AIReqRequirementGroup,
 } from "../contract.js";
 
 const englishFileNames = new Map([
@@ -38,7 +39,7 @@ function documentName(path: string, zh: boolean) {
 
 interface Props {
   canConfirm: boolean;
-  canUseSolution: boolean;
+  sessions: AIReqRequirementGroup["sessions"];
   requirementsPath: string;
   validateVersion(): Promise<AIReqDocumentValidation>;
   confirmVersion(snapshot: string): Promise<AIReqDocumentValidation | undefined>;
@@ -48,7 +49,7 @@ interface Props {
 
 export function AIReqDocumentConfirmation({
   canConfirm,
-  canUseSolution,
+  sessions,
   requirementsPath,
   validateVersion,
   confirmVersion,
@@ -72,12 +73,16 @@ export function AIReqDocumentConfirmation({
   const repairActions = [
     {
       agent: "requirements",
-      visible: validation?.issues.some(({ path }) => path === requirementsPath),
+      visible:
+        sessions.some((session) => session.phase === "requirements") &&
+        validation?.issues.some(({ path }) => path === requirementsPath),
       label: zh ? "前往需求 Agent" : "Go to Requirements Agent",
     },
     {
       agent: "solution",
-      visible: canUseSolution && validation?.issues.some(({ path }) => path !== requirementsPath),
+      visible:
+        sessions.some((session) => session.phase === "solution") &&
+        validation?.issues.some(({ path }) => path !== requirementsPath),
       label: zh ? "前往方案 Agent" : "Go to Solution Agent",
     },
   ] as const;

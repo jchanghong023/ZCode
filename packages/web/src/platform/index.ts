@@ -9,6 +9,7 @@ import {
 } from "@zcode/shared";
 import { playTaskNotificationSound } from "@zcode/ui";
 import { resolveWebCommunityUrl, resolveWebHelpConfig } from "#src/communityUrl.js";
+import { deploymentAuthHeaders } from "#src/deploymentAccess.js";
 import { writeClipboardText } from "#src/platform/writeClipboardText.js";
 import { saveBrowserFile } from "#src/platform/saveBrowserFile.js";
 
@@ -101,7 +102,11 @@ async function reportBrowserTelemetryEvent(event: TelemetryEventRequest): Promis
   const response = await fetch("/api/v1/telemetry/events", {
     method: "POST",
     credentials: "same-origin",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...deploymentAuthHeaders("/api/v1/telemetry/events"),
+    },
+    redirect: "error",
     body: JSON.stringify(payload),
   });
   // 202 仅表示接收边界已接纳，不代表第三方上传；错误不能被本地派发伪装成成功。

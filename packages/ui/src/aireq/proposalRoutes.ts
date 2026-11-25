@@ -1,4 +1,19 @@
-import type { AIReqDiscussionAgent, AIReqSelection, AIReqWorkflowView } from "./contract.js";
+import type {
+  AIReqDiscussionAgent,
+  AIReqRequirementGroup,
+  AIReqSelection,
+  AIReqWorkflowView,
+} from "./contract.js";
+
+/** 服务端已经按当前工号过滤会话，列表和文档区都进入这个 IR 实际可用的讨论。 */
+export function primaryDiscussionAgent(
+  group: AIReqRequirementGroup,
+): AIReqDiscussionAgent | undefined {
+  return (
+    group.sessions.find((session) => session.phase === "requirements")?.phase ??
+    group.sessions[0]?.phase
+  );
+}
 
 const objectLinkKeys = [
   "aireqProject",

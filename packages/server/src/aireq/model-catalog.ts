@@ -3,7 +3,12 @@ import {
   type ServiceCollection,
   type WebModelSelectionService,
 } from "@zcode/services";
-import { PROTOTYPE_AGENT_MODELS, readPrototypeAgentModelBinding } from "./agent-models.js";
+import {
+  isAgentModelAvailable,
+  readAgentModelChoices,
+  readPrototypeAgentModelBinding,
+} from "./agent-models.js";
+import { production } from "./production-store.js";
 
 /** Extend existing offline catalog with precisely the models used by AIReq role bindings. */
 export function modelCatalogOverrides(services: ServiceCollection): Map<string, unknown> {
@@ -11,6 +16,21 @@ export function modelCatalogOverrides(services: ServiceCollection): Map<string, 
   const selectionFacade: WebModelSelectionService = {
     async getView(...args: Parameters<WebModelSelectionService["getView"]>) {
       const original = await selection.getView(...args);
+      if (production) {
+        if (args[0]?.selection != null || original.providers.length === 0) return original;
+        const role = production.zone === "yellow" ? "requirements" : "solution";
+        if (!isAgentModelAvailable(role))
+          return { ...original, effectiveSelection: null, selectionIssue: "model-not-found" };
+        const { runtimeModel } = readPrototypeAgentModelBinding(role);
+        return selection.getView({
+          selection: {
+            providerId: runtimeModel.providerId,
+            modelId: runtimeModel.modelId,
+            options: { reasoningLevel: runtimeModel.reasoning },
+          },
+        });
+      }
+      const models = readAgentModelChoices();
       const template = original.providers[0];
       if (!template) throw new Error("模拟模型目录缺失。");
       const modelTemplate = template.models[0];
@@ -29,26 +49,23 @@ export function modelCatalogOverrides(services: ServiceCollection): Map<string, 
       }
       return {
         revision: original.revision,
-        providers: [...new Set(PROTOTYPE_AGENT_MODELS.map((model) => model.providerId))].map(
-          (providerId) => ({
-            providerId,
-            providerName: PROTOTYPE_AGENT_MODELS.find((model) => model.providerId === providerId)!
-              .provider,
-            // 仅公开协议类型；模板的 Start Plan 账号与端点不属于这些供应商。
-            config: api === undefined ? {} : { api: api === null ? null : { type: api.type } },
-            models: PROTOTYPE_AGENT_MODELS.filter((model) => model.providerId === providerId).map(
-              (model) => ({
-                modelId: model.name,
-                config: {
-                  properties: { inputFormat: { supportsImage } },
-                  optionSpecs: {
-                    reasoningLevel: { values: ["default", "low", "medium", "high"] },
-                  },
+        providers: [...new Set(models.map((model) => model.providerId))].map((providerId) => ({
+          providerId,
+          providerName: models.find((model) => model.providerId === providerId)!.provider,
+          // 仅公开协议类型；模板的 Start Plan 账号与端点不属于这些供应商。
+          config: api === undefined ? {} : { api: api === null ? null : { type: api.type } },
+          models: models
+            .filter((model) => model.providerId === providerId)
+            .map((model) => ({
+              modelId: model.name,
+              config: {
+                properties: { inputFormat: { supportsImage } },
+                optionSpecs: {
+                  reasoningLevel: { values: ["default", "low", "medium", "high"] },
                 },
-              }),
-            ),
-          }),
-        ),
+              },
+            })),
+        })),
         ...(preferred === undefined
           ? {}
           : { preferredSelection: preferred, effectiveSelection: preferred }),

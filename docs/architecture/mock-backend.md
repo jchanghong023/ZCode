@@ -4,7 +4,7 @@
 
 ## 1. 运行拓扑
 
-当前系统只有电脑浏览器和 `packages/server` 内存后端，没有可替换使用的真实业务后端。
+原型使用 `packages/server` 的内存工作流与模拟 Agent。正式黄区和红区复用 HTTP、服务契约与 v4 投影，业务事实写入本区 SQLite，Agent 由 OMP SDK 执行。三个入口及联调目录见[启动说明](../../README.md#开发与产品入口)。下图为原型装配。
 
 ```text
 web/main.tsx → @zcode/client → 同源 /ws 二进制 Channel RPC
@@ -89,7 +89,7 @@ Skill 主入口隐藏，但私有会话、附件、预览、保存和草稿门�
 | `ZCODE_WEB_STATIC_ROOT`     | 静态目录，设置后启用 SPA fallback                 |
 | `ZCODE_SERVER_AUTH_TOKEN`   | 可选部署访问控制，只保护 `/ws`、`/ws/…`、`/api/…` |
 
-受保护请求接受匹配 Bearer、查询 token 或 `zcode_lite_token` Cookie。受保护请求的有效 token 查询设置 `Path=/; HttpOnly; SameSite=Lax` Cookie；普通根页面不经过这项校验，`/?token=…` 不兑换 Cookie，也不自动转发至 WS。正式浏览器依赖同源已有 Cookie 或部署代理提供凭据，不增加产品 token 输入框。静态页不受此 token 保护；token 不是工号本人认证。帮助配置 fetch 保持 `credentials:"same-origin"`、`redirect:"error"`。
+原型受保护请求接受匹配 Bearer、查询 token 或 `zcode_lite_token` Cookie。有效的 token 查询可设置 `Path=/; HttpOnly; SameSite=Lax` Cookie。静态页可直接打开，浏览器把页面 URL 中的 token 传给 WebSocket。正式服务的监听范围、来源与 API 凭据见[连接身份](../specs/aireq/connection-identity.md#1-身份来源)。帮助配置 fetch 保持 `credentials:"same-origin"`、`redirect:"error"`。
 
 ## 5. 部署限制与后端替换
 

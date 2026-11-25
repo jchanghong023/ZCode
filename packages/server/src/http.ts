@@ -1,7 +1,6 @@
-// HTTP + WebSocket 宿主：当前帮助配置、/ws 上的二进制 RPC ChannelServer、
-// 生产模式静态资源托管。传输层与真实 server 完全同构（packages/rpc SocketProtocol），
-// 业务层全部来自 mock 服务集合。
+// 原型和正式实例共用 HTTP、WebSocket 二进制 RPC 和静态资源托管。
 import { readFile, stat } from "node:fs/promises";
+import { networkInterfaces } from "node:os";
 import localAppConfig from "../../../config/default.json" with { type: "json" };
 import * as nodePath from "node:path";
 import { extname, resolve } from "node:path";
@@ -9,6 +8,7 @@ import { promisify } from "node:util";
 import { brotliCompress, constants as zlibConstants, gzip } from "node:zlib";
 import { Hono, type Context } from "hono";
 import type { ServerWebSocket } from "bun";
+import { createServiceLogger } from "@zcode/services/logger";
 import {
   Emitter,
   VSBuffer,
@@ -39,11 +39,7 @@ import {
   WEB_AIREQ_AGENT_METHODS,
   WEB_CHAT_AGENT_METHODS,
 } from "@zcode/services/zcode-agent";
-import {
-  formatLogPrefix,
-  sanitizeTelemetryEventRequest,
-  telemetryEventRequestSchema,
-} from "@zcode/shared";
+import { sanitizeTelemetryEventRequest, telemetryEventRequestSchema } from "@zcode/shared";
 import { PROTOCOL_V4_LIMITS } from "@zcode/shared/zcode-protocol-v4";
 import {
   getConnectionServices,
@@ -107,8 +103,7 @@ function wrapWebSocket(ws: ServerWebSocket<ConnectionData>) {
   };
 }
 
-const log = (...args: unknown[]) =>
-  console.log(formatLogPrefix("zcode-mock-server:http", process.pid), ...args);
+const logger = createServiceLogger("http");
 
 /** 成员名称在编译期对齐服务契约；部署列表不从实现类反射，避免公开 private 方法。 */
 function publicService<T>(
@@ -158,7 +153,9 @@ function setupChannelServer(
   const protocol = new SocketProtocol(socket);
   const rawServer = new ChannelServer(protocol, "server");
   // 日志中间件：与真实 server 相同的 RPC 调用日志口径，便于对照调试。
-  const loggedServer = new LoggingChannelServer(rawServer, log);
+  const loggedServer = new LoggingChannelServer(rawServer, (...args) =>
+    logger.debug(undefined, ...args),
+  );
   const agentService = overrides.get(IZCodeAgentService.channelName) as IZCodeAgentService;
   const connectionScope = createZCodeAgentConnectionScope(
     agentService,
@@ -268,6 +265,13 @@ export interface MockHttpServerOptions {
   spaFallback?: boolean;
 }
 
+export interface HttpServerOptions extends MockHttpServerOptions {
+  /** 同实例 Vite 开发前端的端口。 */
+  webPort?: number;
+  /** 经反向代理对外提供的精确 HTTP(S) 来源。 */
+  publicOrigin?: string;
+}
+
 const zcodeLiteTokenCookieName = "zcode_lite_token";
 
 function parseCookieHeader(header: string | undefined): Map<string, string> {
@@ -289,7 +293,7 @@ function parseCookieHeader(header: string | undefined): Map<string, string> {
   return cookies;
 }
 
-function hasValidLiteToken(c: Context, token: string): boolean {
+function hasValidLiteToken(c: Context, token: string, useLegacyCookie: boolean): boolean {
   const authorization = c.req.header("authorization");
   if (
     authorization?.startsWith("Bearer ") &&
@@ -299,13 +303,83 @@ function hasValidLiteToken(c: Context, token: string): boolean {
   }
   const url = new URL(c.req.url);
   if (url.searchParams.get("token") === token) {
-    c.header(
-      "Set-Cookie",
-      `${zcodeLiteTokenCookieName}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax`,
-    );
+    // 同一主机的端口共享 cookie，正式实例的部署令牌仅在请求中使用。
+    if (useLegacyCookie)
+      c.header(
+        "Set-Cookie",
+        `${zcodeLiteTokenCookieName}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax`,
+      );
     return true;
   }
-  return parseCookieHeader(c.req.header("cookie")).get(zcodeLiteTokenCookieName) === token;
+  return (
+    useLegacyCookie &&
+    parseCookieHeader(c.req.header("cookie")).get(zcodeLiteTokenCookieName) === token
+  );
+}
+
+const loopbackHosts = ["localhost", "127.0.0.1", "::1"];
+function isLoopback(host: string) {
+  return loopbackHosts.includes(host.replace(/^\[|\]$/g, "").toLowerCase());
+}
+
+function httpAccess(options: HttpServerOptions) {
+  const host = options.host?.trim() || "127.0.0.1";
+  const external = options.publicOrigin ? new URL(options.publicOrigin) : undefined;
+  if (
+    external &&
+    (!["http:", "https:"].includes(external.protocol) ||
+      external.username ||
+      external.password ||
+      external.search ||
+      external.hash ||
+      external.pathname !== "/")
+  )
+    throw new Error("ZCODE_PUBLIC_ORIGIN 应为完整的 HTTP(S) 来源。");
+  if (
+    (!isLoopback(host) || (external && !isLoopback(external.hostname))) &&
+    !options.authToken?.trim()
+  )
+    throw new Error("对外提供正式服务需设置 ZCODE_SERVER_AUTH_TOKEN。");
+
+  const hosts = new Set(loopbackHosts);
+  if (host === "0.0.0.0" || host === "::") {
+    for (const rows of Object.values(networkInterfaces()))
+      for (const row of rows ?? []) if (!row.address.includes("%")) hosts.add(row.address);
+  } else hosts.add(host.replace(/^\[|\]$/g, "").toLowerCase());
+
+  return {
+    host,
+    allows(request: Request, port: number) {
+      // Host 和 Origin 分开核验，DNS 重绑定及跨站页面都不能借本机浏览器访问 OMP。
+      // Vite 默认沿用浏览器的 Host；反向代理可保留外部 Host 或改成监听地址。
+      const authority = request.headers.get("host")?.toLowerCase();
+      if (!authority || /[\s@/?#\\]/.test(authority)) return false;
+      let target: URL;
+      try {
+        target = new URL("http://" + authority);
+      } catch {
+        return false;
+      }
+      const isLocalAuthority = (url: URL) =>
+        hosts.has(url.hostname.replace(/^\[|\]$/g, "")) &&
+        [port, options.webPort].includes(Number(url.port || 80));
+      if (!isLocalAuthority(target) && authority !== external?.host) return false;
+      const origin = request.headers.get("origin");
+      if (origin === null || origin === external?.origin) return true;
+      let browser: URL;
+      try {
+        browser = new URL(origin);
+      } catch {
+        return false;
+      }
+      return (
+        browser.origin === origin &&
+        browser.protocol === "http:" &&
+        browser.host === target.host &&
+        isLocalAuthority(browser)
+      );
+    },
+  };
 }
 
 function isTokenProtectedPath(pathname: string): boolean {
@@ -439,10 +513,23 @@ function negotiateStaticEncoding(
   return (identityQuality ?? (qualities.get("*") === 0 ? 0 : 1)) > 0 ? "identity" : null;
 }
 
+export function createHttpServer(services: ServiceCollection, options: HttpServerOptions) {
+  const access = httpAccess(options);
+  return serveHttp(services, { ...options, host: access.host }, access);
+}
+
 export function createMockHttpServer(services: ServiceCollection, options: MockHttpServerOptions) {
+  return serveHttp(services, options);
+}
+
+function serveHttp(
+  services: ServiceCollection,
+  options: MockHttpServerOptions,
+  access?: ReturnType<typeof httpAccess>,
+) {
   const app = new Hono<{ Bindings: { server: Bun.Server<ConnectionData> } }>();
   app.onError((error, c) => {
-    console.error("[http] request failed", error);
+    logger.error(undefined, "HTTP request failed", error);
     return c.json(
       { error: { code: "INTERNAL_ERROR", message: "请求未能完成，请稍后重试。" } },
       500,
@@ -450,16 +537,16 @@ export function createMockHttpServer(services: ServiceCollection, options: MockH
   });
 
   const authToken = options.authToken?.trim();
-  if (authToken) {
-    app.use("*", async (c, next) => {
-      const pathname = new URL(c.req.url).pathname;
-      if (!isTokenProtectedPath(pathname) || hasValidLiteToken(c, authToken)) {
-        await next();
-        return;
-      }
-      return c.json({ error: "Unauthorized" }, 401);
-    });
-  }
+  app.use("*", async (c, next) => {
+    if (access) {
+      c.header("Referrer-Policy", "no-referrer");
+      if (!access.allows(c.req.raw, c.env.server.port!)) return c.json({ error: "Forbidden" }, 403);
+    }
+    if (authToken && isTokenProtectedPath(new URL(c.req.url).pathname)) {
+      if (!hasValidLiteToken(c, authToken, !access)) return c.json({ error: "Unauthorized" }, 401);
+    }
+    await next();
+  });
 
   // 纯 Web 形态下客户端配置由本机 mock 提供，避免浏览器直连外部 ZCode endpoint。
   app.get("/api/v1/client/configs", (c) => {
@@ -479,7 +566,7 @@ export function createMockHttpServer(services: ServiceCollection, options: MockH
       return c.json({ error: { code: "INVALID_ARGUMENT", message: "遥测事件格式无效。" } }, 400);
     }
     // 接收 owner 在 202 前交给真实服务诊断；只记录清洗副本，不公开读取或持久化承诺。
-    log("telemetry:accepted", sanitizeTelemetryEventRequest(parsed.data));
+    logger.info(undefined, "telemetry:accepted", sanitizeTelemetryEventRequest(parsed.data));
     return c.body(null, 202);
   });
 
@@ -631,7 +718,10 @@ export function createMockHttpServer(services: ServiceCollection, options: MockH
       },
     },
   });
-  log(`http://${options.host?.trim() || "localhost"}:${server.port}`);
+  logger.info(undefined, "Listening", {
+    host: options.host?.trim() || "localhost",
+    port: server.port,
+  });
 
   return server;
 }

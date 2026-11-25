@@ -8,9 +8,18 @@ import type {
   AIReqAgentModelBinding,
 } from "@zcode/services/aireq";
 import { readPrototypeAgentPrompt } from "./personalization.js";
+import { production } from "./production-store.js";
+
+export interface AgentModelChoice {
+  id: string;
+  name: string;
+  providerId: string;
+  provider: string;
+  modelId?: string;
+}
 
 // 目录与角色快照共用正式供应商标识，避免私有运行环境名称泄漏为业务模型身份。
-export const PROTOTYPE_AGENT_MODELS = [
+const prototypeModels: AgentModelChoice[] = [
   {
     id: "anthropic/claude-sonnet-4.5",
     name: "Claude Sonnet 4.5",
@@ -82,6 +91,30 @@ let savedSettings: AIReqAgentModelSettings = {
   defaultModel: "anthropic/claude-sonnet-4.5",
   agents: AIREQ_AGENT_ROLES.map((id) => ({ id, ...roleDefaults[id] })),
 };
+let catalogue: readonly AgentModelChoice[] = prototypeModels;
+export function readAgentModelChoices(): readonly AgentModelChoice[] {
+  return catalogue;
+}
+export function initializeProductionAgentModels(
+  choices: readonly AgentModelChoice[],
+  defaultId?: string,
+): void {
+  if (!production) throw new Error("正式业务模型初始化需要已打开的数据库。");
+  catalogue = choices;
+  const persisted = production.get<{ settings: AIReqAgentModelSettings; revision: number }>(
+    "agent-models",
+  );
+  savedSettings = persisted?.settings ?? {
+    defaultModel: defaultId ?? "",
+    agents: AIREQ_AGENT_ROLES.map((id) => ({
+      id,
+      ...roleDefaults[id],
+      model: "inherit",
+      reasoning: "default",
+    })),
+  };
+  configurationRevision = persisted?.revision ?? 1;
+}
 export function readPrototypeAgentModels(): AIReqAgentModelSettings {
   return structuredClone(savedSettings);
 }
@@ -92,7 +125,7 @@ export function savePrototypeAgentModels(
   if (expectedRevision !== configurationRevision)
     throw businessRule("模型配置已变化，请重新读取。");
   const allowed = AIREQ_AGENT_ROLES;
-  const models = new Set(PROTOTYPE_AGENT_MODELS.map((model) => model.id));
+  const models = new Set(catalogue.map((model) => model.id));
   if (
     !settings ||
     !models.has(settings.defaultModel) ||
@@ -116,6 +149,7 @@ export function savePrototypeAgentModels(
     }),
   };
   if (JSON.stringify(next) === JSON.stringify(savedSettings)) return;
+  production?.set("agent-models", { settings: next, revision: configurationRevision + 1 });
   savedSettings = next;
   configurationRevision += 1;
   for (const listener of listeners) listener();
@@ -133,9 +167,15 @@ export function subscribePrototypeAgentModels(listener: () => void) {
   };
 }
 function resolveModel(modelKey: string) {
-  const model = PROTOTYPE_AGENT_MODELS.find((item) => item.id === modelKey);
+  const model = catalogue.find((item) => item.id === modelKey);
   if (!model) throw businessRule("请选择当前可用的模型。");
   return model;
+}
+
+export function isAgentModelAvailable(role: AIReqAgentRole): boolean {
+  const bound = savedSettings.agents.find((agent) => agent.id === role);
+  const key = bound?.model === "inherit" ? savedSettings.defaultModel : bound?.model;
+  return catalogue.some((choice) => choice.id === key);
 }
 
 export function readPrototypeWorkflowDefaultModel() {
@@ -170,8 +210,7 @@ export function readPrototypeAgentModelBinding(role: AIReqAgentRole): {
     },
     runtimeModel: {
       providerId: model.providerId,
-      // 模拟原生模型目录以名称作为供应商内 ID；modelKey 是 AIReq 配置键，不能互换。
-      modelId: model.name,
+      modelId: model.modelId ?? model.name,
       reasoning: agent.reasoning,
     },
   };

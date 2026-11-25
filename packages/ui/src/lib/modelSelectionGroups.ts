@@ -21,25 +21,15 @@ export interface ModelProviderGroupLabelOptions {
   teamPlanFallbackLabel?: string;
 }
 
-function supportsRegistryApiFormat(
-  selectedProvider: ZCodeProvider,
-  apiFormat: string | null | undefined,
-): boolean {
-  if (!apiFormat) return false;
-  // 仅剩 glm（ZCode Agent）provider；三方 CLI 的 api format 差异已随 provider 下线。
-  return isZCodeAgentProvider(selectedProvider);
-}
-
 export function buildRegistryModelSelectGroups(
   selectedProvider: ZCodeProvider,
   view: WebModelSelectionView,
   labels: ModelProviderGroupLabelOptions = {},
 ): ModelSelectGroup[] {
-  return view.providers.flatMap((provider) => {
-    if (!supportsRegistryApiFormat(selectedProvider, provider.config.api?.type)) {
-      return [];
-    }
+  if (!isZCodeAgentProvider(selectedProvider)) return [];
 
+  // 修复：Web 目录已由服务端筛选；缺少可选 API 元数据不代表该供应商不可用。
+  return view.providers.map((provider) => {
     const accountAccess = zcodeProviderAccountAccessSchema.safeParse(provider.config.access);
     const accountPresentation = accountAccess.success
       ? getRegistryAccountProviderGroupPresentation(provider.providerId, accountAccess.data, labels)
@@ -53,27 +43,25 @@ export function buildRegistryModelSelectGroups(
         ? (labels.apiKeyBadgeLabel ?? "API")
         : undefined);
 
-    return [
-      {
-        key: `registry-provider:${provider.providerId}`,
-        label: accountPresentation?.label || provider.providerName?.trim() || provider.providerId,
-        ...(provider.config.logo ? { logo: provider.config.logo } : {}),
-        ...(labelBadge ? { labelBadge } : {}),
-        ...(accountPresentation ? { directItems: true } : {}),
-        items: provider.models.map(({ modelId, config }) => ({
-          key: `registry-provider:${provider.providerId}:${modelId}`,
-          value: encodeCustomModelValue(provider.providerId, modelId),
-          name: modelId,
-          ...(shouldShowModelVisionBadge(
-            modelId,
-            config.properties?.inputFormat?.supportsImage,
-            provider.config.access,
-          )
-            ? { supportsVisionInput: true }
-            : {}),
-        })),
-      },
-    ];
+    return {
+      key: `registry-provider:${provider.providerId}`,
+      label: accountPresentation?.label || provider.providerName?.trim() || provider.providerId,
+      ...(provider.config.logo ? { logo: provider.config.logo } : {}),
+      ...(labelBadge ? { labelBadge } : {}),
+      ...(accountPresentation ? { directItems: true } : {}),
+      items: provider.models.map(({ modelId, config }) => ({
+        key: `registry-provider:${provider.providerId}:${modelId}`,
+        value: encodeCustomModelValue(provider.providerId, modelId),
+        name: modelId,
+        ...(shouldShowModelVisionBadge(
+          modelId,
+          config.properties?.inputFormat?.supportsImage,
+          provider.config.access,
+        )
+          ? { supportsVisionInput: true }
+          : {}),
+      })),
+    };
   });
 }
 

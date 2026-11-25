@@ -27,6 +27,7 @@ import {
   type AIReqWorkflowView,
 } from "../contract.js";
 import { getEmployeeId } from "../identity.js";
+import { primaryDiscussionAgent } from "../proposalRoutes.js";
 import { AIReqMarkdownDocument } from "../proposals/AIReqMarkdownDocument.js";
 import { readMaterialSelection } from "../proposals/material-reader.js";
 import { AIREQ_CONTENT_WIDTH_CLASSNAME } from "../shell/pageLayout.js";
@@ -86,11 +87,12 @@ export function AIReqMaterialsPane({
   // 路径移除后回到当前默认文档。后续同路径再出现时不跳回旧选择。
   if (path && !selected) setPath(undefined);
   const viewingHistory = historyVersion !== undefined;
-  const discussingThisRequirement =
+  const primaryAgent = primaryDiscussionAgent(group);
+  const discussingPrimary =
     ai.mainView === "chat" &&
     ai.selection.projectId === group.projectId &&
     ai.selection.irId === group.id &&
-    ai.selection.discussionPhase === "requirements";
+    ai.selection.discussionPhase === primaryAgent;
   const version = viewingHistory ? historical : group.documentVersion;
   const previousVersions = group.documentHistory.filter(
     (snapshot) => snapshot.number !== group.documentVersion?.number,
@@ -149,7 +151,7 @@ export function AIReqMaterialsPane({
       !versionToolbar.current?.isConnected ||
       ai.settingsOpen ||
       ai.selection.projectId !== group.projectId ||
-      (agent === "solution" && !canUseSolution)
+      !group.sessions.some((session) => session.phase === agent)
     )
       return;
     // 完整视图会隐藏会话，即使目标已是当前会话，也要先让主区恢复可交互。
@@ -217,7 +219,7 @@ export function AIReqMaterialsPane({
               {active && (
                 <AIReqDocumentConfirmation
                   canConfirm={canConfirm}
-                  canUseSolution={canUseSolution}
+                  sessions={group.sessions}
                   requirementsPath={group.documentPath}
                   validateVersion={validateVersion}
                   confirmVersion={confirmVersion}
@@ -317,14 +319,18 @@ export function AIReqMaterialsPane({
                       ? "暂无文档"
                       : "No documents yet"}
               </p>
-              {!version && !viewingHistory && (
+              {!version && !viewingHistory && primaryAgent && (
                 <>
                   <p className="text-ui-caption text-foreground-subtle">
-                    {zh
-                      ? "在需求讨论中整理需求，保存的需求文档会显示在这里。"
-                      : "Use the requirements discussion to draft a document. Saved documents appear here."}
+                    {primaryAgent === "solution"
+                      ? zh
+                        ? "在方案讨论中编写设计和测试方案。"
+                        : "Use the solution discussion to write the design and test plan."
+                      : zh
+                        ? "在需求讨论中整理需求，保存的需求文档会显示在这里。"
+                        : "Use the requirements discussion to draft a document. Saved documents appear here."}
                   </p>
-                  {!discussingThisRequirement && (
+                  {!discussingPrimary && (
                     <Button
                       type="button"
                       variant="outline"
@@ -332,11 +338,17 @@ export function AIReqMaterialsPane({
                         ai.select({
                           projectId: group.projectId,
                           irId: group.id,
-                          discussionPhase: "requirements",
+                          discussionPhase: primaryAgent,
                         })
                       }
                     >
-                      {zh ? "讨论需求" : "Discuss requirements"}
+                      {primaryAgent === "requirements"
+                        ? zh
+                          ? "讨论需求"
+                          : "Discuss requirements"
+                        : zh
+                          ? "讨论方案"
+                          : "Discuss solution"}
                     </Button>
                   )}
                 </>

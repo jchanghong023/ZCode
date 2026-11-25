@@ -41,6 +41,7 @@ const requirement = z
     piName: z.string().nullish(),
   })
   .catchall(z.json());
+export { project as cloudProjectSchema, requirement as cloudRequirementSchema };
 const requirementResponse = z.object({
   project: projectId,
   domains: z.array(
@@ -61,11 +62,6 @@ const commentAddResponse = z.object({ project: projectId.optional(), comment: cl
 const commentDeleteResponse = z.object({ project: projectId.optional() });
 export type CloudDragonProject = z.infer<typeof project>;
 export type CloudDragonRequirement = z.infer<typeof requirement>;
-
-const mockCli =
-  process.env["ZCODE_CLOUDDRAGON_MODE"] === "mock"
-    ? resolve("scripts/mock-clouddragon/cli.mjs")
-    : undefined;
 
 const failure = z.object({
   ok: z.literal(false),
@@ -100,19 +96,27 @@ function runCloudDragon<T extends { project?: string | undefined }>(
   data: z.ZodType<T>,
   selectedProjectId?: string,
 ): Promise<T> {
+  if (process.env["ZCODE_CLOUDDRAGON_MODE"] === "disabled") {
+    return Promise.reject(businessRule("红区通过交接文件读取需求，不连接云龙。"));
+  }
   const response = z.object({ ok: z.literal(true), data });
   const writingComment = args[0] === "comment" && args[1] !== "list";
   const projectArgs = selectedProjectId ? ["--project", selectedProjectId] : [];
+  const mock = process.env["ZCODE_CLOUDDRAGON_MODE"] === "mock";
+  const mockCommand =
+    process.env["ZCODE_EMBEDDED_CLOUDDRAGON"] === "1"
+      ? "clouddragon"
+      : resolve("scripts/mock-clouddragon/cli.mjs");
   return new Promise((resolve, reject) => {
     execFile(
-      mockCli ? process.execPath : "clouddragon",
-      [...(mockCli ? [mockCli] : []), ...projectArgs, ...args],
+      mock ? process.execPath : "clouddragon",
+      [...(mock ? [mockCommand] : []), ...projectArgs, ...args],
       {
         encoding: "buffer",
         env: {
           ...process.env,
           PYTHONIOENCODING: "utf-8",
-          ...(mockCli && writingComment && { ZCODE_CLOUDDRAGON_MOCK_ACTOR: getEmployeeId() }),
+          ...(mock && writingComment && { ZCODE_CLOUDDRAGON_MOCK_ACTOR: getEmployeeId() }),
         },
         maxBuffer: 32 * 1024 * 1024,
         timeout: 60_000,

@@ -1,9 +1,9 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
-import { ServiceCollection, IZCodeAgentService } from "@zcode/services";
+import { ServiceCollection, IZCodeAgentService, IModelSelectionService } from "@zcode/services";
 import { MockRuntime } from "../mock/runtime.js";
-import { MockZCodeAgentService } from "../mock/zcodeAgent.js";
+import { MockZCodeAgentService, type ProductionNativeOptions } from "../mock/zcodeAgent.js";
 import { registerModelSelectionMockService } from "../mock/domains/contract.js";
 import { starterChatSessions } from "./fixtures.js";
 
@@ -36,19 +36,30 @@ async function resolveChatDirectory(root: string, input: string): Promise<string
   });
 }
 
-export function createWebChatServices(workspacePath: string): ServiceCollection {
-  const runtime = new MockRuntime({ workspacePath });
-  const agent = new MockZCodeAgentService(runtime, undefined, {
-    actorKey: () => {
-      const id = browser.getStore();
-      if (!id) throw new Error("聊天连接身份无效。");
-      return id;
+export function createWebChatServices(
+  workspacePath: string,
+  production?: ProductionNativeOptions,
+  localTuiHistory = false,
+): ServiceCollection {
+  const runtime = new MockRuntime({ workspacePath, production: Boolean(production) });
+  const agent = new MockZCodeAgentService(
+    runtime,
+    undefined,
+    {
+      actorKey: () => {
+        const id = browser.getStore();
+        if (!id) throw new Error("聊天连接身份无效。");
+        return id;
+      },
+      resolveDirectory: (path) => resolveChatDirectory(workspacePath, path),
+      starterSessions: production ? [] : starterChatSessions,
+      tuiHistory: localTuiHistory ? production?.engine.tuiChatHistory() : undefined,
     },
-    resolveDirectory: (path) => resolveChatDirectory(workspacePath, path),
-    starterSessions: starterChatSessions,
-  });
+    production,
+  );
   const services = new ServiceCollection().register(IZCodeAgentService, agent);
-  registerModelSelectionMockService(services);
+  if (production) services.register(IModelSelectionService, production.engine);
+  else registerModelSelectionMockService(services);
   return services;
 }
 

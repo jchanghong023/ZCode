@@ -15,12 +15,11 @@ import {
   type AIReqWorkspace,
 } from "@zcode/services/aireq";
 import { businessRule } from "./errors.js";
-import type {
-  NativeDocumentOutput,
-  Project,
-  RequirementGroup,
-  WorkflowState,
-} from "./workflow-state.js";
+import { onProductionOpen, production } from "./production-store.js";
+import { createRedZoneReceiver } from "./zone-receiver.js";
+import type { ProductionStore } from "./production-store.js";
+import { createServiceLogger } from "@zcode/services/logger";
+import type { NativeDocumentOutput, RequirementGroup, WorkflowState } from "./workflow-state.js";
 import { createPrototypeEvent } from "./events.js";
 import {
   projectNativeContext,
@@ -40,17 +39,17 @@ import {
 import { getEmployeeId, isEmployeeId } from "./identity.js";
 import {
   readPrototypeProjectSetting,
+  configuredStorageDirectory,
+  projectSettingsForSource,
   readPrototypeProjectSettings,
   syncPrototypeProjectNames,
 } from "./project-settings.js";
-import { sessionRef } from "./fixture-builders.js";
-import { readPrototypeAgentModelBinding } from "./agent-models.js";
-import { prototypeIrRoot } from "./proposal-storage.js";
+import { mergeSourceRequirement, type PrototypeCatalogue } from "./catalogue-source.js";
+import { isAgentModelAvailable, readPrototypeAgentModelBinding } from "./agent-models.js";
 import { emptyDocumentFormats } from "./materials.js";
 import {
   readCloudDragonProjects,
   cloudDragonRequirementDetails,
-  cloudDragonProposalFields,
   type CloudDragonRequirement,
   readCloudDragonRequirements,
 } from "./clouddragon.js";
@@ -64,6 +63,8 @@ import {
 import {
   projectDocumentDirectory,
   publishRequirementDocuments,
+  queueSharedDocument,
+  sharedPublicationPrefix,
   type ProjectDocumentSnapshot,
 } from "./project-files.js";
 import { validateDocumentVersion } from "./document-validation.js";
@@ -81,13 +82,43 @@ let state: WorkflowState = {
 };
 export const prototypeWorkflowChanges = createPrototypeEvent<void>();
 
+onProductionOpen((store) => {
+  const saved = store.get<WorkflowState>("workflow");
+  if (!saved) return;
+  let interrupted = false;
+  for (const requirement of saved.requirements) {
+    for (const review of requirement.documentReviews) {
+      if (review.status !== "running") continue;
+      review.status = "failed";
+      review.report = "服务重启中断了本次评审，请重新发起。";
+      interrupted = true;
+    }
+  }
+  if (interrupted) {
+    saved.revision += 1;
+    store.set("workflow", saved);
+  }
+  state = saved;
+});
+
 /** 同一个业务 owner 的事务入口；失败或未产生变更时保留原工作流。 */
-function mutatePrototypeWorkflow(update: (next: WorkflowState) => boolean): void {
+function mutatePrototypeWorkflow(
+  update: (next: WorkflowState) => boolean,
+  commitReceipt?: (next: WorkflowState) => void,
+): WorkflowState {
   const next = structuredClone(state);
   next.revision += 1;
-  if (!update(next)) return;
+  if (!update(next)) return state;
+  if (production) {
+    const store = production;
+    store.db.transaction(() => {
+      store.set("workflow", next);
+      commitReceipt?.(next);
+    })();
+  }
   state = next;
   prototypeWorkflowChanges.fire();
+  return next;
 }
 
 export function readPrototypeWorkflowRevision(): number {
@@ -96,132 +127,73 @@ export function readPrototypeWorkflowRevision(): number {
 
 async function refreshPrototypeProjects(): Promise<void> {
   const cloudProjects = await readCloudDragonProjects();
+  const projects = cloudProjects.map(projectSettingsForSource);
+  if (JSON.stringify(projects) !== JSON.stringify(state.projects)) {
+    const next = { ...state, projects, revision: state.revision + 1 };
+    production?.set("workflow", next);
+    state = next;
+  }
   syncPrototypeProjectNames(cloudProjects);
-  const { projects } = readPrototypeProjectSettings();
-  if (JSON.stringify(projects) !== JSON.stringify(state.projects))
-    state = { ...state, projects, revision: state.revision + 1 };
 }
 
 async function refreshRequirements(projectId: string): Promise<CloudDragonRequirement[]> {
   const { items, domainNames } = await readCloudDragonRequirements(projectId);
   if (!readPrototypeProjectSetting(projectId))
     throw businessRule("云龙目录已不包含此项目，请重新选择。");
-  const current = state.requirements.filter((item) => item.projectId === projectId);
-  const byId = new Map(current.map((item) => [item.id, item]));
-  const requirements = items.map((item) => {
-    const existing = byId.get(item.businessNo);
-    // 业务号仅用于关联；云龙标题缺失时不将其伪装成需求名称。
-    const title = item.name?.trim() ?? "";
-    const originalText =
-      item.description
-        .replace(/<br\s*\/?\s*>|<\/(?:p|div|li)>/gi, "\n")
-        .replace(/<\/?[a-z][^>]*>/gi, "")
-        .replace(/&nbsp;/gi, " ")
-        .trim() || title;
-    const submittedBy = item.submitter.trim() || item.creator.trim();
-    const personnel = {
-      delivererOwner: item.delivererOwner || undefined,
-      owner: item.owner || undefined,
-      seId: item.seId || undefined,
-      de: item.de || undefined,
-      te: item.te || undefined,
-    };
-    const process = item.process || undefined;
-    const releaseId = item.pi?.trim() ?? "";
-    const releaseName = releaseId ? item.piName?.trim() || undefined : undefined;
-    const sourceDate = item.createDate.trim();
-    const createdAt = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(sourceDate)
-      ? sourceDate.replace(" ", "T") + "+08:00"
-      : sourceDate;
-    const cloudFields = cloudDragonProposalFields(item, domainNames.get(item.domain));
-    if (existing) {
-      if (
-        existing.title === title &&
-        existing.originalText === originalText &&
-        existing.sourceDescription === item.description &&
-        existing.submittedBy === submittedBy &&
-        existing.delivererOwner === personnel.delivererOwner &&
-        existing.owner === personnel.owner &&
-        existing.seId === personnel.seId &&
-        existing.de === personnel.de &&
-        existing.te === personnel.te &&
-        existing.process === process &&
-        existing.releaseId === releaseId &&
-        existing.releaseName === releaseName &&
-        existing.createdAt === createdAt &&
-        JSON.stringify(existing.cloudFields) === JSON.stringify(cloudFields)
-      )
-        return existing;
-      return {
-        ...existing,
-        title,
-        originalText,
-        sourceDescription: item.description,
-        submittedBy,
-        ...personnel,
-        process,
-        releaseId,
-        releaseName,
-        createdAt,
-        cloudFields,
-        revision: existing.revision + 1,
-      };
-    }
-    return {
-      id: item.businessNo,
+  const current = state.requirements.filter((row) => row.projectId === projectId);
+  const byId = new Map(current.map((row) => [row.id, row]));
+  const requirements = items.map((item) =>
+    mergeSourceRequirement(
       projectId,
-      releaseId,
-      releaseName,
-      title,
-      originalText,
-      sourceDescription: item.description,
-      submittedBy,
-      ...personnel,
-      process,
-      createdAt,
-      cloudFields,
-      documentPath: `${prototypeIrRoot(item.businessNo)}/requirements.md`,
-      revision: 1,
-      srIds: [],
-      sessions: [
-        sessionRef(projectId, item.businessNo, "requirements"),
-        sessionRef(projectId, item.businessNo, "solution"),
-      ],
-      documentHistory: [],
-      documentReviews: [],
-    };
-  });
-  const activeIds = new Set(requirements.map(({ id }) => id));
-  // Keep local workflow records when an IR disappears from the cloud catalogue.
-  const retained = current.filter(({ id }) => !activeIds.has(id));
-  const active = current.filter(({ id }) => activeIds.has(id));
+      item,
+      domainNames.get(item.domain),
+      byId.get(item.businessNo),
+    ),
+  );
+  const activeIds = new Set(requirements.map((row) => row.id));
+  const active = current.filter((row) => activeIds.has(row.id));
   if (
-    active.length === requirements.length &&
-    requirements.every((item, index) => item === active[index])
+    requirements.every((row, index) => row === active[index]) &&
+    active.length === requirements.length
   )
     return items;
-  state = {
+
+  const next = {
     ...state,
     revision: state.revision + 1,
     requirements: state.requirements
-      .filter((item) => item.projectId !== projectId)
-      .concat(requirements, retained),
+      .filter((row) => row.projectId !== projectId || !activeIds.has(row.id))
+      .concat(requirements),
   };
+  production?.set("workflow", next);
+  state = next;
   return items;
 }
 
-export interface PrototypeCatalogue {
-  projects: Project[];
-  requirements: RequirementGroup[];
-  details: ReadonlyMap<string, ReadonlyMap<string, CloudDragonRequirement>>;
-  failures: string[];
-}
+export type { PrototypeCatalogue } from "./catalogue-source.js";
 
 let catalogueRead: Promise<PrototypeCatalogue> | undefined;
 let catalogueCompletedAt: number | undefined;
 let previousCatalogue: PrototypeCatalogue | undefined;
 
-export function readPrototypeCatalogue(): Promise<PrototypeCatalogue> {
+const exchangeLog = createServiceLogger("aireq.exchange");
+
+const redZone = createRedZoneReceiver({
+  current: () => state,
+  install: (next) => {
+    state = next;
+  },
+  queueShared: queueSharedPublication,
+  notify: (store) => {
+    publishCommittedDocuments(store);
+    prototypeWorkflowChanges.fire();
+  },
+});
+export const startRedZoneImport = redZone.start;
+
+export function readPrototypeCatalogue(explicitRefresh = false): Promise<PrototypeCatalogue> {
+  if (production) publishCommittedDocuments(production);
+  if (production?.zone === "red") return redZone.read(production, explicitRefresh);
   if (
     catalogueRead &&
     (catalogueCompletedAt === undefined || performance.now() - catalogueCompletedAt < 3_000)
@@ -342,6 +314,7 @@ export function capturePrototypeRequirementList(
     if (document && (!document.valid || document.error || document.content === undefined))
       throw businessRule(`需求 ${item.id} 的需求文档不可读取，请重试全量同步。`);
     project.requirements.push({
+      ...(production && { source: catalogue.details.get(item.projectId)?.get(item.id) }),
       irId: item.id,
       title: item.title,
       description: item.sourceDescription,
@@ -387,6 +360,41 @@ function currentProjectDocumentDirectory(projectId: string): string | undefined 
   return storageDirectory ? projectDocumentDirectory(storageDirectory) : undefined;
 }
 
+function queueSharedPublication(
+  store: ProductionStore,
+  next: WorkflowState,
+  requirement: RequirementGroup,
+) {
+  if (!next.projects.some((p) => p.id === requirement.projectId && p.storageDirectory)) return;
+  queueSharedDocument(store, requirement.projectId, requirement.id);
+}
+
+function publishCommittedDocuments(store: ProductionStore) {
+  // 共享目录是业务快照的导出。持久提交后再发布，I/O 中断后按最新内容重试。
+  for (const [key, target] of store.entries<AIReqObjectRef>(sharedPublicationPrefix)) {
+    const directory = configuredStorageDirectory(target.projectId);
+    const ir = state.requirements.find(
+      (r) => r.projectId === target.projectId && r.id === target.irId,
+    );
+    try {
+      if (ir && directory) {
+        publishRequirementDocuments(
+          projectDocumentDirectory(directory),
+          ir.id,
+          requirementMaterialsFor(state, ir),
+        );
+      }
+      store.db.query("DELETE FROM records WHERE name=?").run(sharedPublicationPrefix + key);
+    } catch (error) {
+      exchangeLog.warn(undefined, "需求文档已保存，共享目录发布等待重试。", {
+        projectId: target.projectId,
+        irId: target.irId,
+        error,
+      });
+    }
+  }
+}
+
 export function validatePrototypeDocumentVersion({
   projectId,
   irId,
@@ -403,7 +411,42 @@ export function validatePrototypeDocumentVersion({
 }
 
 export function readPrototypeNativeContext(sessionId: string) {
-  return projectNativeContext(state, sessionId);
+  const context = projectNativeContext(state, sessionId);
+  if (
+    context &&
+    production &&
+    context.ref.phase !== (production.zone === "red" ? "solution" : "requirements")
+  )
+    throw businessRule("该会话不属于当前部署区。");
+  return context;
+}
+
+function captureDocumentInputs(current: WorkflowState, requirement: RequirementGroup) {
+  const materials = requirementMaterialsFor(current, requirement);
+  const srs = current.srs.filter(
+    (row) => row.projectId === requirement.projectId && row.irId === requirement.id,
+  );
+  const source = {
+    id: requirement.id,
+    title: requirement.title,
+    description: requirement.sourceDescription,
+  };
+  const version = requirement.documentVersion;
+  const stamp = JSON.stringify([
+    source,
+    fileVersions(materials),
+    srs,
+    current.documentFormats,
+    version?.number,
+    version?.confirmation,
+  ]);
+  return { stamp, source, materials, srs, formats: current.documentFormats };
+}
+
+export function captureNativeDocumentInputs(sessionId: string) {
+  const target = projectNativeContext(state, sessionId);
+  if (!target) throw businessRule("会话不属于当前需求。");
+  return structuredClone(captureDocumentInputs(state, target.requirement));
 }
 
 export function readPrototypeProjectDirectory() {
@@ -422,6 +465,7 @@ export function notifyPrototypeProjectSettingsChanged(): void {
     next.projects = readPrototypeProjectSettings().projects;
     return true;
   });
+  if (production) publishCommittedDocuments(production);
 }
 
 export function canAccessSolution(projectId: string): boolean {
@@ -447,6 +491,8 @@ function bindPrototypeDiscussion(
   if (!requirement) return;
   const ref = requirement.sessions.find((item) => item.phase === phase);
   if (!ref || ref.runtimeModel) return;
+  // 目录、评论和历史材料只需读取。缺少可用模型时，应由真正的发送操作报错。
+  if (production && !isAgentModelAvailable(phase)) return;
 
   const bound = { ...ref, ...readPrototypeAgentModelBinding(phase) };
   const requirements = state.requirements.slice();
@@ -455,14 +501,31 @@ function bindPrototypeDiscussion(
     sessions: requirement.sessions.map((item) => (item === ref ? bound : item)),
   };
   // 目录预留 ID 不应锁定配置。首次讨论只更新 canonical 引用，让旧目录重合并而不推进业务 revision。
-  state = { ...state, requirements };
+  const next = { ...state, requirements };
+  production?.set("workflow", next);
+  state = next;
+}
+
+export function ensureProductionDiscussionBinding(sessionId: string): void {
+  if (!production) return;
+  const target = readPrototypeNativeContext(sessionId);
+  if (!target) throw businessRule("会话不属于当前需求。");
+  if (!target.ref.runtimeModel) {
+    bindPrototypeDiscussion(target.ref.projectId, target.ref.irId, target.ref.phase);
+    if (!readPrototypeNativeContext(sessionId)?.ref.runtimeModel)
+      throw businessRule("当前角色尚未配置可用的 OMP 模型，请先在模型设置中选择。");
+  }
 }
 
 export function readPrototypeWorkflow(
-  { projectId, irId, discussionPhase = "requirements" }: AIReqWorkflowTarget,
+  { projectId, irId, discussionPhase }: AIReqWorkflowTarget,
   catalogue: PrototypeCatalogue,
   bindSession: boolean,
 ): Pick<AIReqRemoteWorkflow, "view" | "session"> {
+  const activePhase = production?.zone === "red" ? "solution" : "requirements";
+  if (production && bindSession && irId && discussionPhase && discussionPhase !== activePhase)
+    throw businessRule("该会话不属于当前部署区。");
+  discussionPhase ??= activePhase;
   const visible = catalogue.projects.some(({ id }) => id === projectId);
   const solution = projectId !== undefined && canAccessSolution(projectId);
   if (
@@ -497,9 +560,13 @@ export function readPrototypeWorkflow(
     srs: source.srs
       .filter((item) => item.projectId === projectId && requirementIds.has(item.irId))
       .map(projectSystemRequirement),
-    materials: source.materials
-      .filter((item) => item.projectId === projectId && requirementIds.has(item.irId))
-      .map(readPrototypeMaterial),
+    materials: source.importedRequirements?.length
+      ? requirements
+          .flatMap((row) => requirementMaterialsFor(source, row))
+          .map(readPrototypeMaterial)
+      : source.materials
+          .filter((item) => item.projectId === projectId && requirementIds.has(item.irId))
+          .map(readPrototypeMaterial),
   };
   return {
     view,
@@ -517,10 +584,7 @@ export function retryPrototypeWorkflowMaterial(request: AIReqMaterialReadRequest
     (item) => item.projectId === projectId && item.releaseId === releaseId && item.id === irId,
   );
   const material =
-    requirement &&
-    state.materials.find(
-      (item) => item.projectId === projectId && item.irId === irId && item.path === path,
-    );
+    requirement && requirementMaterialsFor(state, requirement).find((item) => item.path === path);
   if (!material) throw businessRule("材料不属于当前需求版本。");
   if (material.sha256 !== sha256) throw businessRule("材料版本已变化，请重新读取当前版本。");
   const hadReadIssue = prototypeMaterialIssue(material);
@@ -544,21 +608,35 @@ export function commitPrototypeNativeDocuments(
   output: NativeDocumentOutput,
 ): boolean {
   let changed = false;
-  mutatePrototypeWorkflow((next) => {
-    const context = projectNativeContext(next, sessionId);
-    if (!context || context.ref.phase !== output.agent) throw businessRule("会话不属于当前需求。");
-    changed = saveDocumentChanges(next, context.requirement, output);
-    if (changed) {
-      const documents = currentProjectDocumentDirectory(context.requirement.projectId);
-      if (documents)
-        publishRequirementDocuments(
-          documents,
-          context.requirement.id,
-          requirementMaterialsFor(next, context.requirement),
-        );
-    }
-    return changed;
-  });
+  let edited: RequirementGroup | undefined;
+  mutatePrototypeWorkflow(
+    (next) => {
+      const context = projectNativeContext(next, sessionId);
+      if (!context || context.ref.phase !== output.agent)
+        throw businessRule("会话不属于当前需求。");
+      if (
+        output.expectedInputs !== undefined &&
+        output.expectedInputs !== captureDocumentInputs(next, context.requirement).stamp
+      )
+        throw businessRule("本轮依据的需求或材料已更新，请重新读取后提交。");
+      changed = saveDocumentChanges(next, context.requirement, output);
+      if (changed && production) edited = context.requirement;
+      if (changed && !production) {
+        const documents = currentProjectDocumentDirectory(context.requirement.projectId);
+        if (documents)
+          publishRequirementDocuments(
+            documents,
+            context.requirement.id,
+            requirementMaterialsFor(next, context.requirement),
+          );
+      }
+      return changed;
+    },
+    (next) => {
+      if (edited && production) queueSharedPublication(production, next, edited);
+    },
+  );
+  if (edited && production) publishCommittedDocuments(production);
   return changed;
 }
 
@@ -585,6 +663,7 @@ export function settlePrototypeDocumentReview(
 export function applyPrototypeAction(
   action: AIReqCommand,
   selection: AIReqCommandTarget,
+  commitReceipt?: (result: AIReqWorkflowResult) => void,
 ): { result: AIReqWorkflowResult; review?: DocumentReviewRun } {
   const targetProjectId = action.projectId ?? selection.projectId ?? "";
   const requirement =
@@ -611,6 +690,12 @@ export function applyPrototypeAction(
       throw businessRule("该工号已不在当前角色名单中，请重新读取。");
   }
   if (action.type === "reviewDocuments" || action.type === "confirmDocumentVersion") {
+    if (
+      action.type === "reviewDocuments" &&
+      production &&
+      action.agent !== (production.zone === "red" ? "solution" : "requirements")
+    )
+      throw businessRule("该评审不属于当前部署区。");
     if (!requirement) throw businessRule("当前项目不存在该需求。");
     if (
       action.type === "confirmDocumentVersion" ||
@@ -633,7 +718,7 @@ export function applyPrototypeAction(
     startedAt: at,
     completedAt: at,
     revision: state.revision + 1,
-    irId,
+    ...(irId === undefined ? {} : { irId }),
   };
   if (action.type === "confirmDocumentVersion" && requirement) {
     if (requirement.documentVersion?.confirmation)
@@ -644,50 +729,51 @@ export function applyPrototypeAction(
       operation.status = "failed";
       operation.error = "文档检查未通过，请修正后重新检查。";
       operation.revision = state.revision;
-      return {
-        result: {
-          projectId: targetProjectId,
-          irId,
-          receipt: operation,
-          documentValidation,
-        },
+      const result = {
+        projectId: targetProjectId,
+        irId,
+        receipt: operation,
+        documentValidation,
       };
+      commitReceipt?.(result);
+      return { result };
     }
   }
-  let review: DocumentReviewRun | undefined;
-  mutatePrototypeWorkflow((next) => {
-    if (action.type === "reviewDocuments" || action.type === "confirmDocumentVersion") {
-      const target = next.requirements.find(
-        (item) => item.projectId === targetProjectId && item.id === irId,
-      )!;
-      if (action.type === "reviewDocuments") {
-        review = acceptDocumentReview(
-          next,
-          target,
-          action.agent,
-          getEmployeeId(),
-          operation.startedAt,
-        );
-      } else {
-        confirmDocumentVersion(next, target, getEmployeeId(), operation.startedAt);
-      }
-    } else {
-      applyProposalMutation(next, action, targetProjectId, operation);
-    }
-    return true;
+  const resultFor = (committed: WorkflowState): AIReqWorkflowResult => ({
+    projectId: targetProjectId,
+    ...(irId === undefined ? {} : { irId }),
+    receipt: operation,
+    ...(action.type === "saveDocumentFormats" && {
+      documentFormatSnapshot: {
+        documentFormats: committed.documentFormats,
+        revision: committed.revision,
+      },
+    }),
   });
-  return {
-    review,
-    result: {
-      projectId: targetProjectId,
-      irId,
-      receipt: operation,
-      ...(action.type === "saveDocumentFormats" && {
-        documentFormatSnapshot: {
-          documentFormats: state.documentFormats,
-          revision: state.revision,
-        },
-      }),
+  let review: DocumentReviewRun | undefined;
+  const committed = mutatePrototypeWorkflow(
+    (next) => {
+      if (action.type === "reviewDocuments" || action.type === "confirmDocumentVersion") {
+        const target = next.requirements.find(
+          (item) => item.projectId === targetProjectId && item.id === irId,
+        )!;
+        if (action.type === "reviewDocuments") {
+          review = acceptDocumentReview(
+            next,
+            target,
+            action.agent,
+            getEmployeeId(),
+            operation.startedAt,
+          );
+        } else {
+          confirmDocumentVersion(next, target, getEmployeeId(), operation.startedAt);
+        }
+      } else {
+        applyProposalMutation(next, action, targetProjectId, operation);
+      }
+      return true;
     },
-  };
+    (next) => commitReceipt?.(resultFor(next)),
+  );
+  return { review, result: resultFor(committed) };
 }

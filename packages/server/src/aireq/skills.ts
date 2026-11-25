@@ -1,6 +1,8 @@
 import { businessRule } from "./errors.js";
 import type { SkillSummary } from "@zcode/shared";
 import { PROTOTYPE_BACKEND } from "./backend.js";
+import { production } from "./production-store.js";
+import { readPublishedSkills } from "./published-skills.js";
 const detail =
   '```mermaid\nflowchart LR\n  A["核对技能用途与范围"] --> B["确认输入和项目依赖"] --> C["查阅执行步骤"]\n```\n\n' +
   "# 技能详情\n\n用于核对技能的用途、使用条件和执行步骤。使用前，请核对技能内容、所需输入及适用范围，并确认目标项目包含所需依赖。不要把技能说明当作已经执行的结果。\n";
@@ -69,6 +71,7 @@ export function readPrototypeSkillNode(
 }
 
 export function readBuiltinPrototypeSkills(): SkillSummary[] {
+  if (production) return readPublishedSkills(production);
   return structuredClone(PROTOTYPE_SKILLS);
 }
 
@@ -76,6 +79,7 @@ function projectPrototypeSkills<T>(
   workspacePath: string | undefined,
   project: (skill: SkillSummary) => T,
 ): T[] {
+  if (production) return readPublishedSkills(production, workspacePath).map(project);
   const result = PROTOTYPE_SKILLS.map(project);
   const workspaceKey = workspacePath ? pathKey(workspacePath) : undefined;
   for (const entry of storage.skills) {

@@ -11,7 +11,7 @@ import {
 import { MockBroadcastService } from "./broadcast.js";
 import { registerModelSelectionMockService } from "./domains/models.js";
 import { registerSettingsMockServices } from "./domains/settings.js";
-import { MockProjectService } from "./project.js";
+import { ProjectDirectoryService } from "../project-directory.js";
 import { MockRuntime } from "./runtime.js";
 import { MockFileService } from "./workspace.js";
 import { MockZCodeAgentService } from "./zcodeAgent.js";
@@ -43,7 +43,7 @@ export function createMockServices(options: MockServicesOptions): {
   const native = new MockZCodeAgentService(runtime, aiReqService);
   aiReqService.bindReviewRuntime((work) => native.enqueueDocumentReview(work));
   services.register(IZCodeAgentService, native);
-  services.register(IProjectService, new MockProjectService(runtime));
+  services.register(IProjectService, new ProjectDirectoryService(runtime));
 
   return { services, runtime };
 }
