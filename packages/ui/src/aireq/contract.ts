@@ -8,9 +8,6 @@ export type {
   AIReqAction,
   AIReqAgentModelSettings,
   AIReqPresenceSnapshot,
-  AIReqIdea,
-  AIReqIdeaTarget,
-  AIReqIdeaTransfer,
   AIReqDataSource,
   AIReqDiscussionAgent,
   AIReqDocumentConfirmation,
@@ -54,6 +51,7 @@ export type { AIReqDocumentValidation } from "@zcode/services/aireq";
 
 /** SR 只在浏览器内定位文档，原生会话始终归属 IR。 */
 export interface AIReqSelection extends AIReqWorkflowTarget {
+  releaseId?: string;
   srId?: string;
 }
 
@@ -65,13 +63,7 @@ export interface AIReqApplicationProps {
   connected: boolean;
   operator: { employeeNumber: string; leave(): void };
 }
-export type AIReqMainView =
-  | "ideas"
-  | "chat"
-  | "projectProgress"
-  | "proposals"
-  | "roles"
-  | "skillDesign";
+export type AIReqMainView = "chat" | "projectProgress" | "proposals" | "roles" | "skillDesign";
 
 /** Shared draft commands; the Settings page remains the only pending-navigation owner. */
 export interface AIReqSettingsDraftActions {

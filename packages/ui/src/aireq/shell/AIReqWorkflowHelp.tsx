@@ -13,11 +13,11 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 
 const steps = [
   {
-    title: "添加需求",
-    titleEn: "Add a requirement",
-    description: "从「所有项目」打开对应版本的需求共创，即可新建需求。也可从想法池转入。",
+    title: "查看需求",
+    titleEn: "Open a requirement",
+    description: "从「所有项目」选择云龙项目，再打开要澄清的需求。",
     descriptionEn:
-      "From All projects, open a release to create a requirement in Co-creation. You can also move ideas from the Ideas pool.",
+      "Choose a CloudDragon project from All projects, then open a requirement to clarify it.",
   },
   {
     title: "与 Agent 协作",
@@ -76,8 +76,8 @@ export function AIReqWorkflowHelp({
         >
           <p className="mb-4 text-ui-sm leading-6 text-foreground-subtle">
             {zh
-              ? "「所有项目」和「想法池」跨项目。「需求共创」按侧栏所选项目与版本展示。"
-              : "All projects and Ideas span all projects. Co-creation follows the project and release selected in the sidebar."}
+              ? "「所有项目」汇总各个项目。「需求共创」按侧栏所选项目展示。"
+              : "All projects shows the project overview. Co-creation follows the project selected in the sidebar."}
           </p>
           <p className="mb-4 text-ui-sm leading-6 text-foreground-subtle">
             {zh

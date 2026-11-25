@@ -21,7 +21,6 @@ import { AIReqWorkflowHelp } from "./AIReqWorkflowHelp.js";
 import { AIReqSidebarNavigation } from "./AIReqSidebarNavigation.js";
 import { AIReqRolesPage } from "./AIReqRolesPage.js";
 import { AIReqMotion } from "./AIReqMotion.js";
-import { AIReqIdeaPool } from "../ideas/AIReqIdeaPool.js";
 import { AIReqProposalWorkspace } from "./AIReqProposalWorkspace.js";
 import {
   AIReqWorkspaceActiveContext,
@@ -68,7 +67,6 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
   const { setNavigationGuard } = ai;
   const settingsOpen = ai.settingsOpen;
   const proposalId = ai.mainView === "chat" ? ai.selection.irId : undefined;
-  const proposalOverlay = Boolean(ai.proposalDraft);
   const focusAgent = proposalId ? ai.selection.discussionPhase : undefined;
   const focusRoute = JSON.stringify([
     ai.mainView,
@@ -81,7 +79,6 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
     route: string;
     proposalId?: string;
     agent?: typeof focusAgent;
-    overlay: boolean;
   }>(undefined);
   const pendingMainFocus = useRef<{ proposalId?: string; agent?: typeof focusAgent } | null>(null);
   useLayoutEffect(() => {
@@ -90,20 +87,15 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
       route: focusRoute,
       proposalId,
       agent: focusAgent,
-      overlay: proposalOverlay,
     };
     if (previous?.route !== focusRoute) {
-      pendingMainFocus.current =
-        proposalOverlay || previous?.overlay
-          ? null
-          : {
-              proposalId: ai.mainView === "proposals" ? previous?.proposalId : undefined,
-              agent: previous?.agent,
-            };
+      pendingMainFocus.current = {
+        proposalId: ai.mainView === "proposals" ? previous?.proposalId : undefined,
+        agent: previous?.agent,
+      };
     }
     const target = pendingMainFocus.current;
-    if (!target || !ai.selectionReady || settingsOpen || proposalOverlay || !mainContent.current)
-      return;
+    if (!target || !ai.selectionReady || settingsOpen || !mainContent.current) return;
     // 页面切换会卸载原按钮。返回列表优先恢复原行；被筛选掉时读列表标题。
     const heading = [...mainContent.current.querySelectorAll("h1")].find(
       (element) => !element.closest("[hidden], [inert]"),
@@ -124,15 +116,7 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
     pendingMainFocus.current = null;
     if (heading && focusTarget === heading) heading.tabIndex = -1;
     focusTarget.focus({ preventScroll: !row });
-  }, [
-    ai.mainView,
-    ai.selectionReady,
-    focusRoute,
-    proposalId,
-    focusAgent,
-    proposalOverlay,
-    settingsOpen,
-  ]);
+  }, [ai.mainView, ai.selectionReady, focusRoute, proposalId, focusAgent, settingsOpen]);
   const settingsReturnFocus = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
     if (settingsOpen || !settingsReturnFocus.current) return;
@@ -209,13 +193,6 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
       setHelp(true);
     });
   const project = ai.view?.projects.find((item) => item.id === ai.selection.projectId);
-  // 空版本是范围事实；在 Shell 统一阻止进入无法保存的提案弹窗，并复用项目配置请求。
-  const missingRelease = Boolean(
-    ai.selectionReady &&
-    project &&
-    !ai.view?.releases.some((item) => item.projectId === project.id) &&
-    ai.mainView === "proposals",
-  );
   // 切项目后的旧投影不包含目标列表，不能先展示零条和空态。
   const listLoading = !ai.selectionReady && ai.mainView === "proposals";
   const listFeedback = (
@@ -240,13 +217,6 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
   if (ai.mainView === "projectProgress")
     content = (
       <AIReqProjectDocumentsPage
-        onAddProject={() => openProjectSettings({ kind: "create" })}
-        onConfigureProject={(projectId) => openProjectSettings({ kind: "project", projectId })}
-      />
-    );
-  else if (ai.mainView === "ideas")
-    content = (
-      <AIReqIdeaPool
         onConfigureProject={(projectId) => openProjectSettings({ kind: "project", projectId })}
       />
     );
@@ -254,11 +224,7 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
   else if (!project && ai.view && ai.selectionReady)
     content = (
       <div className="m-auto space-y-3 p-6 text-foreground-subtle">
-        <p>
-          {zh
-            ? "尚无项目，请返回项目列表添加项目。"
-            : "No project selected. Return to the project list to add one."}
-        </p>
+        <p>{zh ? "请选择一个云龙项目。" : "Select a CloudDragon project."}</p>
         <Button variant="outline" onClick={() => navigate(() => ai.setMainView("projectProgress"))}>
           {zh ? "返回项目列表" : "Back to projects"}
         </Button>
@@ -267,26 +233,6 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
   else if (ai.mainView === "proposals") content = null;
   else if (ai.mainView === "chat")
     content = <AIReqProposalWorkspace key={focusRoute} active={!settingsOpen} />;
-
-  if (missingRelease)
-    content = (
-      <main className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]">
-        <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} space-y-4`}>
-          <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "需求共创" : "Co-creation"}</h1>
-          <p role="status" className="text-foreground-subtle">
-            {zh
-              ? `暂无 Release。请先为 ${project!.name} 添加版本。`
-              : `${project!.name} has no releases. Add a release to continue.`}
-          </p>
-          <Button
-            variant="outline"
-            onClick={() => openProjectSettings({ kind: "project", projectId: project!.id })}
-          >
-            {zh ? "配置 Release" : "Configure releases"}
-          </Button>
-        </div>
-      </main>
-    );
 
   return (
     <div
@@ -374,7 +320,7 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
                   ) : ai.mainView !== "skillDesign" ? (
                     content
                   ) : null}
-                  {!missingRelease && (proposalsMounted || ai.mainView === "proposals") && (
+                  {(proposalsMounted || ai.mainView === "proposals") && (
                     <>
                       {ai.mainView === "proposals" && listLoading && listFeedback}
                       <div
@@ -389,7 +335,9 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
                             : "hidden"
                         }
                       >
-                        <AIReqProposalTable key={ai.selection.projectId ?? "no-project"} />
+                        <AIReqProposalTable
+                          key={JSON.stringify([ai.selection.projectId, ai.selection.releaseId])}
+                        />
                       </div>
                     </>
                   )}

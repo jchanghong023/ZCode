@@ -106,7 +106,7 @@ readonly onDidChange: Event<AIReqRemoteEvent>;
 
 `bootstrap` 无业务创建副作用，返回 `contractVersion`、opaque `backend.id`、`capabilities.workflowCommands`、可选 `initialProjectId`、模型 `choices/settings/revision`、提示词 `saved/revision`、`projects.workspaces` 和可选 Skill 存储目标。`projects.workspaces` 以项目 ID 为键，与同项目的 `readWorkflow.workspace` 同源，包含 `identity`、`kind` 及可选 `path`、`error`。初始化和元数据失效只读一次 bootstrap；浏览器不拼接身份、不用旧值覆盖不可用结果，也不猜测省略的默认项目。显式分享链接优先。响应不返回导航、私人草稿、服务注册清单或后端配置；刷新不覆盖未保存的提示词草稿。
 
-AIReq bootstrap 业务契约版本为 `27`。它与原生 Agent 的 Protocol v4 独立。工作流修订号用于适用 CAS 的写入，文档版本号由该需求的材料与确认事实决定。
+AIReq bootstrap 业务契约版本为 `28`。它与原生 Agent 的 Protocol v4 独立。工作流修订号用于适用 CAS 的写入，文档版本号由该需求的材料与确认事实决定。
 
 `models.settings.agents` 是模型与追加指令页签的有序角色目录，包含 `requirements`、`requirements-review`、`solution` 和 `solution-review`。
 
@@ -120,7 +120,7 @@ AIReq 工作区 `kind` 仅为 `proposal`（已登记项目）或 `unavailable`�
 
 `view.releases` 是全项目唯一 Release 目录，每项含 `id`、`projectId`、`title`、`createdAt`、`requirementCount` 和 `confirmedRequirementCount`。后者统计当前文档版本已确认的需求，未定版数为总数减去已定版数。计数按同一 owner 的 `(projectId, id)` 派生，含零需求 Release。详情、材料与会话按查询项目返回。项目无 Release 与视图未加载是不同状态。
 
-项目公开投影只含 `id`、`name`、`revision`、`defaultBranch` 和可选 `repositoryUrl`。项目工作区、存储元数据和完整操作身份由服务端持有。命令回执返回实际操作者工号 `actorEmployeeId`，不下发身份对象或 `clientId`；幂等记录不作为工作流历史下发。`readWorkflow.view.requirements` 返回当前项目的全部需求，不含录入来源或重复的文件清单，当前文件统一从 `view.materials` 读取。命令结果不返回创建想法 ID，客户端重读想法池。
+项目公开投影只含 `id`、`name`、`revision`、`defaultBranch` 和可选 `repositoryUrl`。项目工作区、存储元数据和完整操作身份由服务端持有。命令回执返回实际操作者工号 `actorEmployeeId`，不下发身份对象或 `clientId`；幂等记录不作为工作流历史下发。`readWorkflow.view.requirements` 返回当前项目的全部需求，不含录入来源或重复的文件清单，当前文件统一从 `view.materials` 读取。
 
 `view.projectRoleMembers` 包含全部项目的角色成员记录，每行含 `projectId`、`employeeId` 和 `role`；角色页按所选项目过滤。`view.roleAdministrator` 来自当前连接身份。需求的 `clientDraftId` 仅用于服务端去重。
 
@@ -175,13 +175,12 @@ AIReq 工作区 `kind` 仅为 `proposal`（已登记项目）或 `unavailable`�
 
 `deleteRequirement` 以 `projectId` 和 `irId` 指定目标，不接收固定的 `version` 字段。仍执行 `command` 的版本校验、目标归属校验和删除门禁。前端按通用回执的 `receipt.status` 判断删除是否完成，删除后的对象状态通过 `readWorkflow` 读取。
 
-操作版本记录在 `receipt.revision`；完整工作流及 `view.revision` 通过 `readWorkflow` 获取，命令结果不携带 `view` 或顶层 `revision`。仅 `saveDocumentFormats` 成功时返回 `documentFormatSnapshot: { documentFormats, revision }`；批量转入的 IR 对应关系从 `transferredRequirements` 返回，不在回执重复投影。
+操作版本记录在 `receipt.revision`；完整工作流及 `view.revision` 通过 `readWorkflow` 获取，命令结果不携带 `view` 或顶层 `revision`。仅 `saveDocumentFormats` 成功时返回 `documentFormatSnapshot: { documentFormats, revision }`。
 
 `addProjectRoleMember` 和 `removeProjectRoleMember` 提交 `projectId`、`employeeId` 和 `role`，沿用通用操作编号和工作流版本。服务端只接纳管理员对指定项目开发或测试名单的修改。
 
 公开动作白名单：
 
-- 想法使用 `createIdea`、`importIdeas`、`updateIdea`、`transferIdea`。
 - 配置及需求录入使用 `saveDocumentFormats`、`createRelease`、`createProposal`、`deleteRequirement`。
 - 项目角色使用 `addProjectRoleMember` 和 `removeProjectRoleMember`。
 - 文档评审和定版使用 `reviewDocuments` 和 `confirmDocumentVersion`。

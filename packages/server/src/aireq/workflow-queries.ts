@@ -2,7 +2,6 @@
 import type {
   AIReqNativeSessionRef,
   AIReqProject,
-  AIReqRelease,
   AIReqReleaseSummary,
   AIReqRequirementGroup,
   AIReqSystemRequirement,
@@ -51,6 +50,7 @@ export function projectRequirement(
 ): AIReqRequirementGroup {
   const {
     clientDraftId: _clientDraftId,
+    releaseName: _releaseName,
     documentVersion,
     documentReviews,
     sessions,
@@ -71,36 +71,36 @@ export function projectRequirement(
   };
 }
 
-/** 统计只读取已登记的 Release 和同一工作流的需求事实。 */
-export function projectReleases(
-  state: Pick<WorkflowState, "requirements" | "projects">,
-  releases: readonly AIReqRelease[],
-): AIReqReleaseSummary[] {
-  const byProject = new Map(
-    state.projects.map(({ id }) => [id, new Map<string, AIReqReleaseSummary>()]),
+export function projectReleaseSummaries({
+  projects,
+  requirements,
+}: Pick<WorkflowState, "projects" | "requirements">): AIReqReleaseSummary[] {
+  const active = new Set(projects.map(({ id }) => id));
+  const releases = new Map<string, AIReqReleaseSummary>();
+  for (const { projectId, releaseId, releaseName, documentVersion } of requirements) {
+    if (!active.has(projectId) || !releaseId) continue;
+    const key = JSON.stringify([projectId, releaseId]);
+    let release = releases.get(key);
+    if (!release) {
+      release = {
+        id: releaseId,
+        projectId,
+        title: releaseName || releaseId,
+        createdAt: "",
+        requirementCount: 0,
+        confirmedRequirementCount: 0,
+      };
+      releases.set(key, release);
+    } else if (release.title === releaseId && releaseName) {
+      release.title = releaseName;
+    }
+    release.requirementCount++;
+    if (documentVersion?.confirmation) release.confirmedRequirementCount++;
+  }
+  return [...releases.values()].sort(
+    (a, b) =>
+      b.title.localeCompare(a.title, undefined, { numeric: true }) || a.id.localeCompare(b.id),
   );
-  const summaries: AIReqReleaseSummary[] = [];
-  for (const { id, projectId, title, createdAt } of releases) {
-    const index = byProject.get(projectId);
-    if (!index) continue;
-    const summary = {
-      id,
-      projectId,
-      title,
-      createdAt,
-      requirementCount: 0,
-      confirmedRequirementCount: 0,
-    };
-    index.set(id, summary);
-    summaries.push(summary);
-  }
-  for (const group of state.requirements) {
-    const summary = byProject.get(group.projectId)?.get(group.releaseId);
-    if (!summary) continue;
-    summary.requirementCount++;
-    if (group.documentVersion?.confirmation) summary.confirmedRequirementCount++;
-  }
-  return summaries;
 }
 
 /** 原生会话热路径只读取其所属对象，不构建完整工作流投影。 */

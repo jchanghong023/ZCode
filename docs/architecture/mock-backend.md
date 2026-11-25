@@ -25,7 +25,7 @@ web/main.tsx → @zcode/client → 同源 /ws 二进制 Channel RPC
 
 | 状态                                                                          | 唯一所有者                                    | 边界                                   |
 | ----------------------------------------------------------------------------- | --------------------------------------------- | -------------------------------------- |
-| 项目、Release、想法、IR/SR、当前材料、文档版本和评审                          | `MockAIReqService` 与 `aireq/workflow.ts`     | UI 重读同源投影                        |
+| 项目、Release、IR/SR、当前材料、文档版本和评审                                | `MockAIReqService` 与 `aireq/workflow.ts`     | UI 重读同源投影                        |
 | 模型绑定、提示词及各自 revision                                               | `aireq/agent-models.ts`、`personalization.ts` | bootstrap 提供配置，不另建读取 RPC     |
 | Skill 私有草稿、预览、文件、版本与 catalog                                    | `aireq/skill-design.ts`、`skills.ts`          | 文件服务只读同一内存事实               |
 | rows、revision、phase、config、queue、plan、usage、pending、conversation 水位 | `MockRuntime.sessions` / `MockSession`        | `MockZCodeAgentService` 接纳命令并发帧 |

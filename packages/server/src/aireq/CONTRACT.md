@@ -18,11 +18,11 @@
 
 ## 调用与回执
 
-公开 `MockAIReqService` 由 `@zcode/services/aireq` 的接口与 descriptor 注册，bootstrap 契约版本为 `27`。普通调用绑定合法工号和 clientId，原生命令还要求原有 v4 握手及 HTTP 固定连接身份一致。业务写操作使用各自的校验与签名。普通 `command` 以第三参工作流 revision 做 CAS；`confirmDocumentVersion` 用预检快照而非该修订号，`reviewDocuments` 直接捕获接纳时最新已保存材料。命令按实际连接身份及 operationId 去重；同 ID 同内容显式重试返回原结果，复用 ID 但改内容则拒绝。重连只恢复订阅和重读。`readWorkflow`、`retrySession` 使用项目、IR 和 Agent 定位会话，命令目标只接受项目和 IR；这些目标均不接受 SR。材料读取恢复绑定项目、Release、IR、路径和正文摘要。
+公开 `MockAIReqService` 由 `@zcode/services/aireq` 的接口与 descriptor 注册，bootstrap 契约版本为 `28`。普通调用绑定合法工号和 clientId，原生命令还要求原有 v4 握手及 HTTP 固定连接身份一致。业务写操作使用各自的校验与签名。普通 `command` 以第三参工作流 revision 做 CAS；`confirmDocumentVersion` 用预检快照而非该修订号，`reviewDocuments` 直接捕获接纳时最新已保存材料。命令按实际连接身份及 operationId 去重；同 ID 同内容显式重试返回原结果，复用 ID 但改内容则拒绝。重连只恢复订阅和重读。`readWorkflow`、`retrySession` 使用项目、IR 和 Agent 定位会话，命令目标只接受项目和 IR；这些目标均不接受 SR。材料读取恢复绑定项目、Release、IR、路径和正文摘要。
 
-在线人员由连接 owner 持有工号及 IP 引用计数。想法以现有克隆事务统一校验及批量转入具体 Release，保留原文与实际提交信息。Release 统计从同一工作流按项目聚合。
+在线人员由连接 owner 持有工号及 IP 引用计数。Release 统计从同一工作流按项目聚合。
 
-公开回执不重复投影批量转入的 IR 清单，转入目标通过 `transferredRequirements` 返回。工作流不把幂等记录当作操作历史下发。
+工作流不把幂等记录当作操作历史下发。
 
 配置读取经 bootstrap。模型和追加指令各自使用独立 revision；配置成功后服务端记录操作、实际操作者和时间，避免把配置正文记录进日志。隐藏 Skill 仍在已有原生会话和私有存储中工作。Skill 保存和读取共享唯一内存文件事实。
 

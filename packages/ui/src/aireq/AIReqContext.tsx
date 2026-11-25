@@ -70,29 +70,8 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
   }));
   const navigationRef = useRef(navigation);
   const historyInitialized = useRef(false);
-  const releaseRef = useRef("");
-  const projectReleasesRef = useRef(new Map<string, string>());
-  const resolveRelease = useCallback(
-    (projectId: string | undefined, snapshot: AIReqWorkflowView, preferred?: string) => {
-      const releases = snapshot.releases.filter((item) => item.projectId === projectId);
-      const saved =
-        preferred || (projectId ? projectReleasesRef.current.get(projectId) : undefined);
-      return (
-        releases.find((item) => item.id === saved)?.id ??
-        [...releases].sort(
-          (a, b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id),
-        )[0]?.id ??
-        ""
-      );
-    },
-    [],
-  );
   const recordNavigation = useCallback(
-    (
-      target: AIReqSelection,
-      mainView: WorkspaceMainView,
-      overlay: NavigationOverlay = null,
-    ) => {
+    (target: AIReqSelection, mainView: WorkspaceMainView, overlay: NavigationOverlay = null) => {
       const previous = navigationRef.current;
       const next = {
         index: previous.index + 1,
@@ -109,13 +88,12 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
           aiReqNavigationIndex: next.index,
           aiReqNavigationExtent: next.extent,
           aiReqMainView: mainView,
-          aiReqReleaseId: releaseRef.current,
           aiReqOverlay: overlay,
         },
         "",
         mainView !== "chat"
           ? withoutObjectLink(new URL(window.location.href))
-          : requirementObjectLink(window.location.href, target, releaseRef.current),
+          : requirementObjectLink(window.location.href, target, target.releaseId),
       );
       navigationRef.current = next;
       setNavigation(next);
@@ -129,7 +107,6 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
   const [linkError, setLinkError] = useState<"incomplete" | "not-found">();
   const commandError = useRef(false);
   const [pending, setPending] = useState(true);
-  const [releaseId, updateReleaseId] = useState("");
   const requestRevision = useRef(0);
   const draftGuardRef = useRef<((navigate: () => void) => void) | null>(null);
   const draftGuards = useRef(new Map<string, (navigate: () => void) => void>());
@@ -185,13 +162,6 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         setLoadedSelection(target);
         // 修复：订阅重读不是命令重试，不能抹掉尚未处理的业务提交失败。
         if (!commandError.current) setError(undefined);
-        // 旧历史与首次读取也必须落到具体版本；只在当前读取代际接纳后规范范围。
-        const resolved = resolveRelease(target.projectId, next, releaseRef.current);
-        releaseRef.current = resolved;
-        updateReleaseId(resolved);
-        if (target.projectId && resolved)
-          projectReleasesRef.current.set(target.projectId, resolved);
-        window.history.replaceState({ ...window.history.state, aiReqReleaseId: resolved }, "");
       } catch (cause) {
         if (revision === requestRevision.current) report(cause);
         if (throwOnError) throw cause;
@@ -199,7 +169,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         if (revision === requestRevision.current) setPending(false);
       }
     },
-    [source, report, resolveRelease],
+    [source, report],
   );
   const refresh = useCallback(() => load(selectionRef.current), [load]);
   useEffect(() => {
@@ -213,34 +183,11 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     };
   }, [source, refresh]);
   const select = useCallback(
-    (
-      value: AIReqSelection,
-      addHistory = true,
-      mainView: WorkspaceMainView = "chat",
-      targetReleaseId?: string,
-    ) => {
-      const previousReleaseId = releaseRef.current;
-      const projectChanged = selectionRef.current.projectId !== value.projectId;
-      const snapshot = viewRef.current;
-      const selectedGroup = snapshot?.requirements.find(
-        (item) => item.projectId === value.projectId && item.id === value.irId,
-      );
-      // 对象所属版本优先；普通切项目恢复该项目选择，不携带旧项目的范围。
-      const preferred =
-        targetReleaseId ||
-        selectedGroup?.releaseId ||
-        (!projectChanged ? releaseRef.current : undefined);
-      const resolved = snapshot
-        ? resolveRelease(value.projectId, snapshot, preferred)
-        : (preferred ?? "");
-      releaseRef.current = resolved;
-      updateReleaseId(resolved);
-      if (value.projectId && resolved) projectReleasesRef.current.set(value.projectId, resolved);
+    (value: AIReqSelection, addHistory = true, mainView: WorkspaceMainView = "chat") => {
       if (
         addHistory &&
         (JSON.stringify(value) !== JSON.stringify(selectionRef.current) ||
-          navigationRef.current.mainView !== mainView ||
-          previousReleaseId !== releaseRef.current)
+          navigationRef.current.mainView !== mainView)
       )
         recordNavigation(value, mainView);
       selectionRef.current = value;
@@ -250,7 +197,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       setLinkError(undefined);
       void load(value);
     },
-    [load, recordNavigation, resolveRelease],
+    [load, recordNavigation],
   );
   const { setMainView, openProject, switchProject } = useAIReqNavigationActions({
     navigationRef,
@@ -273,7 +220,11 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       setLinkError("not-found");
       return;
     }
-    select(selectionFromObjectLink(link), true, "chat", link.releaseId);
+    const releaseId = link.releaseId
+      ? view.requirements.find((item) => item.projectId === link.projectId && item.id === link.irId)
+          ?.releaseId || undefined
+      : undefined;
+    select({ ...selectionFromObjectLink(link), releaseId }, true, "chat");
   }, [view, loadedSelection, select]);
   useEffect(() => {
     if (!historyInitialized.current) {
@@ -287,7 +238,6 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
           aiReqNavigationIndex: navigationRef.current.index,
           aiReqNavigationExtent: navigationRef.current.extent,
           aiReqMainView: navigationRef.current.mainView,
-          aiReqReleaseId: releaseRef.current,
           aiReqOverlay: navigationRef.current.overlay,
         },
         "",
@@ -319,7 +269,6 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
               aiReqNavigationIndex: 0,
               aiReqNavigationExtent: 0,
               aiReqMainView: current.mainView,
-              aiReqReleaseId: releaseRef.current,
               aiReqOverlay: current.overlay,
             },
             "",
@@ -355,18 +304,15 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       }
       approvedHistory.current = false;
       const mainView = restoreMainView(event.state.aiReqMainView);
-      const nextRelease =
-        typeof event.state.aiReqReleaseId === "string" ? event.state.aiReqReleaseId : "";
       const overlay = restoreNavigationOverlay(event.state.aiReqOverlay);
       const previous = navigationRef.current;
       const savedTarget = event.state.aiReqSelection as AIReqSelection;
       const currentTarget = selectionRef.current;
-      // 设置返回同一范围时沿用已读选择，避免重读期间卸载「配置 Release」入口而丢失焦点。
+      // 设置返回同一项目时沿用已读选择，保留打开设置入口的焦点。
       const target =
         previous.overlay?.kind === "settings" &&
         !overlay &&
         previous.mainView === mainView &&
-        releaseRef.current === nextRelease &&
         JSON.stringify(currentTarget) === JSON.stringify(savedTarget)
           ? currentTarget
           : savedTarget;
@@ -378,24 +324,12 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       };
       navigationRef.current = next;
       setNavigation(next);
-      window.history.replaceState(
-        { ...event.state, aiReqNavigationExtent: next.extent, aiReqReleaseId: nextRelease },
-        "",
-      );
-      releaseRef.current = nextRelease;
-      updateReleaseId(nextRelease);
-      select(target, false, mainView, nextRelease);
+      window.history.replaceState({ ...event.state, aiReqNavigationExtent: next.extent }, "");
+      select(target, false, mainView);
     };
     window.addEventListener("popstate", restore);
     return () => window.removeEventListener("popstate", restore);
   }, [source, select, navigate, navigationOwner]);
-  const startProposalDraft = useCallback(() => {
-    navigate(() => {
-      const draft = { id: createUuid() };
-      // 新增弹窗此前只入栈页面而未记录弹窗，浏览器后退会留在原遮罩中。
-      recordNavigation(selectionRef.current, "proposals", { kind: "proposal", draft });
-    });
-  }, [navigate, recordNavigation]);
   const openSettings = useCallback(() => {
     if (navigationRef.current.overlay?.kind === "settings") return;
     // 设置覆盖层参与同一历史，避免后退时在不可见工作区导航。
@@ -416,58 +350,6 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     closingOverlay.current = true;
     window.history.back();
   }, []);
-  const completeProposalDraft = useCallback(
-    (releaseId: string) => {
-      const current = navigationRef.current;
-      const overlay = current.overlay;
-      if (overlay?.kind !== "proposal") return;
-      if (releaseId === releaseRef.current) {
-        closeOverlay();
-        return;
-      }
-      // 成功回执才接纳目标版本。替换表单历史槽，后退回原页面而不是已经提交的表单。
-      const target = { projectId: selectionRef.current.projectId };
-      const next = {
-        ...current,
-        overlay: null,
-      };
-      navigationRef.current = next;
-      setNavigation(next);
-      window.history.replaceState(
-        {
-          ...window.history.state,
-          aiReqSelection: target,
-          aiReqReleaseId: releaseId,
-          aiReqOverlay: null,
-        },
-        "",
-      );
-      select(target, false, "proposals", releaseId);
-    },
-    [closeOverlay, select],
-  );
-  const setReleaseId = useCallback(
-    (id: string) => {
-      const current = selectionRef.current;
-      if (id === releaseRef.current) return;
-      if (
-        !id ||
-        !viewRef.current?.releases.some(
-          (item) => item.id === id && item.projectId === current.projectId,
-        )
-      )
-        return;
-      releaseRef.current = id;
-      updateReleaseId(id);
-      if (current.projectId) projectReleasesRef.current.set(current.projectId, id);
-      const target = { projectId: current.projectId };
-      const mainView =
-        navigationRef.current.mainView === "chat" ? "proposals" : navigationRef.current.mainView;
-      recordNavigation(target, mainView);
-      select(target, false, mainView);
-    },
-    [select, recordNavigation],
-  );
   const retrySession = useCallback(
     async (target: AIReqSelection, sessionId: string, isCurrentPane: () => boolean) => {
       const isCurrent = () =>
@@ -504,13 +386,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         // An operation completing in the background must not navigate a different view.
         if (selectionRef.current !== target) return result;
         commandError.current = false;
-        if (
-          value.type === "deleteRequirement" &&
-          target.irId === value.irId &&
-          target.projectId === value.projectId
-        )
-          select({ projectId: target.projectId }, true, "proposals");
-        else await refresh();
+        await refresh();
         setError(undefined);
         return result;
       } catch (cause) {
@@ -521,7 +397,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         return undefined;
       }
     },
-    [source, refresh, report, select],
+    [source, refresh, report],
   );
   return (
     <AIReqContext.Provider
@@ -540,27 +416,25 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         linkError: linkError
           ? linkError === "incomplete"
             ? locale === "zh-CN"
-              ? "需求链接无效：缺少项目、Release 或需求标识。"
-              : "Invalid requirement link: the project, Release, or requirement identifier is missing."
+              ? "需求链接无效：缺少项目或需求标识。"
+              : "Invalid requirement link: the project or requirement identifier is missing."
             : locale === "zh-CN"
-              ? "需求链接无效或目标已不存在，请核对项目、Release 和需求归属。"
-              : "The requirement link is invalid or the target no longer exists. Check the project, Release, and requirement."
+              ? "需求链接无效或目标已不存在，请核对项目和需求归属。"
+              : "The requirement link is invalid or the target no longer exists. Check the project and requirement."
           : undefined,
         clearLinkError: () => setLinkError(undefined),
-        releaseId,
-        setReleaseId,
         switchProject,
         openProject: (projectId, releaseId) => navigate(() => openProject(projectId, releaseId)),
-        select: (value, targetReleaseId) =>
-          navigate(() => select(value, true, "chat", targetReleaseId)),
+        select: (value) =>
+          navigate(() => {
+            const current = selectionRef.current;
+            const releaseId = value.projectId === current.projectId ? current.releaseId : undefined;
+            select({ ...value, releaseId }, true, "chat");
+          }),
         refresh,
         retrySession,
         command,
         report,
-        startProposalDraft,
-        proposalDraft: navigation.overlay?.kind === "proposal" ? navigation.overlay.draft : null,
-        closeProposalDraft: closeOverlay,
-        completeProposalDraft,
         setDraftNavigationGuard,
         setNavigationGuard,
         navigate,

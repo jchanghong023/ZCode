@@ -59,21 +59,6 @@ export interface AIReqReleaseSummary extends AIReqRelease {
   confirmedRequirementCount: number;
 }
 
-/** A global unplanned need; it is consumed when admitted to one or more releases. */
-export interface AIReqIdea {
-  id: string;
-  originalText: string;
-  submittedBy: string;
-  createdAt: string;
-  revision: number;
-}
-export interface AIReqIdeaTarget {
-  projectId: string;
-  releaseId: string;
-}
-export interface AIReqIdeaTransfer extends AIReqIdeaTarget {
-  irId: string;
-}
 export interface AIReqDocumentConfirmation {
   employeeId: string;
   confirmedAt: string;
@@ -155,12 +140,13 @@ export interface AIReqMaterialReadRequest extends Pick<
 export interface AIReqWorkflowView {
   projectRoleMembers: AIReqProjectRoleMember[];
   roleAdministrator?: boolean;
-  ideas: AIReqIdea[];
   documentFormats: AIReqDocumentFormats;
   revision: number;
   projects: AIReqProject[];
   /** 唯一 Release 目录及同一快照的跨项目只读统计。 */
   releases: AIReqReleaseSummary[];
+  /** 项目总览中本次未能更新 Release 的项目。 */
+  releaseReadFailures?: string[];
   requirements: AIReqRequirementGroup[];
   srs: AIReqSystemRequirement[];
   materials: AIReqMaterialView[];
@@ -172,10 +158,6 @@ export interface AIReqCommandBase {
 type AIReqIntent = AIReqCommandBase &
   (
     | (AIReqProjectRoleMember & { type: "addProjectRoleMember" | "removeProjectRoleMember" })
-    | { type: "createIdea"; originalText: string }
-    | { type: "importIdeas"; originalTexts: string[] }
-    | { type: "updateIdea"; ideaId: string; ideaRevision: number; originalText: string }
-    | { type: "transferIdea"; ideaId: string; ideaRevision: number; targets: AIReqIdeaTarget[] }
     | { type: "saveDocumentFormats"; documentFormats: AIReqDocumentFormats }
     | { type: "createRelease"; title: string }
     | {
@@ -202,7 +184,6 @@ export interface AIReqDocumentValidation {
 }
 
 export interface AIReqWorkflowResult {
-  transferredRequirements?: AIReqIdeaTransfer[];
   projectId: string;
   irId?: string;
   receipt: AIReqOperationReceipt;

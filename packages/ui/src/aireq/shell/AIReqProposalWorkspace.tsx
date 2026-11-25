@@ -9,7 +9,6 @@ import { hasProjectRole } from "../contract.js";
 import { AIReqSessionPane } from "../conversation/AIReqSessionPane.js";
 import { useAIReqDataSource } from "../data-source.js";
 import { getEmployeeId } from "../identity.js";
-import { AIReqRequirementMenu } from "../proposals/AIReqRequirementMenu.js";
 import { useAIReqSidePane } from "../side-pane/AIReqSidePaneContext.js";
 import { AIReqRequirementReturnButton } from "./AIReqRequirementNavigation.js";
 import { AIREQ_CONTENT_WIDTH_CLASSNAME } from "./pageLayout.js";
@@ -54,7 +53,7 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
       !canEnter ||
       !projectId ||
       !irId ||
-      !releaseId ||
+      releaseId === undefined ||
       !title ||
       materialsOpened.current
     )
@@ -164,10 +163,12 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
         if (!canSwitchAgent) return;
         // 沿用工作台导航和回焦，仅改变会话阶段，保留同一需求及文档定位。
         ai.navigate(() =>
-          ai.select(
-            { projectId: group.projectId, irId: group.id, srId, discussionPhase: alternateAgent },
-            group.releaseId,
-          ),
+          ai.select({
+            projectId: group.projectId,
+            irId: group.id,
+            srId,
+            discussionPhase: alternateAgent,
+          }),
         );
       }}
     >
@@ -216,7 +217,6 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
                 {zh ? "查看文档" : "View documents"}
               </Button>
             )}
-            {canEnter && <AIReqRequirementMenu group={group} />}
           </div>
         )}
       </header>

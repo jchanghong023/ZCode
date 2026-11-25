@@ -1,10 +1,6 @@
 # AIReq shared contract
 
-在线人员遵循 `docs/specs/aireq/section-navigation-and-ideas.md` 的全系统在线人员规则：服务端连接 owner 唯一持有工号／IP 引用计数，readPresence 读取带 revision 的快照，presence 事件推送相同投影；客户端只读并忽略旧版本，不新增认证、工作流或 v4 状态。
-
-想法 CSV 导入使用正式 `importIdeas(originalTexts)` 命令，在全局 workflow 中原子创建全部想法；提交身份与时间由服务端登记，沿用 command 的严格校验、版本、幂等与提交后广播。导出只读取当前搜索匹配原文并下载单列 CSV，不增加导出 RPC。格式、草稿门禁与验收见分区导航和想法池规格。
-
-分区导航和想法池的当前业务契约见 `docs/specs/aireq/section-navigation-and-ideas.md`。全局想法及可分派版本随工作流同源读取；createIdea / updateIdea / transferIdea 复用现有 command、身份、版本、幂等和广播。转入原子创建各目标版本提案并消费想法，原文和提交信息保留，不建立跨项目父需求或进度。
+在线人员遵循 `docs/specs/aireq/section-navigation.md` 的全系统在线人员规则：服务端连接 owner 唯一持有工号／IP 引用计数，readPresence 读取带 revision 的快照，presence 事件推送相同投影；客户端只读并忽略旧版本，不新增认证、工作流或 v4 状态。
 
 Browser-safe public entry: `@zcode/services/aireq`. No React, Node, transport implementation or mutable business store lives here. Domain functions inspect supplied snapshots only. Product behavior is requirement and solution discussions, optional reviews, and version confirmation.
 
@@ -41,13 +37,13 @@ Public command receipts record the admitting employee as `actorEmployeeId`, not 
 - `validateDocumentVersion` reads the latest material without changing the workflow. It returns an opaque `snapshot` for the document version and file set, an optional version number, file count, and the path and reason for each issue. `confirmDocumentVersion` must send that snapshot. The RPC rejects drift or an already confirmed version. If the snapshot matches but revalidation against current rules fails, the result contains a failed `receipt` and its sibling `documentValidation`.
 - Project settings accept a server working directory. The project summary exposes the prepared location. The workflow publishes each current IR and SR to the project document directory. See [project working directories](../../../../docs/specs/aireq/contract-design.md#项目工作目录).
 - Ordinary commands compare the third argument, `expectedRevision`, with the workflow revision. Confirmation compares the preflight snapshot instead; review takes the latest saved files at admission without using either baseline. All use operation ID deduplication: the same request returns its original result, but reuse with different business inputs is rejected.
-- Intake preserves the original short requirement and starts without a document version. The first actual file save creates V1. Ideas support original-text CSV import and export; the six Markdown formats and the separate SR dependency manifest are defined in the [document settings specification](../../../../docs/specs/aireq/tools-settings.md#文档格式).
+- Intake preserves the original short requirement and starts without a document version. The first actual file save creates V1. The six Markdown formats and the separate SR dependency manifest are defined in the [document settings specification](../../../../docs/specs/aireq/tools-settings.md#文档格式).
 
 ## Release surface
 
 The normal binary RPC rejects all retired `prototype.*`, private scenarios, sample-model and collaboration-fixture operations. Its typed operation map, wire schemas, server registration and browser adapter expose the same business-only list. Nested parameters, operation/revision identifiers, model fields and selections are validated before domain admission. Explicit business failures use `BUSINESS_RULE_VIOLATION`; unknown exceptions become safe generic failures, including failures stored in result DTOs.
 
-Bootstrap returns contract version `27`, opaque backend ID, business capabilities, optional `initialProjectId`, `projects.workspaces`, current model/prompt settings and optional Skill storage targets. The browser never fans out workflow queries to initialize this directory. Workspace kind is `proposal` or `unavailable`; read-only targets do not gain native edit access. Public workflow views omit internal project/repository metadata, audit fields, `clientDraftId`, duplicate review-agent prompt snapshots and mock controls. Current files are projected only in `view.materials`. Neither workflow views nor confirmed document snapshots carry a second constant version marker.
+Bootstrap returns contract version `28`, opaque backend ID, business capabilities, optional `initialProjectId`, `projects.workspaces`, current model/prompt settings and optional Skill storage targets. The browser never fans out workflow queries to initialize this directory. Workspace kind is `proposal` or `unavailable`; read-only targets do not gain native edit access. Public workflow views omit internal project/repository metadata, audit fields, `clientDraftId`, duplicate review-agent prompt snapshots and mock controls. Current files are projected only in `view.materials`. Neither workflow views nor confirmed document snapshots carry a second constant version marker.
 
 Deployment limitations belong only to the existing release and backend-replacement documentation, not login/help, prompts, user materials or public provenance. Actual in-memory operations may succeed; unsupported capabilities fail explicitly and no result claims external AI, repository verification, host-file writes or durable storage.
 

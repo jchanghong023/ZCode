@@ -4,10 +4,8 @@ import type {
   AIReqDocumentReview,
   AIReqDocumentSnapshot,
   AIReqDocumentVersion,
-  AIReqIdea,
   AIReqMaterialView,
   AIReqNativeSessionRef,
-  AIReqOperationReceipt,
   AIReqProjectRoleMember,
   AIReqRequirementGroup,
   AIReqSystemRequirement,
@@ -29,11 +27,6 @@ export interface NativeSessionRef extends AIReqNativeSessionRef {
   runtimeModel?: NativeRuntimeModel;
 }
 
-/** Batch transfer uses these IDs only while assembling its result. */
-export interface Receipt extends AIReqOperationReceipt {
-  irIds?: string[];
-}
-
 export interface DocumentReview extends AIReqDocumentReview {
   materialDigest: string;
 }
@@ -45,6 +38,7 @@ export interface RequirementGroup extends Omit<
   documentVersion?: AIReqDocumentVersion | AIReqDocumentSnapshot;
   documentReviews: DocumentReview[];
   sessions: NativeSessionRef[];
+  releaseName?: string;
   clientDraftId?: string;
 }
 
@@ -64,7 +58,6 @@ export interface WorkflowState {
   revision: number;
   projects: Project[];
   projectRoleMembers: AIReqProjectRoleMember[];
-  ideas: AIReqIdea[];
   documentFormats: AIReqDocumentFormats;
   requirements: RequirementGroup[];
   srs: SystemRequirement[];

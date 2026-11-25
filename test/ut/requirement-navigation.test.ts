@@ -14,7 +14,7 @@ describe("requirement navigation history", () => {
     expect(restoreMainView("proposals")).toBe("proposals");
     expect(restoreMainView("chat")).toBe("chat");
     expect(restoreMainView("unknown")).toBe("projectProgress");
-    expect(restoreMainView({ mainView: "ideas" })).toBe("projectProgress");
+    expect(restoreMainView("ideas")).toBe("projectProgress");
   });
 
   it("restores supported overlays without accepting malformed draft records", () => {

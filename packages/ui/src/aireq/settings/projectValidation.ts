@@ -6,20 +6,21 @@ export type ProjectFieldErrors = {
 };
 
 export function validateRepository(
-  name: string,
+  name: string | undefined,
   remote: string,
   branch: string,
   workDirectory: string,
 ): ProjectFieldErrors {
   const errors: ProjectFieldErrors = {};
-  const project = name.trim();
+  const project = name?.trim();
   if (
-    !project ||
-    project === "." ||
-    project === ".." ||
-    project.includes("/") ||
-    project.includes("\\") ||
-    /\p{Cc}/u.test(project)
+    project !== undefined &&
+    (!project ||
+      project === "." ||
+      project === ".." ||
+      project.includes("/") ||
+      project.includes("\\") ||
+      /\p{Cc}/u.test(project))
   )
     errors.name = "请输入可用作目录名的项目名称。";
   const directory = workDirectory.trim();

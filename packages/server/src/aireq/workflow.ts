@@ -6,18 +6,19 @@ import {
   type AIReqCommandTarget,
   type AIReqMaterialReadRequest,
   type AIReqNativeSessionRef,
+  type AIReqOperationReceipt,
   type AIReqWorkflowResult,
   type AIReqWorkflowTarget,
   type AIReqWorkflowView,
   type AIReqWorkspace,
 } from "@zcode/services/aireq";
 import { businessRule } from "./errors.js";
-import type { NativeDocumentOutput, Receipt, WorkflowState } from "./workflow-state.js";
+import type { NativeDocumentOutput, WorkflowState } from "./workflow-state.js";
 import { createPrototypeEvent } from "./events.js";
 import {
   projectNativeContext,
   projectDirectory,
-  projectReleases,
+  projectReleaseSummaries,
   projectRequirement,
   projectSummary,
   projectSystemRequirement,
@@ -31,12 +32,14 @@ import {
 } from "./recovery.js";
 import { getEmployeeId, isEmployeeId } from "./identity.js";
 import {
-  initializePrototypeProjectSettings,
   readPrototypeProjectSetting,
   readPrototypeProjectSettings,
+  syncPrototypeProjectNames,
 } from "./project-settings.js";
-import { readPrototypeProjectReleases } from "./project-releases.js";
-import { DEFAULT_SELECTION } from "./fixture-builders.js";
+import { sessionRef } from "./fixture-builders.js";
+import { prototypeIrRoot } from "./proposal-storage.js";
+import { emptyDocumentFormats } from "./materials.js";
+import { readCloudDragonProjects, readCloudDragonRequirements } from "./clouddragon.js";
 import { applyProposalMutation } from "./proposal-mutations.js";
 import { stageNativeDocuments } from "./native-documents.js";
 import {
@@ -47,15 +50,20 @@ import {
 import {
   projectDocumentDirectory,
   publishRequirementDocuments,
-  removeRequirementDocuments,
   type ProjectDocumentSnapshot,
 } from "./project-files.js";
 import { validateDocumentVersion } from "./document-validation.js";
 import { acceptDocumentReview, type DocumentReviewRun } from "./document-review.js";
-import { createPrototypeWorkflow } from "./fixtures.js";
 
-export { DEFAULT_SELECTION } from "./fixture-builders.js";
-let state = createPrototypeWorkflow();
+let state: WorkflowState = {
+  revision: 0,
+  documentFormats: emptyDocumentFormats(),
+  projects: [],
+  projectRoleMembers: [],
+  requirements: [],
+  srs: [],
+  materials: [],
+};
 export const prototypeWorkflowChanges = createPrototypeEvent<void>();
 
 /** 同一个业务 owner 的事务入口；失败或未产生变更时保留原工作流。 */
@@ -71,10 +79,120 @@ export function readPrototypeWorkflowRevision(): number {
   return state.revision;
 }
 
-/** 在监听连接前发布示例文档，并将配置投影同步到工作流。 */
-export async function initializePrototypeProjectWorkspaces(workspacePath: string): Promise<void> {
-  await initializePrototypeProjectSettings(workspacePath, capturePrototypeProjectDocuments);
-  state.projects = readPrototypeProjectSettings().projects;
+let projectRead: Promise<void> | undefined;
+const requirementReads = new Map<string, Promise<void>>();
+
+async function refreshProjects(): Promise<void> {
+  projectRead ??= readCloudDragonProjects()
+    .then((cloudProjects) => {
+      syncPrototypeProjectNames(cloudProjects);
+      const { projects } = readPrototypeProjectSettings();
+      if (JSON.stringify(projects) !== JSON.stringify(state.projects))
+        state = { ...state, projects, revision: state.revision + 1 };
+    })
+    .finally(() => {
+      projectRead = undefined;
+    });
+  await projectRead;
+}
+
+function refreshRequirements(projectId: string): Promise<void> {
+  const pending = requirementReads.get(projectId);
+  if (pending) return pending;
+  const read = readCloudDragonRequirements(projectId)
+    .then((items) => {
+      if (!readPrototypeProjectSetting(projectId))
+        throw businessRule("云龙目录已不包含此项目，请重新选择。");
+      const current = state.requirements.filter((item) => item.projectId === projectId);
+      const byId = new Map(current.map((item) => [item.id, item]));
+      const requirements = items.map((item) => {
+        const existing = byId.get(item.businessNo);
+        const title = item.name.trim() || item.businessNo;
+        const originalText =
+          item.description
+            .replace(/<br\s*\/?\s*>|<\/(?:p|div|li)>/gi, "\n")
+            .replace(/<\/?[a-z][^>]*>/gi, "")
+            .replace(/&nbsp;/gi, " ")
+            .trim() || title;
+        const submittedBy = item.submitter.trim() || item.creator.trim();
+        const releaseId = item.pi?.trim() ?? "";
+        const releaseName = releaseId ? item.piName?.trim() || undefined : undefined;
+        const sourceDate = item.createDate.trim();
+        const createdAt = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(sourceDate)
+          ? sourceDate.replace(" ", "T") + "+08:00"
+          : sourceDate;
+        if (existing) {
+          if (
+            existing.title === title &&
+            existing.originalText === originalText &&
+            existing.submittedBy === submittedBy &&
+            existing.releaseId === releaseId &&
+            existing.releaseName === releaseName &&
+            existing.createdAt === createdAt
+          )
+            return existing;
+          return {
+            ...existing,
+            title,
+            originalText,
+            submittedBy,
+            releaseId,
+            releaseName,
+            createdAt,
+            revision: existing.revision + 1,
+          };
+        }
+        return {
+          id: item.businessNo,
+          projectId,
+          releaseId,
+          releaseName,
+          title,
+          originalText,
+          submittedBy,
+          createdAt,
+          documentPath: `${prototypeIrRoot(item.businessNo)}/requirements.md`,
+          revision: 1,
+          srIds: [],
+          sessions: [
+            sessionRef(projectId, item.businessNo, "requirements"),
+            sessionRef(projectId, item.businessNo, "solution"),
+          ],
+          documentHistory: [],
+          documentReviews: [],
+        };
+      });
+      if (
+        current.length === requirements.length &&
+        current.every((item, index) => item === requirements[index])
+      )
+        return;
+      state = {
+        ...state,
+        revision: state.revision + 1,
+        requirements: state.requirements
+          .filter((item) => item.projectId !== projectId)
+          .concat(requirements),
+      };
+    })
+    .finally(() => {
+      requirementReads.delete(projectId);
+    });
+  requirementReads.set(projectId, read);
+  return read;
+}
+
+export async function refreshPrototypeWorkflow({
+  projectId,
+}: AIReqWorkflowTarget): Promise<string[] | undefined> {
+  await refreshProjects();
+  if (projectId) {
+    if (readPrototypeProjectSetting(projectId)) await refreshRequirements(projectId);
+    return undefined;
+  }
+  const projectIds = state.projects.map(({ id }) => id);
+  const reads = await Promise.allSettled(projectIds.map(refreshRequirements));
+  return projectIds.filter((_, index) => reads[index]?.status === "rejected");
 }
 
 /** 异步准备新项目目录时捕获同一工作流快照，忽略其他项目和评审造成的 revision 变化。 */
@@ -148,20 +266,19 @@ export function requireSolutionAccess(projectId: string): void {
   if (!canAccessSolution(projectId)) throw businessRule("此操作需要当前项目的开发或测试角色。");
 }
 
-export function getPrototypeWorkflow(
-  selection: AIReqWorkflowTarget = DEFAULT_SELECTION,
-): AIReqWorkflowView {
-  const projectId = selection.projectId ?? DEFAULT_SELECTION.projectId;
-  const requirements = state.requirements.filter((item) => item.projectId === projectId);
+export function getPrototypeWorkflow(selection: AIReqWorkflowTarget = {}): AIReqWorkflowView {
+  const projectId = selection.projectId;
+  const requirements = readPrototypeProjectSetting(projectId)
+    ? state.requirements.filter((item) => item.projectId === projectId)
+    : [];
   const solution = projectId !== undefined && canAccessSolution(projectId);
   return {
     revision: state.revision,
     documentFormats: state.documentFormats,
-    ideas: state.ideas,
     roleAdministrator: getEmployeeId() === AIREQ_ROLE_ADMINISTRATOR,
     projectRoleMembers: state.projectRoleMembers,
     projects: state.projects.map(projectSummary),
-    releases: projectReleases(state, readPrototypeProjectReleases()),
+    releases: projectReleaseSummaries(state),
     requirements: requirements.map((item) => projectRequirement(item, solution)),
     srs: state.srs.filter((item) => item.projectId === projectId).map(projectSystemRequirement),
     materials: state.materials
@@ -175,7 +292,7 @@ export function resolvePrototypeSession(
   selection: AIReqWorkflowTarget,
 ): AIReqNativeSessionRef | undefined {
   if (!selection.irId) return;
-  const projectId = selection.projectId ?? DEFAULT_SELECTION.projectId;
+  const projectId = selection.projectId;
   return view.requirements
     .find((item) => item.projectId === projectId && item.id === selection.irId)
     ?.sessions.find((item) => item.phase === (selection.discussionPhase ?? "requirements"));
@@ -256,45 +373,18 @@ export function applyPrototypeAction(
   action: AIReqCommand,
   selection: AIReqCommandTarget,
 ): { result: AIReqWorkflowResult; review?: DocumentReviewRun } {
-  if (action.type === "createProposal") {
-    const projectId = action.projectId ?? selection.projectId;
-    if (
-      !projectId ||
-      !readPrototypeProjectReleases(projectId).some((release) => release.id === action.releaseId)
-    )
-      throw businessRule("请选择明确项目和有效 Release。");
-    if (typeof action.originalText !== "string" || !action.originalText.trim())
-      throw businessRule("请输入原始需求。");
-    if (action.clientDraftId) {
-      const existing = state.requirements.find(
-        (item) =>
-          item.projectId === projectId &&
-          item.releaseId === action.releaseId &&
-          item.clientDraftId === action.clientDraftId &&
-          item.submittedBy === getEmployeeId(),
-      );
-      if (existing && existing.originalText !== action.originalText.trim())
-        throw businessRule("同一草稿操作身份不能提交不同原始需求。");
-    }
-  }
-  if (action.type === "createRelease") {
-    const projectId = action.projectId ?? selection.projectId;
-    if (!state.projects.some((item) => item.id === projectId))
-      throw businessRule("请选择已有项目。");
-    if (!action.title.trim()) throw businessRule("请输入 Release 名称。");
-    if (
-      readPrototypeProjectReleases(projectId).some(
-        (item) => item.title.toLowerCase() === action.title.trim().toLowerCase(),
-      )
-    ) {
-      throw businessRule("此项目中已存在同名 Release，请使用其他名称。");
-    }
-  }
-  const targetProjectId =
-    action.projectId ?? selection.projectId ?? DEFAULT_SELECTION.projectId ?? "";
-  const requirement = state.requirements.find(
-    (item) => item.projectId === targetProjectId && item.id === (action.irId ?? selection.irId),
-  );
+  if (
+    action.type === "createProposal" ||
+    action.type === "createRelease" ||
+    action.type === "deleteRequirement"
+  )
+    throw businessRule("请在云龙管理项目需求。");
+  const targetProjectId = action.projectId ?? selection.projectId ?? "";
+  const requirement =
+    readPrototypeProjectSetting(targetProjectId) &&
+    state.requirements.find(
+      (item) => item.projectId === targetProjectId && item.id === (action.irId ?? selection.irId),
+    );
   if (action.type === "addProjectRoleMember" || action.type === "removeProjectRoleMember") {
     if (getEmployeeId() !== AIREQ_ROLE_ADMINISTRATOR)
       throw businessRule("只有管理员可以修改项目角色名单。");
@@ -313,17 +403,8 @@ export function applyPrototypeAction(
     if (action.type === "removeProjectRoleMember" && !exists)
       throw businessRule("该工号已不在当前角色名单中，请重新读取。");
   }
-  if (
-    action.type === "deleteRequirement" ||
-    action.type === "reviewDocuments" ||
-    action.type === "confirmDocumentVersion"
-  ) {
+  if (action.type === "reviewDocuments" || action.type === "confirmDocumentVersion") {
     if (!requirement) throw businessRule("当前项目不存在该需求。");
-    if (
-      action.type === "deleteRequirement" &&
-      (requirement.documentVersion?.confirmation || requirement.documentHistory.length)
-    )
-      throw businessRule("已有确认版本的需求须保留材料与历史。");
     if (
       action.type === "confirmDocumentVersion" ||
       (action.type === "reviewDocuments" && action.agent === "solution")
@@ -331,18 +412,13 @@ export function applyPrototypeAction(
       requireSolutionAccess(targetProjectId);
   }
   const global = [
-    "createIdea",
-    "importIdeas",
-    "updateIdea",
-    "transferIdea",
     "saveDocumentFormats",
     "addProjectRoleMember",
     "removeProjectRoleMember",
-    "createRelease",
   ].includes(action.type);
-  let irId = global ? undefined : (action.irId ?? selection.irId);
+  const irId = global ? undefined : (action.irId ?? selection.irId);
   const at = new Date().toISOString();
-  const operation: Receipt = {
+  const operation: AIReqOperationReceipt = {
     operationId: action.operationId,
     actorEmployeeId: getEmployeeId(),
     type: action.type,
@@ -389,46 +465,16 @@ export function applyPrototypeAction(
         confirmDocumentVersion(next, target, getEmployeeId(), operation.startedAt);
       }
     } else {
-      irId = applyProposalMutation(next, action, targetProjectId, irId, operation);
-      if (action.type === "createProposal" && targetProjectId && irId) {
-        const isNew = !state.requirements.some(
-          (item) => item.id === irId && item.projectId === targetProjectId,
-        );
-        const documents = isNew && currentProjectDocumentDirectory(targetProjectId);
-        if (documents) publishRequirementDocuments(documents, irId, []);
-      } else if (action.type === "transferIdea") {
-        const published: { directory: string; irId: string }[] = [];
-        try {
-          for (const [index, target] of action.targets.entries()) {
-            const directory = currentProjectDocumentDirectory(target.projectId);
-            const transferredId = operation.irIds![index]!;
-            if (directory) {
-              publishRequirementDocuments(directory, transferredId, []);
-              published.push({ directory, irId: transferredId });
-            }
-          }
-        } catch (error) {
-          for (const item of published) removeRequirementDocuments(item.directory, item.irId);
-          throw error;
-        }
-      } else if (action.type === "deleteRequirement" && targetProjectId && irId) {
-        const documents = currentProjectDocumentDirectory(targetProjectId);
-        if (documents) removeRequirementDocuments(documents, irId);
-      }
+      applyProposalMutation(next, action, targetProjectId, operation);
     }
     return true;
   });
-  const { irIds, ...receipt } = operation;
   return {
     review,
     result: {
       projectId: targetProjectId,
       irId,
-      receipt,
-      transferredRequirements:
-        action.type === "transferIdea"
-          ? action.targets.map((target, index) => ({ ...target, irId: irIds![index]! }))
-          : undefined,
+      receipt: operation,
       ...(action.type === "saveDocumentFormats" && {
         documentFormatSnapshot: {
           documentFormats: state.documentFormats,

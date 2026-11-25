@@ -126,15 +126,13 @@ export function AIReqSettingsPage({
             {
               id: "aireq.projects",
               label: zh
-                ? "项目、仓库与 Release（先选择项目）"
-                : "Projects, repositories and releases (select a project)",
+                ? "云龙项目和本地仓库配置"
+                : "CloudDragon projects and local repository configuration",
               keywords: [
                 "项目名称",
                 "仓库",
                 "远程仓库",
                 "默认分支",
-                "版本",
-                "Release",
                 "project",
                 "repository",
                 "branch",

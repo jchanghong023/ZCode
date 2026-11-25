@@ -18,13 +18,6 @@ const workflowTargetSchema = z
   })
   .strict();
 const target = z.object({ projectId: id, irId: id }).strict();
-const actionBase = {
-  operationId: id,
-  projectId: id.optional(),
-  irId: id.optional(),
-};
-const action = (type: string, fields: z.ZodRawShape = {}) =>
-  z.object({ ...actionBase, type: z.literal(type), ...fields }).strict();
 const actionSchema = z.union([
   z.strictObject({
     type: z.enum(["addProjectRoleMember", "removeProjectRoleMember"]),
@@ -32,14 +25,6 @@ const actionSchema = z.union([
     projectId: id,
     employeeId: z.string().regex(/^[a-z][0-9]{8}$/),
     role: z.enum(["development", "testing"]),
-  }),
-  action("createIdea", { originalText: text }),
-  action("importIdeas", { originalTexts: z.array(text).min(1) }),
-  action("updateIdea", { ideaId: id, ideaRevision: revision, originalText: text }),
-  action("transferIdea", {
-    ideaId: id,
-    ideaRevision: revision,
-    targets: z.array(z.object({ projectId: id, releaseId: id }).strict()).min(1),
   }),
   z
     .object({
@@ -57,17 +42,6 @@ const actionSchema = z.union([
       ),
     })
     .strict(),
-  action("createRelease", { title: text }),
-  action("createProposal", {
-    originalText: text,
-    clientDraftId: id.optional(),
-    releaseId: id,
-  }),
-  z.strictObject({
-    ...target.shape,
-    operationId: id,
-    type: z.literal("deleteRequirement"),
-  }),
   z.strictObject({
     ...target.shape,
     operationId: id,
@@ -113,7 +87,7 @@ export const argumentSchemas = {
   validateDocumentVersion: z.tuple([target]),
   readWorkflow: z.tuple([workflowTargetSchema]),
   command: z.tuple([actionSchema, commandTargetSchema, revision]),
-  retryMaterial: z.tuple([target.extend({ releaseId: id, path: id, sha256: id }).strict()]),
+  retryMaterial: z.tuple([target.extend({ releaseId: text, path: id, sha256: id }).strict()]),
   retrySession: z.tuple([workflowTargetSchema, id]),
   "projects.saveRepository": z.tuple([
     z

@@ -45,11 +45,10 @@ function sidePaneTargetKey(target: AIReqSidePaneRequest): string {
   const s = target.selection;
   return JSON.stringify([s.projectId, target.releaseId, s.irId, s.srId]);
 }
-const targetScope = (target: AIReqSidePaneRequest) =>
-  JSON.stringify([target.selection.projectId ?? "", target.releaseId]);
+const targetScope = (target: AIReqSidePaneRequest) => target.selection.projectId ?? "";
 export function AIReqSidePaneProvider({ children }: { children: ReactNode }) {
   const ai = useAIReq()!;
-  const scopeKey = JSON.stringify([ai.selection.projectId ?? "", ai.releaseId]);
+  const scopeKey = ai.selection.projectId ?? "";
   const scopeRef = useRef(scopeKey);
   scopeRef.current = scopeKey;
   const [scopes, setScopes] = useState<Record<string, PaneScope>>({});

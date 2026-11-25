@@ -10,10 +10,10 @@ export function exampleAIReqApplication(props: AIReqApplicationProps): AIReqAppl
   };
 }
 
-/** Global navigation opens all projects or the idea pool. */
+/** Global navigation opens the project overview or role management. */
 export const exampleAIReqNavigation = [
   "projectProgress",
-  "ideas",
+  "roles",
 ] as const satisfies readonly AIReqMainView[];
 
 /** Project-space surfaces share one project/Release selection and requirement identity. */

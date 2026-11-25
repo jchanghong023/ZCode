@@ -26,7 +26,7 @@ export function restoreNavigationOverlay(saved: unknown): NavigationOverlay {
 
 export function restoreMainView(saved: unknown): AIReqMainView {
   return (
-    (["chat", "ideas", "projectProgress", "proposals", "roles", "skillDesign"] as const).find(
+    (["chat", "projectProgress", "proposals", "roles", "skillDesign"] as const).find(
       (view) => view === saved,
     ) ?? "projectProgress"
   );
@@ -36,16 +36,16 @@ export function restoreMainView(saved: unknown): AIReqMainView {
 export function requirementObjectLink(
   base: string,
   target: AIReqSelection,
-  releaseId: string,
+  legacyReleaseId?: string,
 ): string | undefined {
-  if (!target.projectId || !target.irId || !releaseId) return undefined;
+  if (!target.projectId || !target.irId || legacyReleaseId === "") return undefined;
   const url = new URL(base);
   url.username = "";
   url.password = "";
   url.hash = "";
   url.search = "";
   url.searchParams.set("aireqProject", target.projectId);
-  url.searchParams.set("aireqRelease", releaseId);
+  if (legacyReleaseId) url.searchParams.set("aireqRelease", legacyReleaseId);
   url.searchParams.set("aireqIr", target.irId);
   if (target.srId) url.searchParams.set("aireqSr", target.srId);
   if (target.discussionPhase) url.searchParams.set("aireqAgent", target.discussionPhase);

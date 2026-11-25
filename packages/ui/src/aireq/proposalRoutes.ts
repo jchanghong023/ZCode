@@ -10,7 +10,7 @@ const objectLinkKeys = [
 
 type ObjectLink = {
   projectId: string;
-  releaseId: string;
+  releaseId?: string;
   irId: string;
   srId?: string;
   agent: AIReqDiscussionAgent;
@@ -22,10 +22,10 @@ export function readObjectLink(href = window.location.href): ObjectLink | "inval
   const [projectId, releaseId, irId, srId] = objectLinkKeys
     .slice(0, 4)
     .map((key) => query.get(key)?.trim());
-  if (!projectId || !releaseId || !irId || (query.has("aireqSr") && !srId)) return "invalid";
+  if (!projectId || !irId || (query.has("aireqSr") && !srId)) return "invalid";
   const agent = query.get("aireqAgent") ?? "requirements";
   if (agent !== "requirements" && agent !== "solution") return "invalid";
-  return { projectId, releaseId, irId, ...(srId ? { srId } : {}), agent };
+  return { projectId, ...(releaseId ? { releaseId } : {}), irId, ...(srId ? { srId } : {}), agent };
 }
 
 export function withoutObjectLink(url: URL) {
@@ -50,17 +50,11 @@ export function selectionFromObjectLink(link: ObjectLink): AIReqSelection {
   };
 }
 
-/** 先在同一服务端快照核对项目、版本及对象归属，再接纳地址。 */
+/** 先在同一服务端快照核对项目及对象归属，再接纳地址。 */
 export function resolveObjectLink(link: ObjectLink, view: AIReqWorkflowView): boolean {
   return (
     view.projects.some((item) => item.id === link.projectId) &&
-    view.releases.some((item) => item.projectId === link.projectId && item.id === link.releaseId) &&
-    view.requirements.some(
-      (item) =>
-        item.projectId === link.projectId &&
-        item.id === link.irId &&
-        item.releaseId === link.releaseId,
-    ) &&
+    view.requirements.some((item) => item.projectId === link.projectId && item.id === link.irId) &&
     (!link.srId ||
       view.srs.some(
         (item) =>

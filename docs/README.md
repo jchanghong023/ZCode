@@ -14,8 +14,8 @@ AIReq 是面向电脑浏览器的纯 Web 应用。需求共创以两个 Agent �
 
 - [业务背景与使用场景](briefings/business-context-and-usage.md)记录业务环境、参与角色和使用流程，并持续补充真实场景。
 - [从一句业务诉求到确认版本](briefings/requirements-collaboration.md)介绍两个 Agent、按需评审和版本确认。
-- [项目／版本／导航／想法](specs/aireq/section-navigation-and-ideas.md)。
-- [需求共创](specs/aireq/proposals.md)、[原生会话](specs/aireq/conversation.md)。
+- [项目／版本／导航](specs/aireq/section-navigation.md)。
+- [需求共创](specs/aireq/proposals.md)、[黄区需求澄清与云龙命令](specs/aireq/proposals.md#黄区需求澄清与云龙对接)、[原生会话](specs/aireq/conversation.md)。
 - [AI 配置与 Agent 角色](specs/aireq/tools-settings.md#agent-角色)、[文档格式](specs/aireq/tools-settings.md#文档格式)、[右侧工作区与材料](specs/aireq/unified-side-pane.md)、[动效主题](../DESIGN.md#默认动效主题)。
 
 ## 架构与工程维护

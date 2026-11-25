@@ -66,9 +66,7 @@ export function AIReqProposalRow({
       aria-description={!canUseSolution ? solutionHint : undefined}
       className="aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
       onClick={
-        canUseSolution
-          ? () => ai.select({ ...selection, discussionPhase: "solution" }, item.releaseId)
-          : undefined
+        canUseSolution ? () => ai.select({ ...selection, discussionPhase: "solution" }) : undefined
       }
     >
       {solutionLabel}
@@ -133,13 +131,13 @@ export function AIReqProposalRow({
         className="min-w-0 px-4 py-3 @max-[520px]/conversation:pb-0"
       >
         <AIReqProposalText item={item} search={search} submittedAt={submittedAt} zh={zh} />
-        <div className="mt-2 text-ui-caption @min-[640px]/conversation:hidden">
-          {versionSummary}
-        </div>
+      </td>
+      <td role="cell" className="px-4 py-3 align-top font-mono text-ui-sm wrap-anywhere">
+        {item.id}
       </td>
       <td
         role="cell"
-        className="hidden px-4 py-3 text-ui-caption @min-[640px]/conversation:table-cell"
+        className="hidden px-4 py-3 text-ui-caption @min-[780px]/conversation:table-cell"
       >
         {versionSummary}
       </td>
@@ -147,6 +145,9 @@ export function AIReqProposalRow({
         role="cell"
         className="px-3 py-3 @max-[520px]/conversation:px-4 @min-[640px]/conversation:px-4"
       >
+        <div className="mb-2 text-ui-caption @min-[780px]/conversation:hidden">
+          {versionSummary}
+        </div>
         <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1.5 @max-[520px]/conversation:justify-start">
           <div className="flex max-w-full shrink-0 flex-wrap items-center justify-end gap-1.5 @max-[520px]/conversation:justify-start">
             <Button
@@ -155,9 +156,7 @@ export function AIReqProposalRow({
               data-aireq-proposal-entry={item.id}
               data-aireq-agent="requirements"
               aria-label={`${requirementsLabel} · ${item.title}`}
-              onClick={() =>
-                ai.select({ ...selection, discussionPhase: "requirements" }, item.releaseId)
-              }
+              onClick={() => ai.select({ ...selection, discussionPhase: "requirements" })}
             >
               {requirementsLabel}
             </Button>

@@ -109,9 +109,10 @@ describe("ST service readiness and connection boundary", () => {
         ).rejects.toHaveProperty("message", "此操作不可用，请刷新页面后重试。");
         const revision = (await c.read()).view.revision;
         const navigationTargetAction = {
-          type: "createIdea",
+          type: "createProposal",
+          releaseId: "r",
           operationId: unique("legacy-navigation"),
-          originalText: unique("rejected-idea"),
+          originalText: unique("rejected-proposal"),
         };
         const navigationTargets = [
           { reviewAgent: "a" },
@@ -133,6 +134,15 @@ describe("ST service readiness and connection boundary", () => {
           },
           { type: "submitProposalReview", kind: "full", snapshotDigest: "digest" },
           { type: "returnProposal", reason: "old", target: "requirements" },
+          { type: "createIdea", originalText: "Retired standalone idea" },
+          { type: "importIdeas", originalTexts: ["Retired import"] },
+          { type: "updateIdea", ideaId: "idea-id", ideaRevision: 1, originalText: "Retired edit" },
+          {
+            type: "transferIdea",
+            ideaId: "idea-id",
+            ideaRevision: 1,
+            targets: [{ projectId: "p", releaseId: "r" }],
+          },
         ];
         const legacyRequests = [
           ["readWorkflow", [{ discussionPhase: "review" }]],
@@ -154,7 +164,8 @@ describe("ST service readiness and connection boundary", () => {
             "command",
             [
               {
-                type: "createIdea",
+                type: "createProposal",
+                releaseId: "r",
                 operationId: unique(),
                 originalText: "invalid",
                 expectedRevision: revision,
@@ -209,11 +220,6 @@ describe("ST service readiness and connection boundary", () => {
         expect((await c.bootstrap()).contractVersion).toBe(AIREQ_CONTRACT_VERSION);
         const { view } = await c.read();
         expect(view.revision).toBe(revision);
-        expect(
-          view.ideas.some(
-            ({ originalText }) => originalText === navigationTargetAction.originalText,
-          ),
-        ).toBe(false);
       } finally {
         await c.close();
       }

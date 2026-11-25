@@ -12,7 +12,7 @@ import {
 } from "./proposal-flow.js";
 
 // Read the server's public projection; never call services/aireq derived functions here.
-// Rules: section-navigation-and-ideas.md and services/aireq/CONTRACT.md.
+// Rules: section-navigation.md and services/aireq/CONTRACT.md.
 async function usingClient(run: (client: STClient) => Promise<void>, employeeId?: string) {
   const client = await connectST(employeeId);
   try {

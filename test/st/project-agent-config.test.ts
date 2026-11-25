@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type {
-  AIReqAction,
   AIReqAgentModelSettings,
-  AIReqIdea,
   AIReqRemoteArgs,
   AIReqRemoteBootstrap,
 } from "@zcode/services/aireq";
@@ -19,7 +17,7 @@ import {
   reviewInvocation,
 } from "./proposal-flow.js";
 
-// Assertions come from section-navigation-and-ideas.md, tools-settings.md,
+// Assertions come from section-navigation.md, tools-settings.md,
 // connection-identity.md and the public services/aireq contract, not backend samples.
 async function usingClient(run: (client: STClient) => Promise<void>) {
   const client = await connectST();
@@ -29,12 +27,6 @@ async function usingClient(run: (client: STClient) => Promise<void>) {
     await client.close();
   }
 }
-function ideaByText(ideas: AIReqIdea[], text: string): AIReqIdea {
-  const matching = ideas.filter((idea) => idea.originalText === text);
-  expect(matching).toHaveLength(1);
-  return matching[0]!;
-}
-
 function modelWriteInput(settings: AIReqAgentModelSettings): AIReqRemoteArgs<"models.save">[0] {
   return {
     defaultModel: settings.defaultModel,
@@ -75,198 +67,7 @@ async function restorePrompts(
   expect((await client.bootstrap()).prompts.saved).toEqual(original.saved);
 }
 
-describe("ST global ideas and configuration", () => {
-  it(
-    "creates an unplanned idea globally and edits text without replacing its submitter or creation time",
-    async () => {
-      await usingClient(async (client) => {
-        const text = unique("想法原文");
-        const operationId = unique("create-idea");
-        const created = await client.command({ type: "createIdea", operationId, originalText: text });
-        expect(created.receipt).toMatchObject({ status: "completed", operationId });
-        expect(created).not.toHaveProperty("ideaId");
-        expect(created.receipt).not.toHaveProperty("identity");
-        expect(created.receipt).not.toHaveProperty("steps");
-        expect(created.receipt).not.toHaveProperty("irIds");
-        expect(created.receipt.actorEmployeeId).toBe(client.identity.employeeId);
-        const { view } = await client.read();
-        const first = ideaByText(view.ideas, text);
-        expect(first.submittedBy).toBe(client.identity.employeeId);
-        expect(Number.isFinite(Date.parse(first.createdAt))).toBe(true);
-        const nextText = unique("编辑后的想法");
-        const edited = await client.command({
-          type: "updateIdea",
-          ideaId: first.id,
-          ideaRevision: first.revision,
-          originalText: nextText,
-        });
-        expect(edited.receipt.status).toBe("completed");
-        const after = ideaByText((await client.read()).view.ideas, nextText);
-        expect(after).not.toHaveProperty("updatedAt");
-        expect(after).toMatchObject({
-          id: first.id,
-          submittedBy: first.submittedBy,
-          createdAt: first.createdAt,
-        });
-        expect(after.revision).toBeGreaterThan(first.revision);
-        await expect(
-          client.command({
-            type: "updateIdea",
-            ideaId: first.id,
-            ideaRevision: first.revision,
-            originalText: unique("过期覆盖"),
-          }),
-        ).rejects.toThrow();
-        expect((await client.read()).view.ideas.find((idea) => idea.id === first.id)).toEqual(
-          after,
-        );
-      });
-    },
-    config.timeoutMs,
-  );
-
-  it(
-    "imports duplicate bodies as independent ideas and rejects an invalid batch without partial creation",
-    async () => {
-      await usingClient(async (client) => {
-        const repeated = unique("重复但有效的短需求");
-        const imported = await client.command({
-          type: "importIdeas",
-          originalTexts: [repeated, repeated],
-        });
-        expect(imported.receipt.status).toBe("completed");
-        const duplicateIdeas = (await client.read()).view.ideas.filter(
-          (idea) => idea.originalText === repeated,
-        );
-        expect(duplicateIdeas).toHaveLength(2);
-        expect(new Set(duplicateIdeas.map((idea) => idea.id)).size).toBe(2);
-        expect(
-          duplicateIdeas.every((idea) => idea.submittedBy === client.identity.employeeId),
-        ).toBe(true);
-        const validText = unique("失败批次里的合法行");
-        await expect(
-          client.command({ type: "importIdeas", originalTexts: [validText, " \n\t "] }),
-        ).rejects.toThrow();
-        await expect(client.command({ type: "importIdeas", originalTexts: [] })).rejects.toThrow();
-        const after = (await client.read()).view;
-        expect(after.ideas.some((idea) => idea.originalText === validText)).toBe(false);
-        expect(after.ideas.filter((idea) => idea.originalText === repeated)).toEqual(
-          duplicateIdeas,
-        );
-      });
-    },
-    config.timeoutMs,
-  );
-
-  it(
-    "atomically transfers an idea into multiple Releases, preserving provenance and the idempotent receipt",
-    async () => {
-      await usingClient(async (client) => {
-        const firstTarget = await createProject(client);
-        const secondTarget = await createProject(client);
-        const text = unique("同时转入两个项目的需求");
-        await client.command({ type: "createIdea", originalText: text });
-        const original = ideaByText((await client.read()).view.ideas, text);
-        const targets = [firstTarget, secondTarget].map(({ projectId, releaseId }) => ({
-          projectId,
-          releaseId,
-        }));
-        const baseline = (await client.read()).view.revision;
-        const action: AIReqAction = {
-          type: "transferIdea",
-          ideaId: original.id,
-          ideaRevision: original.revision,
-          targets,
-          operationId: unique("转入操作"),
-          expectedRevision: baseline,
-        };
-        const transferred = await client.command(action);
-        expect(transferred.receipt.status).toBe("completed");
-        expect(transferred.receipt).not.toHaveProperty("commandDigest");
-        expect(transferred.transferredRequirements).toHaveLength(2);
-        expect(new Set(transferred.transferredRequirements!.map((item) => item.irId)).size).toBe(2);
-        // 转入目标的 releaseId 不是 readWorkflow selection 字段；按项目读取后再核对 Release 归属。
-        // 原请求违反严格契约，导致转入成功后被误报为失败。
-        for (const target of targets) {
-          const view = (await client.read({ projectId: target.projectId })).view;
-          expect(view.ideas.some((idea) => idea.id === original.id)).toBe(false);
-          const proposals = view.requirements.filter((group) => group.originalText === text);
-          expect(proposals).toHaveLength(1);
-          expect(proposals[0]).toMatchObject({
-            projectId: target.projectId,
-            releaseId: target.releaseId,
-            originalText: original.originalText,
-            submittedBy: original.submittedBy,
-            createdAt: original.createdAt,
-          });
-          expect(proposals[0]!.srIds).toEqual([]);
-          expect(view.srs.filter((sr) => sr.irId === proposals[0]!.id)).toEqual([]);
-          expect(proposals[0]!.documentVersion).toBeUndefined();
-          expect(proposals[0]!.documentReviews).toEqual([]);
-        }
-        const retried = await client.command(action);
-        expect(retried.receipt.operationId).toBe(transferred.receipt.operationId);
-        expect(retried.transferredRequirements).toEqual(transferred.transferredRequirements);
-        await expect(client.command({ ...action, targets: [targets[0]!] })).rejects.toThrow();
-        for (const target of targets) {
-          expect(
-            (await client.read({ projectId: target.projectId })).view.requirements.filter(
-              (group) => group.originalText === text,
-            ),
-          ).toHaveLength(1);
-        }
-      });
-    },
-    config.timeoutMs,
-  );
-
-  it(
-    "rejects duplicate or wrongly-owned transfer targets without consuming the original idea",
-    async () => {
-      await usingClient(async (client) => {
-        const a = await createProject(client);
-        const b = await createProject(client);
-        const text = unique("无效目标不应消费的想法");
-        await client.command({ type: "createIdea", originalText: text });
-        const original = ideaByText((await client.read()).view.ideas, text);
-        for (const targets of [
-          [],
-          [
-            { projectId: a.projectId, releaseId: a.releaseId },
-            { projectId: a.projectId, releaseId: a.releaseId },
-          ],
-          [
-            { projectId: a.projectId, releaseId: a.releaseId },
-            { projectId: a.projectId, releaseId: b.releaseId },
-          ],
-        ]) {
-          await expect(
-            client.command({
-              type: "transferIdea",
-              ideaId: original.id,
-              ideaRevision: original.revision,
-              targets,
-            }),
-          ).rejects.toThrow();
-          expect((await client.read()).view.ideas.find((idea) => idea.id === original.id)).toEqual(
-            original,
-          );
-          expect(
-            (await client.read(a.selection)).view.requirements.some(
-              (group) => group.originalText === text,
-            ),
-          ).toBe(false);
-          expect(
-            (await client.read(b.selection)).view.requirements.some(
-              (group) => group.originalText === text,
-            ),
-          ).toBe(false);
-        }
-      });
-    },
-    config.timeoutMs,
-  );
-
+describe("ST project and Agent configuration", () => {
   it(
     "applies repository configuration atomically with its own CAS revision",
     async () => {

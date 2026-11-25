@@ -1,4 +1,4 @@
-import { Folders, FolderGit2, Tag, Lightbulb, MessagesSquare, Users } from "lucide-react";
+import { Folders, FolderGit2, MessagesSquare, Tag, Users } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import {
   Select,
@@ -21,7 +21,6 @@ type SidebarPage = {
 
 const globalPages = [
   { view: "projectProgress", label: "所有项目", labelEn: "All projects", icon: Folders },
-  { view: "ideas", label: "想法池", labelEn: "Ideas", icon: Lightbulb },
 ] satisfies SidebarPage[];
 
 const coCreationPage = {
@@ -37,8 +36,9 @@ export function AIReqSidebarNavigation() {
   const zh = locale === "zh-CN";
   const project = ai.view?.projects.find((item) => item.id === ai.selection.projectId);
   const releases = ai.view?.releases.filter((item) => item.projectId === project?.id) ?? [];
+  const release = releases.find((item) => item.id === ai.selection.releaseId);
   const selected = ai.mainView === "chat" ? "proposals" : ai.mainView;
-  // 角色管理在页面内选择项目，无需沿用侧栏的项目和 Release 范围。
+  // 角色管理在页面内选择项目，无需沿用侧栏的项目 范围。
   const inWorkspace = selected !== "roles" && globalPages.every((page) => page.view !== selected);
   const renderPage = ({ view, label, labelEn, icon: Icon }: SidebarPage) => (
     <Button
@@ -87,10 +87,10 @@ export function AIReqSidebarNavigation() {
       </nav>
       {inWorkspace && (
         <section
-          aria-label={zh ? "版本工作区" : "Release workspace"}
+          aria-label={zh ? "项目工作区" : "Project workspace"}
           className="mx-3 flex min-h-0 flex-1 flex-col border-t border-border pt-2"
         >
-          {/* 范围区固定在滚动区外：页面分组滚动时项目与 Release 始终可见，切范围不必先找回选择器。 */}
+          {/* 范围区固定在滚动区外：页面分组滚动时项目 始终可见，切范围不必先找回选择器。 */}
           <div className="shrink-0 pb-2">
             <section
               aria-label={zh ? "当前工作范围" : "Current workspace"}
@@ -134,57 +134,56 @@ export function AIReqSidebarNavigation() {
                   ))}
                 </SelectContent>
               </Select>
-              <div className="mx-2.5 border-t border-border/50" aria-hidden="true" />
-              <Select
-                value={releases.some((item) => item.id === ai.releaseId) ? ai.releaseId : ""}
-                onValueChange={(id) => ai.navigate(() => ai.setReleaseId(id))}
-                disabled={!ai.selectionReady || !releases.length}
-              >
-                <SelectTrigger
-                  variant="ghost"
-                  className="h-auto min-h-12 w-full min-w-0 justify-start gap-3 rounded-lg px-2.5 py-2 text-left focus-visible:border-remote-foreground-muted data-[state=open]:bg-selected"
-                  aria-labelledby="sidebar-release-label"
-                  title={releases.find((item) => item.id === ai.releaseId)?.title}
-                >
-                  <Tag className="size-4 text-foreground-subtle" aria-hidden="true" />
-                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span
-                      id="sidebar-release-label"
-                      className="text-ui-sm leading-4 text-remote-foreground-muted"
+              {project && (
+                <>
+                  <div className="mx-2.5 border-t border-border/50" aria-hidden="true" />
+                  <Select
+                    value={release ? `release:${release.id}` : "all"}
+                    onValueChange={(value) =>
+                      ai.openProject(
+                        project.id,
+                        value === "all" ? undefined : value.slice("release:".length),
+                      )
+                    }
+                    disabled={!ai.selectionReady || !releases.length}
+                  >
+                    <SelectTrigger
+                      variant="ghost"
+                      className="h-auto min-h-12 w-full min-w-0 justify-start gap-3 rounded-lg px-2.5 py-2 text-left focus-visible:border-remote-foreground-muted data-[state=open]:bg-selected"
+                      aria-labelledby="sidebar-release-label"
+                      title={release?.title}
                     >
-                      {zh ? "版本" : "Release"}
-                    </span>
-                    <SelectValue
-                      className="block truncate text-ui-base leading-5 font-medium text-foreground"
-                      placeholder={
-                        !ai.selectionReady
-                          ? zh
-                            ? "正在读取…"
-                            : "Loading…"
-                          : zh
-                            ? "暂无版本"
-                            : "No releases"
-                      }
-                    />
-                  </span>
-                </SelectTrigger>
-                <SelectContent
-                  position="popper"
-                  align="start"
-                  sideOffset={6}
-                  className="w-(--radix-select-trigger-width) [&_[data-position=popper]]:min-w-0"
-                >
-                  {releases.map((item) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                      <Tag className="size-4 text-foreground-subtle" aria-hidden="true" />
+                      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span
+                          id="sidebar-release-label"
+                          className="text-ui-sm leading-4 text-remote-foreground-muted"
+                        >
+                          Release
+                        </span>
+                        <SelectValue className="block truncate text-ui-base leading-5 text-foreground" />
+                      </span>
+                    </SelectTrigger>
+                    <SelectContent
+                      position="popper"
+                      align="start"
+                      sideOffset={6}
+                      className="w-(--radix-select-trigger-width)"
+                    >
+                      <SelectItem value="all">{zh ? "全部需求" : "All requirements"}</SelectItem>
+                      {releases.map((item) => (
+                        <SelectItem key={item.id} value={`release:${item.id}`}>
+                          {item.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              )}
             </section>
           </div>
           <nav
-            aria-label={zh ? "版本导航" : "Release navigation"}
+            aria-label={zh ? "项目导航" : "Project navigation"}
             className="min-h-0 space-y-1 overflow-y-auto pb-3 [@media(max-height:740px)]:space-y-0.5"
           >
             {renderPage(coCreationPage)}

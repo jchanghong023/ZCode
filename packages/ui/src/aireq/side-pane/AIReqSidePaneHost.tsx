@@ -106,7 +106,7 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
     expandedSize: "45%",
     rememberExpandedSize: true,
   });
-  const currentScope = JSON.stringify([ai.selection.projectId ?? "", ai.releaseId]);
+  const currentScope = ai.selection.projectId ?? "";
   const { locale } = useZCodeIntl();
   return (
     <ResizablePanelGroup

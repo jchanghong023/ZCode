@@ -39,4 +39,4 @@ export { MockAIReqService, getConnectionServices, registerAIReqConnection } from
 export { withAIReqIdentity, validateAIReqIdentity } from "./identity.js";
 export { readPrototypeSkillNode } from "./skills.js";
 export { assertSkillSession, prototypeSkillDesignWorkspaceIdentity } from "./skill-design.js";
-export { initializePrototypeProjectWorkspaces, readPrototypeProjectDirectory } from "./workflow.js";
+export { readPrototypeProjectDirectory } from "./workflow.js";

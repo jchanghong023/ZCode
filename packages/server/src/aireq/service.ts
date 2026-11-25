@@ -23,8 +23,8 @@ import { AIReqNativeBusiness } from "./native-business.js";
 import { withAIReqIdentity, validateAIReqIdentity, currentIdentity } from "./identity.js";
 import { PROTOTYPE_BACKEND } from "./backend.js";
 import {
-  DEFAULT_SELECTION,
   getPrototypeWorkflow,
+  refreshPrototypeWorkflow,
   retryPrototypeWorkflowMaterial,
   readPrototypeProjectWorkspace,
   readPrototypeProjectWorkspaces,
@@ -55,14 +55,7 @@ const remoteOwners = new WeakMap<IAIReqService, MockAIReqService>();
 const commands = [
   "addProjectRoleMember",
   "removeProjectRoleMember",
-  "createIdea",
-  "importIdeas",
-  "updateIdea",
-  "transferIdea",
   "saveDocumentFormats",
-  "createRelease",
-  "createProposal",
-  "deleteRequirement",
   "reviewDocuments",
   "confirmDocumentVersion",
 ] as const;
@@ -96,7 +89,12 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     const add = (path: string, fn: (...args: never[]) => unknown) =>
       this.methods.set(path, (...args) => Reflect.apply(fn, undefined, args));
     add("readPresence", () => this.presence.read());
-    add("readWorkflow", (target: AIReqWorkflowTarget) => this.workflow(target));
+    add("readWorkflow", async (target: AIReqWorkflowTarget) => {
+      const releaseReadFailures = await refreshPrototypeWorkflow(target);
+      const result = this.workflow(target);
+      if (releaseReadFailures?.length) result.view.releaseReadFailures = releaseReadFailures;
+      return result;
+    });
     add("validateDocumentVersion", validatePrototypeDocumentVersion);
     add("command", (action: AIReqCommand, target: AIReqCommandTarget, revision: number) =>
       this.command(action, target, revision),
@@ -194,7 +192,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     return {
       view,
       session: resolvePrototypeSession(view, selection),
-      workspace: readPrototypeProjectWorkspace(selection.projectId ?? DEFAULT_SELECTION.projectId),
+      workspace: readPrototypeProjectWorkspace(selection.projectId),
     };
   }
   private command(action: AIReqCommand, selection: AIReqCommandTarget, revision: number) {
@@ -223,14 +221,12 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     return result;
   }
   async bootstrap(identity: AIReqIdentity): Promise<AIReqRemoteBootstrap> {
-    const initialProjectId = DEFAULT_SELECTION.projectId;
     return withAIReqIdentity(identity, () => ({
       contractVersion: AIREQ_CONTRACT_VERSION,
       backend: { id: PROTOTYPE_BACKEND.id },
       capabilities: {
         workflowCommands: [...commands],
       },
-      ...(initialProjectId === undefined ? {} : { initialProjectId }),
       models: {
         choices: models.PROTOTYPE_AGENT_MODELS.map(({ id, name, provider }) => ({
           id,
@@ -274,6 +270,7 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
                 {
                   ...(input as AIReqRemoteArgs<"projects.saveRepository">[0]),
                   expectedRevision: undefined,
+                  name: undefined,
                 },
               ],
               () => method(...args),

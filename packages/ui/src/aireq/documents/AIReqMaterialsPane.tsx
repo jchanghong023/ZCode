@@ -144,13 +144,12 @@ export function AIReqMaterialsPane({
       !versionToolbar.current?.isConnected ||
       ai.settingsOpen ||
       ai.selection.projectId !== group.projectId ||
-      ai.releaseId !== releaseId ||
       (agent === "solution" && !canUseSolution)
     )
       return;
     // 完整视图会隐藏会话，即使目标已是当前会话，也要先让主区恢复可交互。
     if (fullView) toggleFullView();
-    ai.select({ projectId: group.projectId, irId: group.id, discussionPhase: agent }, releaseId);
+    ai.select({ projectId: group.projectId, irId: group.id, discussionPhase: agent });
   };
 
   return (

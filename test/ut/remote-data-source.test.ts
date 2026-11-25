@@ -37,7 +37,7 @@ function bootstrap(revision = 1): AIReqRemoteBootstrap {
     contractVersion: AIREQ_CONTRACT_VERSION,
     backend: { id: "backend-a" },
     capabilities: {
-      workflowCommands: ["createIdea"],
+      workflowCommands: ["createProposal"],
     },
     initialProjectId: "project-a",
     models: { choices: [], settings: { defaultModel: `model-${revision}`, agents: [] }, revision },
@@ -62,7 +62,6 @@ function workflow(projectId: string, revision = 1): AIReqRemoteWorkflow {
         "test-plan.md": [],
         "spec.md": [],
       },
-      ideas: [],
       projectRoleMembers: [],
       projects: [],
       releases: [],
@@ -282,8 +281,8 @@ describe("AIReq frontend data source", () => {
     const receipt: AIReqWorkflowResult = {
       projectId: "project-a",
       receipt: {
-        operationId: "create-idea-1",
-        type: "createIdea",
+        operationId: "create-proposal-1",
+        type: "createProposal",
         status: "completed",
         startedAt: "2026-11-17T00:00:00Z",
         revision: 8,
@@ -295,9 +294,10 @@ describe("AIReq frontend data source", () => {
     const source = await createRemoteAIReqDataSource(remote.services, identity);
     try {
       const action = {
-        type: "createIdea" as const,
+        type: "createProposal" as const,
+        releaseId: "release-a",
         originalText: "Export reports",
-        operationId: "create-idea-1",
+        operationId: "create-proposal-1",
         expectedRevision: 7,
       };
       const ids = { projectId: "project-a", irId: "ir-a" };
@@ -321,15 +321,21 @@ describe("AIReq frontend data source", () => {
         remote.call.mock.calls.filter(([, path]) => path === "command").map(([, , args]) => args),
       ).toStrictEqual(
         Array.from({ length: 2 }, () => [
-          { type: "createIdea", originalText: "Export reports", operationId: "create-idea-1" },
+          {
+            type: "createProposal",
+            releaseId: "release-a",
+            originalText: "Export reports",
+            operationId: "create-proposal-1",
+          },
           ids,
           7,
         ]),
       );
       expect(action).toEqual({
-        type: "createIdea",
+        type: "createProposal",
+        releaseId: "release-a",
         originalText: "Export reports",
-        operationId: "create-idea-1",
+        operationId: "create-proposal-1",
         expectedRevision: 7,
       });
     } finally {
@@ -341,7 +347,11 @@ describe("AIReq frontend data source", () => {
     const remote = serviceDouble();
     const source = await createRemoteAIReqDataSource(remote.services, identity);
     try {
-      const action = { type: "createIdea" as const, originalText: "Export reports" };
+      const action = {
+        type: "createProposal" as const,
+        releaseId: "release-a",
+        originalText: "Export reports",
+      };
       await source.command(action, { projectId: "project-b" }, 31);
       const command = remote.call.mock.calls.find(([, path]) => path === "command");
       expect(command).toEqual([
@@ -350,7 +360,11 @@ describe("AIReq frontend data source", () => {
         [{ ...action, operationId: expect.any(String) }, { projectId: "project-b" }, 31],
       ]);
       expect((command![2][0] as { operationId: string }).operationId.trim()).not.toBe("");
-      expect(action).toEqual({ type: "createIdea", originalText: "Export reports" });
+      expect(action).toEqual({
+        type: "createProposal",
+        releaseId: "release-a",
+        originalText: "Export reports",
+      });
     } finally {
       await source.dispose();
     }
@@ -433,7 +447,11 @@ describe("AIReq frontend data source", () => {
     remote.emit({ type: "workflow" });
     const callsBeforeWrite = remote.call.mock.calls.length;
     await expect(
-      source.command({ type: "createIdea", originalText: "must not send" }, {}, 1),
+      source.command(
+        { type: "createProposal", releaseId: "release-a", originalText: "must not send" },
+        {},
+        1,
+      ),
     ).rejects.toThrow("连接已关闭");
     expect(remote.call.mock.calls).toHaveLength(callsBeforeWrite);
   });

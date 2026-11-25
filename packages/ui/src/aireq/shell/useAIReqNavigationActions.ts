@@ -1,12 +1,7 @@
 import { useCallback, type RefObject } from "react";
 import type { AIReqMainView, AIReqSelection, AIReqWorkflowView } from "../contract.js";
 
-type SelectTarget = (
-  value: AIReqSelection,
-  addHistory?: boolean,
-  mainView?: AIReqMainView,
-  targetReleaseId?: string,
-) => void;
+type SelectTarget = (value: AIReqSelection, addHistory?: boolean, mainView?: AIReqMainView) => void;
 
 /** 只转发导航意图；选择和历史由 AIReqContext 持有。 */
 export function useAIReqNavigationActions({
@@ -23,19 +18,26 @@ export function useAIReqNavigationActions({
   const setMainView = useCallback(
     (mainView: AIReqMainView) => {
       if (mainView === navigationRef.current.mainView) return;
-      select({ projectId: selectionRef.current.projectId }, true, mainView);
+      const projectId =
+        mainView === "projectProgress" || mainView === "roles"
+          ? undefined
+          : selectionRef.current.projectId;
+      const releaseId = projectId ? selectionRef.current.releaseId : undefined;
+      select({ projectId, releaseId }, true, mainView);
     },
     [select, selectionRef, navigationRef],
   );
   const openProject = useCallback(
-    (projectId: string, releaseId: string) => {
+    (projectId: string, releaseId?: string) => {
+      if (!viewRef.current?.projects.some((project) => project.id === projectId)) return;
       if (
-        !viewRef.current?.releases.some(
+        releaseId &&
+        !viewRef.current.releases.some(
           (release) => release.projectId === projectId && release.id === releaseId,
         )
       )
         return;
-      select({ projectId }, true, "proposals", releaseId);
+      select({ projectId, releaseId }, true, "proposals");
     },
     [select, viewRef],
   );

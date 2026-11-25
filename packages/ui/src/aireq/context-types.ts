@@ -6,7 +6,6 @@ import type {
   AIReqSelection,
   AIReqWorkflowView,
 } from "./contract.js";
-import type { ProposalDraft } from "./navigationState.js";
 
 export interface AIReqContextValue {
   view?: AIReqWorkflowView;
@@ -17,20 +16,14 @@ export interface AIReqContextValue {
   openSettings(): void;
   closeSettings(): void;
   setMainView(value: AIReqMainView): void;
-  startProposalDraft(): void;
-  proposalDraft: ProposalDraft | null;
-  closeProposalDraft(): void;
-  completeProposalDraft(releaseId: string): void;
   pending: boolean;
   selectionReady: boolean;
   error?: string;
   linkError?: string;
   clearLinkError(): void;
-  releaseId: string;
-  setReleaseId(id: string): void;
   switchProject(projectId: string): void;
-  openProject(projectId: string, releaseId: string): void;
-  select(value: AIReqSelection, releaseId?: string): void;
+  openProject(projectId: string, releaseId?: string): void;
+  select(value: AIReqSelection): void;
   refresh(): Promise<void>;
   retrySession(
     target: AIReqSelection,

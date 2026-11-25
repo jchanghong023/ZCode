@@ -5,9 +5,10 @@ export function ScopedPageTitle({ title }: { title: string }) {
   const ai = useAIReq()!;
   const project = ai.view?.projects.find((item) => item.id === ai.selection.projectId);
   const release = ai.view?.releases.find(
-    (item) => item.projectId === project?.id && item.id === ai.releaseId,
+    (item) => item.projectId === project?.id && item.id === ai.selection.releaseId,
   );
-  const scope = ai.selectionReady && project && release && `${project.name} · ${release.title}`;
+  const scope =
+    ai.selectionReady && project && (release ? `${project.name} · ${release.title}` : project.name);
   return (
     <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1 @max-[520px]/conversation:flex-col @max-[520px]/conversation:items-start">
       <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{title}</h1>
