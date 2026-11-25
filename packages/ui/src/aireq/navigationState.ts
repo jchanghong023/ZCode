@@ -1,4 +1,12 @@
 import type { AIReqMainView, AIReqSelection } from "./contract.js";
+import type { ProposalColumnFilters } from "./proposals/proposalColumns.js";
+
+export interface AIReqProposalQuery {
+  query: string;
+  filters: ProposalColumnFilters;
+}
+
+export const EMPTY_PROPOSAL_QUERY: AIReqProposalQuery = { query: "", filters: {} };
 
 export type ProposalDraft = { id: string };
 export type NavigationOverlay =

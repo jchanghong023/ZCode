@@ -6,12 +6,15 @@ import type {
   AIReqSelection,
   AIReqWorkflowView,
 } from "./contract.js";
+import type { AIReqProposalQuery } from "./navigationState.js";
 
 export interface AIReqContextValue {
   view?: AIReqWorkflowView;
   selection: AIReqSelection;
   session?: AIReqNativeSessionRef;
   mainView: AIReqMainView;
+  proposalQuery: AIReqProposalQuery;
+  updateProposalQuery(update: (current: AIReqProposalQuery) => AIReqProposalQuery): void;
   settingsOpen: boolean;
   openSettings(): void;
   closeSettings(): void;

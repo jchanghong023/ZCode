@@ -129,16 +129,6 @@
   );
 }
 
-.theme-aireq-color [data-aireq-theme-sync] {
-  background-color: var(--aireq-accent);
-  color: var(--aireq-accent-on);
-  border-color: var(--aireq-accent);
-}
-
-.theme-aireq-color [data-aireq-theme-sync]:hover:not(:disabled) {
-  background-color: color-mix(in srgb, var(--aireq-accent) 82%, var(--aireq-text));
-}
-
 .theme-aireq-color [data-aireq-theme-discuss] {
   color: var(--aireq-accent-ink);
 }
@@ -208,7 +198,6 @@
   }
 
   .theme-aireq-color [data-aireq-color-motion] [data-aireq-motion-nav],
-  .theme-aireq-color [data-aireq-color-motion] [data-aireq-theme-sync],
   .theme-aireq-color [data-aireq-color-motion] [data-aireq-theme-discuss] {
     transition:
       background-color 160ms ease-out,

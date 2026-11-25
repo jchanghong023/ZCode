@@ -159,7 +159,7 @@ export function AIReqSidebarNavigation() {
                           id="sidebar-release-label"
                           className="text-ui-sm leading-4 text-remote-foreground-muted"
                         >
-                          Release
+                          {zh ? "版本范围" : "Release scope"}
                         </span>
                         <SelectValue className="block truncate text-ui-base leading-5 text-foreground" />
                       </span>

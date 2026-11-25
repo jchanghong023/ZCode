@@ -4,7 +4,10 @@ import { Card } from "@/components/ui/card.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
 import type { AIReqRequirementCounts } from "../contract.js";
-import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
+import {
+  AIREQ_PAGE_TITLE_CLASSNAME,
+  AIREQ_WORKSPACE_GUTTER_CLASSNAME,
+} from "../shell/pageLayout.js";
 
 export function AIReqProjectDocumentsPage({
   onConfigureProject,
@@ -17,18 +20,26 @@ export function AIReqProjectDocumentsPage({
   return (
     <main
       data-aireq-themed-page
-      className="h-full min-h-0 min-w-0 overflow-y-auto bg-background text-ui-base [scrollbar-gutter:stable_both-edges]"
+      className="h-full min-h-0 min-w-0 overflow-y-auto bg-background text-ui-base"
       data-testid="aireq-project-progress"
     >
-      <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} min-w-0 space-y-6`}>
+      <div className={`${AIREQ_WORKSPACE_GUTTER_CLASSNAME} space-y-4 pb-3`}>
         <header className="flex flex-wrap items-center justify-between gap-3">
           <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "所有项目" : "All projects"}</h1>
-          <Button variant="outline" disabled={ai.pending} onClick={() => void ai.refreshProjects()}>
-            <RefreshCw className="size-4" />
-            {zh ? "刷新项目" : "Refresh projects"}
+          <Button
+            size="lg"
+            variant="outline"
+            disabled={ai.pending}
+            onClick={() => void ai.refreshProjects()}
+          >
+            <RefreshCw className="size-4" aria-hidden="true" />
+            {ai.pending ? (zh ? "刷新中…" : "Refreshing…") : zh ? "刷新项目" : "Refresh projects"}
           </Button>
         </header>
-        <section className="space-y-3" aria-label={zh ? "云龙项目" : "CloudDragon projects"}>
+        <section
+          className="max-w-4xl space-y-3"
+          aria-label={zh ? "云龙项目" : "CloudDragon projects"}
+        >
           {ai.view?.projects.map((project) => {
             const releases =
               ai.view?.releases.filter((item) => item.projectId === project.id) ?? [];
@@ -36,13 +47,13 @@ export function AIReqProjectDocumentsPage({
             const counts = ai.view?.projectRequirementCounts?.[project.id];
             const showCounts = !releaseReadFailed && !ai.error;
             return (
-              <Card key={project.id} className="min-w-0 gap-4 p-4">
+              <Card key={project.id} className="min-w-0 gap-3 p-4">
                 <div className="flex min-w-0 flex-wrap items-center gap-3">
                   <FolderGit2
                     className="size-5 shrink-0 text-foreground-subtle"
                     aria-hidden="true"
                   />
-                  <h2 className="min-w-0 flex-1 wrap-anywhere text-ui-base font-medium">
+                  <h2 className="min-w-0 flex-1 wrap-anywhere text-ui-lg font-semibold">
                     {project.name}
                   </h2>
                   <Button
@@ -53,7 +64,7 @@ export function AIReqProjectDocumentsPage({
                     {zh ? "项目配置" : "Configure"}
                   </Button>
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     aria-label={
                       zh
                         ? `查看 ${project.name} 的全部需求`
@@ -61,7 +72,7 @@ export function AIReqProjectDocumentsPage({
                     }
                     onClick={() => ai.openProject(project.id)}
                   >
-                    {zh ? "全部需求" : "All requirements"}
+                    {zh ? "查看全部需求" : "View all requirements"}
                     <ArrowRight className="size-4" />
                   </Button>
                 </div>
@@ -74,37 +85,40 @@ export function AIReqProjectDocumentsPage({
                 )}
                 {showCounts && counts && <RequirementCounts counts={counts} zh={zh} />}
                 {releases.length > 0 && (
-                  <div className="grid min-w-0 grid-cols-1 gap-3 @min-[48rem]/conversation:grid-cols-2">
+                  <ul
+                    className="divide-y divide-border border-t border-border"
+                    aria-label={zh ? "版本" : "Releases"}
+                  >
                     {releases.map((release) => (
-                      <article
+                      <li
                         key={release.id}
-                        className="flex min-w-0 flex-col gap-3 rounded-lg border border-card-border p-3"
+                        className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 py-2.5 last:pb-0"
                       >
-                        <h3 className="flex min-w-0 items-center gap-2 font-medium">
-                          <Tag
-                            className="size-4 shrink-0 text-foreground-subtle"
-                            aria-hidden="true"
-                          />
-                          <span className="wrap-anywhere">{release.title}</span>
-                        </h3>
-                        {showCounts && <RequirementCounts counts={release} zh={zh} />}
+                        <div className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1">
+                          <h3 className="flex min-w-0 items-center gap-2 font-medium">
+                            <Tag
+                              className="size-4 shrink-0 text-foreground-subtle"
+                              aria-hidden="true"
+                            />
+                            <span className="wrap-anywhere">{release.title}</span>
+                          </h3>
+                          {showCounts && <RequirementCounts counts={release} zh={zh} />}
+                        </div>
                         <Button
-                          className="self-start"
-                          size="sm"
-                          variant="outline"
+                          variant="ghost"
                           aria-label={
                             zh
-                              ? `进入 ${project.name} · ${release.title}`
-                              : `Open ${project.name} · ${release.title}`
+                              ? `查看 ${project.name} · ${release.title} 的需求`
+                              : `View requirements in ${project.name} · ${release.title}`
                           }
                           onClick={() => ai.openProject(project.id, release.id)}
                         >
-                          {zh ? "进入工作区" : "Enter workspace"}
+                          {zh ? "查看此版本需求" : "View release requirements"}
                           <ArrowRight className="size-4" />
                         </Button>
-                      </article>
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 )}
               </Card>
             );

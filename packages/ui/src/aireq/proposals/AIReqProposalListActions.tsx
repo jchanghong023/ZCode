@@ -51,7 +51,7 @@ export function AIReqProposalListActions({ zh }: { zh: boolean }) {
 
   return (
     <div className="flex min-w-0 flex-col items-end gap-1.5">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <Button
           type="button"
           variant="outline"
@@ -73,7 +73,6 @@ export function AIReqProposalListActions({ zh }: { zh: boolean }) {
           type="button"
           variant="outline"
           size="lg"
-          data-aireq-theme-sync
           disabled={!!action}
           onClick={() => void run("sync")}
           title={
@@ -83,7 +82,13 @@ export function AIReqProposalListActions({ zh }: { zh: boolean }) {
           }
         >
           <Send aria-hidden="true" />
-          {action === "sync" ? (zh ? "同步中…" : "Syncing…") : zh ? "全量同步" : "Sync all"}
+          {action === "sync"
+            ? zh
+              ? "同步到红区中…"
+              : "Syncing to red zone…"
+            : zh
+              ? "同步到红区（所有项目）"
+              : "Sync to red zone (all projects)"}
         </Button>
       </div>
       {feedback && (

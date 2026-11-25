@@ -32,10 +32,12 @@ import type {
 } from "./contract.js";
 
 import {
+  EMPTY_PROPOSAL_QUERY,
   requirementObjectLink,
   restoreNavigationOverlay,
   restoreMainView,
   type AIReqNavigationState,
+  type AIReqProposalQuery,
   type NavigationOverlay,
 } from "./navigationState.js";
 
@@ -70,6 +72,18 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
   }));
   const navigationRef = useRef(navigation);
   const historyInitialized = useRef(false);
+  const proposalQueries = useRef(new Map<number, AIReqProposalQuery>());
+  const [proposalQuery, setProposalQuery] = useState(EMPTY_PROPOSAL_QUERY);
+  const updateProposalQuery = useCallback(
+    (update: (current: AIReqProposalQuery) => AIReqProposalQuery) => {
+      const { index, mainView, overlay } = navigationRef.current;
+      if (mainView !== "proposals" || overlay) return;
+      const next = update(proposalQueries.current.get(index) ?? EMPTY_PROPOSAL_QUERY);
+      proposalQueries.current.set(index, next);
+      setProposalQuery(next);
+    },
+    [],
+  );
   const recordNavigation = useCallback(
     (target: AIReqSelection, mainView: WorkspaceMainView, overlay: NavigationOverlay = null) => {
       const previous = navigationRef.current;
@@ -97,6 +111,19 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       );
       navigationRef.current = next;
       setNavigation(next);
+      // 后退后另开页面时，浏览器会丢弃前进路径；历史索引可能被新页面复用。
+      if (previous.index < previous.extent) {
+        for (const index of proposalQueries.current.keys()) {
+          if (index >= next.index) proposalQueries.current.delete(index);
+        }
+      }
+      const current = selectionRef.current;
+      const savedQuery =
+        target.projectId && target.projectId === current.projectId
+          ? proposalQueries.current.get(previous.index)
+          : undefined;
+      if (savedQuery) proposalQueries.current.set(next.index, savedQuery);
+      setProposalQuery(savedQuery ?? EMPTY_PROPOSAL_QUERY);
     },
     [source, navigationOwner],
   );
@@ -274,6 +301,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       ) {
         if (typeof event.state?.aiReqBackendId === "string") {
           // 修复：旧身份历史槽仅清 URL 会让当前身份的后退落入无效槽；以当前视图重建基点。
+          const savedQuery = proposalQueries.current.get(navigationRef.current.index);
           const current = {
             ...navigationRef.current,
             index: 0,
@@ -281,6 +309,9 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
           };
           navigationRef.current = current;
           setNavigation(current);
+          proposalQueries.current.clear();
+          if (savedQuery) proposalQueries.current.set(0, savedQuery);
+          setProposalQuery(savedQuery ?? EMPTY_PROPOSAL_QUERY);
           window.history.replaceState(
             {
               ...event.state,
@@ -345,6 +376,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       };
       navigationRef.current = next;
       setNavigation(next);
+      setProposalQuery(proposalQueries.current.get(index) ?? EMPTY_PROPOSAL_QUERY);
       window.history.replaceState({ ...event.state, aiReqNavigationExtent: next.extent }, "");
       select(target, false, mainView);
     };
@@ -429,6 +461,8 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         pending,
         selectionReady: Boolean(view && loadedSelection === selection),
         mainView: navigation.mainView,
+        proposalQuery,
+        updateProposalQuery,
         settingsOpen: navigation.overlay?.kind === "settings",
         openSettings,
         closeSettings: closeOverlay,

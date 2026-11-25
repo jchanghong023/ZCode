@@ -3,6 +3,8 @@ import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ChevronsUpDown } fro
 import { Button } from "@/components/ui/button.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
+import { EMPTY_PROPOSAL_QUERY } from "../navigationState.js";
+import { AIREQ_WORKSPACE_GUTTER_CLASSNAME } from "../shell/pageLayout.js";
 import { ScopedPageTitle } from "../shell/ScopedPageTitle.js";
 import { AIReqProposalColumnFilter } from "./AIReqProposalColumnFilter.js";
 import { AIReqProposalColumnConfig } from "./AIReqProposalColumnConfig.js";
@@ -21,11 +23,9 @@ import {
   proposalColumnValue,
   visibleProposalColumns,
   type ProposalColumn,
-  type ProposalColumnFilters,
   type ProposalTablePreferences,
 } from "./proposalColumns.js";
 
-const EMPTY_FILTERS: ProposalColumnFilters = {};
 const EMPTY_SELECTION: string[] = [];
 const PAGE_SIZE = 20;
 
@@ -37,8 +37,7 @@ export function AIReqProposalTable() {
   const { preferences } = columnConfig;
   const { columns: configuredColumns, sort } = preferences;
   const collator = useMemo(() => new Intl.Collator(locale, { numeric: true }), [locale]);
-  const [filters, setFilters] = useState(EMPTY_FILTERS);
-  const [query, setQuery] = useState("");
+  const { query, filters } = ai.proposalQuery;
   const [page, setPage] = useState(0);
   const searchInput = useRef<HTMLInputElement>(null);
   const tableScroll = useRef<HTMLDivElement>(null);
@@ -130,17 +129,16 @@ export function AIReqProposalTable() {
     });
   }
   function setColumnFilter(column: ProposalColumn, values: string[]) {
-    setFilters((current) => {
-      const next = { ...current };
+    ai.updateProposalQuery((current) => {
+      const next = { ...current.filters };
       if (values.length) next[column] = values;
       else delete next[column];
-      return next;
+      return { ...current, filters: next };
     });
     setPage(0);
   }
   function clearFilters() {
-    setQuery("");
-    setFilters(EMPTY_FILTERS);
+    ai.updateProposalQuery(() => EMPTY_PROPOSAL_QUERY);
     setPage(0);
   }
   const tableWidth = columns.reduce((width, column) => width + proposalColumns[column].width, 0);
@@ -190,7 +188,9 @@ export function AIReqProposalTable() {
       className="@container/conversation h-full min-h-0 min-w-0 flex-1 overflow-hidden bg-background text-ui-base"
     >
       {/* 工作台外壳已预留页头顶部空间，与「所有项目」共用同一标题基线。 */}
-      <div className="flex h-full min-h-0 min-w-0 flex-col gap-4 px-3 pb-3 2xl:px-6">
+      <div
+        className={`${AIREQ_WORKSPACE_GUTTER_CLASSNAME} flex h-full min-h-0 min-w-0 flex-col gap-4 pb-3`}
+      >
         <header className="flex shrink-0 flex-wrap items-start justify-between gap-x-4 gap-y-2">
           <ScopedPageTitle title={zh ? "需求共创" : "Co-creation"} />
           <AIReqProposalListActions key={ai.selection.releaseId ?? ""} zh={zh} />
@@ -213,7 +213,7 @@ export function AIReqProposalTable() {
               searchInput={searchInput}
               zh={zh}
               onSearch={(value) => {
-                setQuery(value);
+                ai.updateProposalQuery((current) => ({ ...current, query: value }));
                 setPage(0);
               }}
               onChangeColumn={setColumnFilter}
