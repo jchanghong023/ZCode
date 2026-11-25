@@ -2,11 +2,46 @@
 
 ## 黄区需求澄清与云龙对接
 
-黄区负责需求澄清和讨论。方案设计在内网进行。云龙持有项目和 IR 的业务记录。AIReq 通过 `clouddragon projects --name 开发` 读取当前账号可访问且名称包含「开发」的项目。每个项目对应一个需求域。首页为每个项目并行执行一次 `clouddragon --project <项目组 ID> irs`，由 CLI 自动翻页，读取项目内全部 IR。服务端按 IR 的 `pi` 在本地汇总 Release 和需求统计，以 `piName` 显示 Release 名称。讨论和需求文档由 AIReq 工作流管理。澄清结束后，用户可以将当前最新需求文档的正文作为一条评论同步到对应 IR。
+黄区负责需求澄清和讨论。方案设计在内网进行。云龙持有项目和 IR 的业务记录。AIReq 通过 `clouddragon projects --name 开发` 读取当前账号可访问且名称包含「开发」的项目。当前接入的项目各有一个需求域。首页为每个项目并行执行一次 `clouddragon --project <项目组 ID> irs`，由 CLI 自动翻页，读取项目内全部 IR。服务端按 IR 的 `pi` 在本地汇总 Release 和需求统计，以 `piName` 显示 Release 名称。讨论和需求文档由 AIReq 工作流管理。
 
-原型服务直接执行 `clouddragon` 读取项目及 IR 列表。「所有项目」和「项目配置」使用同一份项目目录。设置页只从云龙同步项目名，仓库地址、默认分支和工作目录由 AIReq 按项目 ID 保存。同步文档时使用 `comment-add`。读取失败应显示错误，空列表只表示云龙确实返回空结果。使用真实的云龙数据验收，不使用预置项目、IR 或评论补齐结果。
+当前 AIReq 原型服务调用 `projects` 和 `irs`。「所有项目」和「项目配置」使用同一份项目目录。设置页只从云龙同步项目名，仓库地址、默认分支和工作目录由 AIReq 按项目 ID 保存。读取失败应显示错误，空列表只表示云龙确实返回空结果。使用真实的云龙数据验收，不使用预置项目、IR 或评论补齐结果。澄清结束后，可通过 CLI 的 `comment-add` 将最新需求文档正文作为评论同步到对应 IR。
+
+### 安装与登录
+
+`clouddragon-cli` 需要 Python 3.10 或更高版本，以及可访问云龙门户和企业 SSO 的内网环境。唯一的运行时依赖是 `httpx`，安装时自动获取。在 CLI 源码目录运行 `pip install .`，使 `clouddragon` 可在运行 AIReq 服务的账号的 `PATH` 下找到。也可在 CLI 源码目录的上一级运行 `python -m clouddragon_cli --help`。
+
+| 必填环境变量 | 含义         |
+| ------------ | ------------ |
+| `w3Account`  | 云龙登录账号 |
+| `password`   | 云龙登录密码 |
+
+CLI 使用内置默认项目和 API 入口，请求超时默认 20 秒。启动 AIReq 服务时提供这两个环境变量，CLI 子进程会继承它们。手工运行时也可在终端交互式输入，避免把密码写进命令历史。
+
+```bash
+read -r -p '云龙账号：' w3Account
+read -r -s -p '云龙密码：' password
+printf '\n'
+export w3Account password
+clouddragon projects --name 开发
+```
+
+```powershell
+$env:w3Account = Read-Host '云龙账号'
+$env:password = [System.Net.NetworkCredential]::new('', (Read-Host '云龙密码' -AsSecureString)).Password
+clouddragon projects --name 开发
+```
+
+CLI 从环境变量读取账号和密码，密码不写入文件或日志。登录成功后的会话 cookie 按账号缓存在 `~/.clouddragon/session.json`。后续命令复用缓存。会话失效时，CLI 自动重新登录一次并覆盖缓存。需要强制下次重新登录时，可删除该缓存文件。
+
+CLI 依赖门户下发的 `prod_cftk` 会话 cookie，并以 `verify=False` 请求来兼容内网门户。真实凭据仅在可信内网使用。门户或 SSO 策略调整时，登录兼容性由 CLI 的 `client.py` 维护。
 
 ### 云龙命令
+
+| 标识             | 从哪里获取                                          | 用途                                   |
+| ---------------- | --------------------------------------------------- | -------------------------------------- |
+| 项目组 ID        | `projects` 的 `data.projects[].id`，等于 `group_id` | 传给 `--project`                       |
+| 需求域 ID 或名称 | `domains` 的 `data.domains[].id` 或 `offeringName`  | 传给 `--domain`                        |
+| IR 业务号        | `irs` 的 `data.domains[].irs[].businessNo`          | 传给 `ir`、`comments`、`status` 等命令 |
 
 ```sh
 # 列出当前账号可访问的项目
@@ -24,23 +59,27 @@ clouddragon --project gexample0001 irs
 # 列出指定需求域的全部 IR，可重复传入 --domain
 clouddragon --project gexample0001 irs --domain 900001
 
-# 按业务号查看 IR，省略 --domain 时跨所有域查找
-clouddragon ir IR202401001 --domain "示例需求域"
+# 按业务号查看 IR，省略 --domain 时在所选项目内跨域查找
+clouddragon --project gexample0001 ir IR20990101000001 --domain 900001
 
 # 查看、新增和删除评论
-clouddragon comments IR202401001
-clouddragon comment-add IR202401001 --content "看起来不错"
-clouddragon comment-delete IR202401001 --comment-id '<uuid>'
+clouddragon --project gexample0001 comments IR20990101000001
+clouddragon --project gexample0001 comment-add IR20990101000001 --content "看起来不错"
+clouddragon --project gexample0001 comment-delete IR20990101000001 \
+  --comment-id 00000000-0000-4000-8000-000000000001
 
 # 修改进展，可选初始、分析、开发、测试、完成
-clouddragon status IR202401001 --process 完成
+clouddragon --project gexample0001 status IR20990101000001 --process 完成
+
+# 编辑详情
+clouddragon --project gexample0001 ir-edit IR20990101000001 --description "<p>更新后的示例描述</p>"
 
 # 创建 IR
-clouddragon create --domain "示例需求域" --name "新需求" \
+clouddragon --project gexample0001 create --domain "示例需求域" --name "新需求" \
   --priority 高 --expected-date 2026-12-31
 ```
 
-`projects` 返回的项目 `id` 即 `group_id`，可直接传给 `--project`。
+使用 `clouddragon <命令> --help` 查看完整参数。上面的项目组 ID、域、业务号和评论 UUID 均为匿名示例。
 
 ### 全局选项
 
@@ -49,12 +88,12 @@ clouddragon create --domain "示例需求域" --name "新需求" \
 | 选项                | 含义                                                                   |
 | ------------------- | ---------------------------------------------------------------------- |
 | `--project VALUE`   | 覆盖本次使用的项目，接受项目组 ID 或包含 `/project/<groupId>` 的 URL。 |
-| `--timeout SECONDS` | 覆盖本次请求超时，单位为秒。                                           |
+| `--timeout SECONDS` | 覆盖本次请求超时，单位为秒，默认 `20`。                                |
 | `--compact`         | 输出单行 JSON。                                                        |
 | `--debug`           | 失败时在 stderr 额外输出 Python traceback。                            |
 | `--version`         | 显示 CLI 版本，只能写在子命令前。                                      |
 
-项目按 `--project`、`CLOUDDRAGON_GROUP_ID`、CLI 内置默认项目的顺序取值。
+省略 `--project` 时使用 CLI 内置默认项目。
 
 ```sh
 clouddragon --project gexample0001 domains
@@ -96,15 +135,78 @@ clouddragon --project gexample0001 irs --process 完成 --page 1 --page-size 1 |
 clouddragon --project gexample0001 irs --domain "示例需求域" --process 测试
 ```
 
+需要按 Release 一次统计总数与完成数时，可不传 `--page`，把全量结果交给 `jq` 本地分组。下面按 `piName` 展示，AIReq 自身按 `pi` 归组、用 `piName` 显示。
+
+```sh
+clouddragon --project gexample0001 irs --domain 900001 --compact |
+  jq -c '[.data.domains[].irs[] | select((.piName // "") != "")]
+    | group_by(.piName)[]
+    | {release: .[0].piName, total: length, done: (map(select(.process == "完成")) | length)}'
+```
+
+### `ir` 查询详情
+
+`ir` 接收 IR 业务号。`--domain` 支持需求域 ID 或名称，省略时在所选项目内逐域查找。成功响应包含 `data.business_no`、`data.domain`（`id` 和 `name`）以及 `data.ir`（门户返回的原始 IR 对象）。列表命令 `irs` 将 IR 对象放在 `data.domains[].irs[]` 中，两个命令的响应外层结构不同。
+
+### 评论命令
+
+| 命令             | 参数                                           | 输出或行为                                                            |
+| ---------------- | ---------------------------------------------- | --------------------------------------------------------------------- |
+| `comments`       | 可选 `--domain`                                | 每条评论包含 `uuid`、`type`、`author`、`display_author` 和 `detail`。 |
+| `comment-add`    | 必填 `--content`，可选 `--domain`              | 当前登录账号为作者，返回的 `comment_id` 是评论 UUID。                 |
+| `comment-delete` | 必填 `--comment-id`，可选 `--type`、`--domain` | 使用 `comments` 返回的 `uuid`，评论接口的 `id` 为 `null`。            |
+
+`comment-delete` 省略 `--type` 时，会先从评论列表按 UUID 查询类型，查不到时返回 `NotFoundError`。删除不可撤销，执行前用 `comments` 确认 UUID 对应的评论。
+
+将本地已保存的最新需求文档正文作为评论同步时，可直接把文件内容传给 `--content`。
+
+```sh
+clouddragon --project gexample0001 comment-add IR20990101000001 \
+  --content "$(cat ./requirements.md)"
+```
+
+### `status` 修改进展
+
+`--process` 默认 `完成`，可选 `初始`、`分析`、`开发`、`测试`、`完成`。`--domain` 可省略，此时在所选项目内查找。成功响应包含 `old_process`、`new_process` 和更新后的 `ir`。进展通过 `status` 修改，`ir-edit` 会拒绝修改 `process`。
+
+### `ir-edit` 修改详情
+
+`ir-edit` 按业务号编辑 IR，调用门户的 `PUT /v1/reqanalyzesvr/rest/v3/items/editItem`。
+
+| 参数                         | 含义                            |
+| ---------------------------- | ------------------------------- |
+| `--name TEXT`                | IR 名称。                       |
+| `--description HTML`         | 富文本描述。                    |
+| `--priority VALUE`           | 优先级，可选 `高`、`中`、`低`。 |
+| `--owner USER`               | 责任人账号。                    |
+| `--expected-date YYYY-MM-DD` | 期望实现日期。                  |
+
+至少提供一个字段，否则返回 `No IR fields to edit were supplied.`。未指定的字段从当前 IR 回填。传入值和当前值相同时，CLI 跳过更新请求，返回空的 `changed` 对象。
+
+成功响应包含 `business_no`、`item_id`、`changed`（实际变化及新值）、`before`（对应原值）和更新后的完整 `ir`。
+
+### `create` 新建 IR
+
+| 参数                         | 必填 | 默认         | 含义                                           |
+| ---------------------------- | ---- | ------------ | ---------------------------------------------- |
+| `--domain VALUE`             | 是   | —            | 需求域 ID 或名称。                             |
+| `--name TEXT`                | 是   | —            | IR 名称。                                      |
+| `--description HTML`         | 否   | 需求模板     | 富文本描述。门户要求 IR 有描述后才能修改进展。 |
+| `--owner USER`               | 否   | 当前登录账号 | 责任人。                                       |
+| `--priority VALUE`           | 否   | `中`         | 可选 `高`、`中`、`低`。                        |
+| `--expected-date YYYY-MM-DD` | 否   | —            | 期望实现日期。                                 |
+
+成功响应包含 `domain`、`id`、`business_no` 和 `ir`。门户异步分配业务号时，`business_no` 可能为 `null`。可先记录 `id`，待分配后从 `irs` 查找对应的 `businessNo`。
+
 ### CLI 输出契约
 
-| 结果     | 输出流 | 退出码 | JSON 结构                                                                            |
+| 结果     | 输出流 | 退出码 | 内容                                                                                 |
 | -------- | ------ | ------ | ------------------------------------------------------------------------------------ |
 | 成功     | stdout | `0`    | `{"ok": true, "data": …}`                                                            |
 | 执行失败 | stderr | `1`    | `{"ok": false, "error": {"type": "AuthenticationError", "message": "示例错误信息"}}` |
 | 参数错误 | stderr | `2`    | argparse 参数错误信息                                                                |
 
-成功响应的 `data` 字段随子命令变化，使用 `clouddragon <command> --help` 查看。执行失败响应的 `error.type` 和 `error.message` 均为字符串，表中以鉴权错误为例。启用 `--debug` 后，stderr 还会包含 traceback。
+成功响应的 `data` 字段随子命令变化，使用 `clouddragon <command> --help` 查看。执行失败响应的 `error.type` 和 `error.message` 均为字符串，表中以鉴权错误为例。启用 `--debug` 后，stderr 还会包含 Python traceback。帮助和版本信息按文本输出。
 
 ### `projects` 成功响应
 
@@ -177,7 +279,7 @@ CLI 使用门户的 `/project/cd-cloud-project/v3/user/project` 接口。该接�
         "groupId": "gexample0001",
         "groupName": "示例开发项目甲",
         "offeringPbi": "EXAMPLE0001",
-        "offeringName": "示例产品",
+        "offeringName": "示例需求域",
         "name": null,
         "domainid": "900001",
         "creator": "x00000001",
@@ -217,8 +319,8 @@ CLI 使用门户的 `/project/cd-cloud-project/v3/user/project` 接口。该接�
 }
 ```
 
-- `data.project` 与需求域的 `groupId` 都是所查询项目的组 ID。`data.domains` 包含该项目的唯一需求域，`count` 为 `1`。
-- 样本中 `id`、`domainid` 和 `domain` 是值相同的数字字符串，`name` 为 `null`。`irs --domain` 可传需求域 ID 或名称。项目显示名来自 `projects` 的 `name`。
+- `data.project` 与需求域的 `groupId` 都是所查询项目的组 ID。`data.domains` 是所选项目的需求域列表。AIReq 当前接入的项目各只有一个域，样本的 `count` 为 `1`。
+- 样本中 `id`、`domainid` 和 `domain` 是值相同的数字字符串，`name` 为 `null`。此时 `irs --domain` 可传需求域 `id` 或 `offeringName`。项目显示名来自 `projects` 的 `name`。
 - `isFusionDomain` 是字符串，`needAcrossWorkspace` 和 `moveToEdevops` 是 JSON 布尔值。`sourceSystem` 在样本中有字符串和 `null` 两种取值。`createTime` 的格式为 `YYYY-MM-DD HH:mm:ss`。
 
 ### `irs` 单页成功响应
@@ -357,9 +459,21 @@ clouddragon --project gexample0001 irs --domain 900001 --page 3 --page-size 7
 - `data.domains` 按需求域分组，每组的 `id` 和 `name` 分别是需求域 ID 和名称。样本中，IR 的 `domain` 和 `domainName` 与所在组的 `id` 和 `name` 对应。
 - `page` 和 `page_size` 是当前页码和页大小。`total` 是该域符合筛选条件的 IR 总数，`count` 是该页返回的条数，与 `irs` 数组长度一致。分页字段均为整数。
 - `businessNo` 是 IR 业务号。`id` 和 `mksId` 在样本中为值相同的字符串。`customProps` 的元素包含字符串 `name` 和 `value`。样本中的 `labels`、`items` 为空数组，`collaborationAmount` 为空对象。
+- `name` 是标题，`description` 是原始需求描述，可包含 HTML。AIReq 清理 HTML 标签并保留段落换行后填入 `originalText`，清理后为空时使用标题。
 - `process` 是 IR 的云龙状态，取值为初始、分析、开发、测试、完成。项目总览的「完成」只统计 `process` 为「完成」的 IR。
 - `pi` 是 Release ID，`piName` 是 Release 名称。两者均为字符串。相同项目中 `pi` 相同的 IR 归入同一个 Release。未分配 `pi` 的 IR 可从「全部需求」查看。
 - 本样本展示单页模式。AIReq 读取全量模式时使用 `data.project` 和 `data.domains[]` 中的 `id`、`irs`，并核对返回项目与 IR 的需求域归属。全量读取无需单页响应中的 `page`、`page_size` 和 `total`。
+
+### CLI 开发与离线测试
+
+以下命令在 `clouddragon-cli` 源码目录运行。测试通过 `httpx.MockTransport` 模拟 HTTP，可离线运行，无需真实凭据。
+
+```sh
+pip install -e ".[dev]"
+pytest
+```
+
+`__main__.py` 是模块入口，`cli.py` 定义 argparse 命令、JSON 输出及错误处理，`client.py` 负责认证、HTTP 和云龙业务操作，`errors.py` 声明异常类型。`pyproject.toml` 管理打包、依赖和 pytest 配置，离线测试位于 `tests/`。
 
 ## 入口与权限
 
