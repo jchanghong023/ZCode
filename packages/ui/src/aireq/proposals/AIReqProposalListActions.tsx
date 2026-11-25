@@ -3,6 +3,7 @@ import { RefreshCw, Send } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { useAIReq } from "../AIReqContext.js";
+import { AIREQ_FULL_SYNC_INTERVAL_MINUTES } from "../contract.js";
 import { useAIReqDataSource } from "../data-source.js";
 
 export function AIReqProposalListActions({ zh }: { zh: boolean }) {
@@ -76,8 +77,8 @@ export function AIReqProposalListActions({ zh }: { zh: boolean }) {
           onClick={() => void run("sync")}
           title={
             zh
-              ? "全量同步所有项目的 IR、描述和需求文档到红区"
-              : "Sync all projects, IRs, descriptions, and requirements documents to the red zone"
+              ? `全量同步所有项目的 IR、描述和需求文档到红区。后台每 ${AIREQ_FULL_SYNC_INTERVAL_MINUTES} 分钟自动同步一次。`
+              : `Sync all projects, IRs, descriptions, and requirements documents to the red zone. The server syncs automatically every ${AIREQ_FULL_SYNC_INTERVAL_MINUTES} minutes.`
           }
         >
           <Send aria-hidden="true" />

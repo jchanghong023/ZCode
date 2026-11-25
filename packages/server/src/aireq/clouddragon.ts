@@ -1,12 +1,16 @@
 import { execFile } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import {
   AIREQ_CLOUD_PROPOSAL_COLUMNS,
   type AIReqCloudProposalFields,
+  type AIReqRequirementComment,
+  type AIReqObjectRef,
   type AIReqRequirementDetails,
 } from "@zcode/services/aireq";
 import { createServiceLogger } from "@zcode/services/logger";
 import { z } from "zod";
 import { businessRule } from "./errors.js";
+import { getEmployeeId } from "./identity.js";
 
 const logger = createServiceLogger("clouddragon");
 const projectId = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/);
@@ -48,7 +52,13 @@ const requirementResponse = z.object({
     }),
   ),
 });
-const embeddedComments = z.array(z.record(z.string(), z.json()));
+const cloudComment = z.record(z.string(), z.json());
+const commentListResponse = z.object({
+  project: projectId.optional(),
+  items: z.array(cloudComment),
+});
+const commentAddResponse = z.object({ project: projectId.optional(), comment: cloudComment });
+const commentDeleteResponse = z.object({ project: projectId.optional() });
 export type CloudDragonProject = z.infer<typeof project>;
 export type CloudDragonRequirement = z.infer<typeof requirement>;
 
@@ -152,6 +162,7 @@ function runCloudDragon<T extends { project?: string | undefined }>(
   selectedProjectId?: string,
 ): Promise<T> {
   const response = z.object({ ok: z.literal(true), data });
+  const writingComment = args[0] === "comment" && args[1] !== "list";
   const projectArgs = selectedProjectId ? ["--project", selectedProjectId] : [];
   return new Promise((resolve, reject) => {
     execFile(
@@ -172,7 +183,9 @@ function runCloudDragon<T extends { project?: string | undefined }>(
               ? "服务端找不到 clouddragon，请检查安装和 PATH。"
               : result.success && result.data.error.type === "AuthenticationError"
                 ? "云龙鉴权失败，请检查服务端的云龙登录状态。"
-                : "云龙读取失败，请检查 clouddragon 后重试。";
+                : writingComment
+                  ? "云龙评论操作未确认，请先重新读取评论。"
+                  : "云龙读取失败，请检查 clouddragon 后重试。";
           logger.warn(undefined, message, {
             command: args[0],
             exitCode: typeof error.code === "number" ? error.code : undefined,
@@ -256,7 +269,6 @@ export async function readCloudDragonRequirements(
               completedAnalysisTime: "2026-11-02 08:00:00",
             }),
             archived: false,
-            comments: item.businessNo === "IR20990101000001" ? mockComments : [],
           }),
         ),
     };
@@ -300,7 +312,7 @@ export function cloudDragonProposalFields(
   return fields;
 }
 
-function detailFields(ir: CloudDragonRequirement) {
+export function cloudDragonRequirementDetails(ir: CloudDragonRequirement): AIReqRequirementDetails {
   const { description, comments: _comments, ...fields } = ir;
   return {
     description: description == null ? "" : displayField(description),
@@ -310,8 +322,9 @@ function detailFields(ir: CloudDragonRequirement) {
   };
 }
 
-const mockComments = [
+const mockComments: AIReqRequirementComment[] = [
   {
+    id: "00000000000040008000000000000001",
     author: "a00000002",
     createdAt: "2026-11-02 14:00:00",
     body: [
@@ -324,29 +337,102 @@ const mockComments = [
     ].join("\n\n"),
   },
   {
+    id: "00000000-0000-4000-8000-000000000002",
     author: "a00000003",
     createdAt: "2026-11-03 09:00:00",
     body: "请补充一个无权限需求域的验收场景。\n确认筛选项只包含当前账号可见的需求域。",
   },
 ];
 
-export function cloudDragonRequirementDetails(ir: CloudDragonRequirement): AIReqRequirementDetails {
-  const details = detailFields(ir);
-  const comments = embeddedComments.safeParse(ir["comments"]);
-  if (!comments.success) return { ...details, comments: { unavailable: true } };
+type CommentTarget = AIReqObjectRef & { domain: string };
+
+const commentIdentifier = /^(?:[0-9a-f]{32}|[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12})$/i;
+const mockCommentsByIR = new Map<string, AIReqRequirementComment[]>([
+  [JSON.stringify(["gmockdev01", "IR20990101000001"]), mockComments],
+]);
+const pendingCommentLists = new Map<string, Promise<AIReqRequirementComment[]>>();
+
+function commentKey({ projectId, irId }: CommentTarget) {
+  return JSON.stringify([projectId, irId]);
+}
+
+function projectComment(
+  item: z.infer<typeof cloudComment>,
+  fallbackBody = "",
+): AIReqRequirementComment {
+  const id = item.id;
+  const body = item.detail ?? item.content ?? item.body ?? item.text;
+  const author = item.display_author || item.displayAuthor || item.author;
+  const createdAt = item.createDate ?? item.createTime ?? item.created_at ?? item.createdAt;
   return {
-    ...details,
-    comments: {
-      items: comments.data.map((item) => {
-        const body = item.detail ?? item.content ?? item.body;
-        const author = item.display_author || item.author;
-        const createdAt = item.createDate ?? item.createTime ?? item.created_at ?? item.createdAt;
-        return {
-          body: body == null ? "" : displayField(body),
-          ...(typeof author === "string" && { author }),
-          ...(typeof createdAt === "string" && { createdAt }),
-        };
-      }),
-    },
+    id: typeof id === "string" && commentIdentifier.test(id) ? id : null,
+    body: body == null ? fallbackBody : displayField(body),
+    ...(typeof author === "string" && { author }),
+    ...(typeof createdAt === "string" && { createdAt }),
   };
+}
+
+export function readCloudDragonComments(target: CommentTarget): Promise<AIReqRequirementComment[]> {
+  const key = commentKey(target);
+  if (useMockCloudDragon) return Promise.resolve(mockCommentsByIR.get(key) ?? []);
+  const pending = pendingCommentLists.get(key);
+  if (pending) return pending;
+  const request = runCloudDragon(
+    ["comment", "list", target.irId, "--domain", target.domain],
+    commentListResponse,
+    target.projectId,
+  )
+    .then(({ items }) => items.map((item) => projectComment(item)))
+    .finally(() => {
+      if (pendingCommentLists.get(key) === request) pendingCommentLists.delete(key);
+    });
+  pendingCommentLists.set(key, request);
+  return request;
+}
+
+export async function addCloudDragonComment(
+  target: CommentTarget,
+  body: string,
+): Promise<AIReqRequirementComment> {
+  const key = commentKey(target);
+  if (useMockCloudDragon) {
+    const comment = {
+      id: randomUUID(),
+      body,
+      author: getEmployeeId(),
+      createdAt: new Date().toISOString(),
+    };
+    mockCommentsByIR.set(key, [...(mockCommentsByIR.get(key) ?? []), comment]);
+    return comment;
+  }
+  // 用户正文作为单个位置参数传入，允许多行以及以短横线开头的文本。
+  const { comment } = await runCloudDragon(
+    ["comment", "add", "--domain", target.domain, "--", target.irId, body],
+    commentAddResponse,
+    target.projectId,
+  );
+  pendingCommentLists.delete(key);
+  return projectComment(comment, body);
+}
+
+export async function deleteCloudDragonComment(
+  target: CommentTarget,
+  commentId: string,
+): Promise<null> {
+  if (!commentIdentifier.test(commentId)) throw businessRule("评论 ID 无效，请重新加载评论。");
+  const key = commentKey(target);
+  if (useMockCloudDragon) {
+    const current = mockCommentsByIR.get(key) ?? [];
+    const remaining = current.filter(({ id }) => id !== commentId);
+    if (current.length === remaining.length) throw businessRule("该需求下没有这条评论。");
+    mockCommentsByIR.set(key, remaining);
+  } else {
+    await runCloudDragon(
+      ["comment", "delete", target.irId, commentId, "--domain", target.domain],
+      commentDeleteResponse,
+      target.projectId,
+    );
+    pendingCommentLists.delete(key);
+  }
+  return null;
 }

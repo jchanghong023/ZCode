@@ -296,13 +296,20 @@ function mergeCatalogue(catalogue: PrototypeCatalogue): WorkflowState {
   return merged;
 }
 
-export function readPrototypeRequirementDetails(
+export function requirePrototypeCatalogueRequirement(
   { projectId, irId }: AIReqObjectRef,
   catalogue: PrototypeCatalogue,
 ) {
   const item = catalogue.details.get(projectId)?.get(irId);
   if (!item) throw businessRule("当前项目不存在该需求。");
-  return cloudDragonRequirementDetails(item);
+  return item;
+}
+
+export function readPrototypeRequirementDetails(
+  target: AIReqObjectRef,
+  catalogue: PrototypeCatalogue,
+) {
+  return cloudDragonRequirementDetails(requirePrototypeCatalogueRequirement(target, catalogue));
 }
 
 export function capturePrototypeRequirementList(

@@ -8,6 +8,7 @@ import { createServiceLogger } from "@zcode/services/logger";
 import {
   IAIReqService as AIReqDescriptor,
   AIREQ_CONTRACT_VERSION,
+  AIREQ_FULL_SYNC_INTERVAL_MINUTES,
   type AIReqIdentity,
   type IAIReqService,
   type AIReqRemoteBootstrap,
@@ -27,6 +28,7 @@ import { PROTOTYPE_BACKEND } from "./backend.js";
 import {
   getPrototypeWorkflow,
   readPrototypeRequirementDetails,
+  requirePrototypeCatalogueRequirement,
   readPrototypeCatalogue,
   type PrototypeCatalogue,
   retryPrototypeWorkflowMaterial,
@@ -47,6 +49,11 @@ import * as prompts from "./personalization.js";
 import * as skills from "./skill-design.js";
 import { savePrototypeRepository } from "./project-settings.js";
 import { retryPrototypeSessionRead } from "./recovery.js";
+import {
+  addCloudDragonComment,
+  deleteCloudDragonComment,
+  readCloudDragonComments,
+} from "./clouddragon.js";
 import { validateAIReqRemoteCall } from "./validation.js";
 import { modelCatalogOverrides } from "./model-catalog.js";
 import { createProposalTablePreferencesStore } from "./proposal-table-preferences.js";
@@ -112,6 +119,26 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     super();
     const proposalTablePreferences = createProposalTablePreferencesStore(workspacePath);
     const syncing = new WeakMap<CataloguePage, ReturnType<RequirementListTransfer["publish"]>>();
+    let transferTail = Promise.resolve();
+    const publishRequirements = (loadCatalogue: () => Promise<PrototypeCatalogue>) => {
+      const request = transferTail.then(async () =>
+        requirementTransfer.publish(capturePrototypeRequirementList(await loadCatalogue())),
+      );
+      transferTail = request.then(
+        () => undefined,
+        () => undefined,
+      );
+      return request;
+    };
+    let backgroundSync: Promise<unknown> | undefined;
+    setInterval(() => {
+      if (backgroundSync) return;
+      backgroundSync = publishRequirements(readPrototypeCatalogue)
+        .catch(() => logger.warn(undefined, "Automatic full red-zone sync failed"))
+        .finally(() => {
+          backgroundSync = undefined;
+        });
+    }, AIREQ_FULL_SYNC_INTERVAL_MINUTES * 60_000).unref();
     remoteOwners.set(this.remote, this);
     prototypeWorkflowChanges.event(() => this.changed.fire({ type: "workflow" }));
     models.subscribePrototypeAgentModels(() => this.changed.fire({ type: "models" }));
@@ -124,17 +151,29 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     add("readRequirementDetails", async (target: AIReqObjectRef) =>
       readPrototypeRequirementDetails(target, await this.catalogueForPage()),
     );
+    const commentTarget = async (target: AIReqObjectRef) => {
+      const { domain } = requirePrototypeCatalogueRequirement(
+        target,
+        await this.catalogueForPage(),
+      );
+      return { ...target, domain };
+    };
+    add("requirementComments.list", async (target: AIReqObjectRef) =>
+      readCloudDragonComments(await commentTarget(target)),
+    );
+    add("requirementComments.add", async (target: AIReqObjectRef, body: string) =>
+      addCloudDragonComment(await commentTarget(target), body),
+    );
+    add("requirementComments.delete", async (target: AIReqObjectRef, commentId: string) =>
+      deleteCloudDragonComment(await commentTarget(target), commentId),
+    );
     add("proposals.syncToRedZone", () => {
       const page = this.currentPage.getStore() ?? this.defaultPage;
       const pending = syncing.get(page);
       if (pending) return pending;
-      const sync = this.catalogueForPage()
-        .then((catalogue) =>
-          requirementTransfer.publish(capturePrototypeRequirementList(catalogue)),
-        )
-        .finally(() => {
-          syncing.delete(page);
-        });
+      const sync = publishRequirements(() => this.catalogueForPage(false, page)).finally(() => {
+        syncing.delete(page);
+      });
       syncing.set(page, sync);
       return sync;
     });

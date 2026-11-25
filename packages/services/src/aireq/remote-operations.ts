@@ -19,11 +19,12 @@ import type {
   AIReqRemoteRepositoryInput,
   AIReqObjectRef,
   AIReqRequirementDetails,
+  AIReqRequirementComment,
   AIReqProposalTablePreferences,
   AIReqRequirementListSyncReceipt,
 } from "./types.js";
 /** Typed operations on the existing binary Channel RPC. */
-export const AIREQ_CONTRACT_VERSION = 36;
+export const AIREQ_CONTRACT_VERSION = 37;
 export type AIReqCommandTarget = Pick<AIReqWorkflowTarget, "projectId" | "irId">;
 export interface AIReqAgentModelInput {
   defaultModel: string;
@@ -49,6 +50,12 @@ export interface AIReqRemoteOperations {
   readWorkflow: Operation<[target: AIReqWorkflowTarget], AIReqRemoteWorkflow>;
   "projects.refreshSnapshot": Operation<[target: AIReqWorkflowTarget], AIReqRemoteWorkflow>;
   readRequirementDetails: Operation<[target: AIReqObjectRef], AIReqRequirementDetails>;
+  "requirementComments.list": Operation<[target: AIReqObjectRef], AIReqRequirementComment[]>;
+  "requirementComments.add": Operation<
+    [target: AIReqObjectRef, body: string],
+    AIReqRequirementComment
+  >;
+  "requirementComments.delete": Operation<[target: AIReqObjectRef, commentId: string], null>;
   "proposals.syncToRedZone": Operation<[], AIReqRequirementListSyncReceipt>;
   "proposalTable.readPreferences": Operation<[], AIReqProposalTablePreferences | null>;
   "proposalTable.savePreferences": Operation<

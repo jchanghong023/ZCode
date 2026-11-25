@@ -1,6 +1,16 @@
-import { useEffect, useRef, useState } from "react";
-import { Maximize2 } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Maximize2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
+import { Textarea } from "@/components/ui/textarea.js";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog.js";
 import {
   Dialog,
   DialogContent,
@@ -9,7 +19,12 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog.js";
 import { formatUserFacingError } from "@/lib/errorMessage.js";
-import { AIREQ_CLOUD_PROPOSAL_COLUMNS, type AIReqRequirementDetails } from "../contract.js";
+import {
+  AIREQ_CLOUD_PROPOSAL_COLUMNS,
+  AIREQ_REQUIREMENT_COMMENT_MAX_LENGTH,
+  type AIReqRequirementComment,
+  type AIReqRequirementDetails,
+} from "../contract.js";
 import { useAIReqDataSource } from "../data-source.js";
 import { AIReqMarkdownDocument } from "./AIReqMarkdownDocument.js";
 import { proposalColumns } from "./proposalColumns.js";
@@ -105,7 +120,6 @@ export function AIReqRequirementDetailsContent({
     );
   }
 
-  const { comments } = detail;
   const values = new Map(detail.fields.map(({ name, value }) => [name, value]));
   function jumpTo(element: HTMLElement | null) {
     element?.scrollIntoView({ block: "start" });
@@ -135,26 +149,12 @@ export function AIReqRequirementDetailsContent({
         </section>
         <section ref={commentList} tabIndex={-1} aria-label={commentsLabel} className="space-y-3">
           <h2 className="text-ui-lg font-semibold">{commentsLabel}</h2>
-          {"unavailable" in comments ? (
-            <p className="text-foreground-subtle">
-              {zh ? "云龙列表未返回评论。" : "CloudDragon did not include comments in the list."}
-            </p>
-          ) : comments.items.length ? (
-            <ol className="space-y-3">
-              {comments.items.map(({ body, author, createdAt }, index) => (
-                <li key={index}>
-                  <TextSection
-                    label={zh ? `评论 ${index + 1}` : `Comment ${index + 1}`}
-                    body={body}
-                    meta={[author, createdAt].filter(Boolean).join(" · ")}
-                    zh={zh}
-                  />
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <p className="text-foreground-subtle">{zh ? "暂无评论" : "No comments"}</p>
-          )}
+          <RequirementComments
+            key={JSON.stringify([projectId, irId])}
+            projectId={projectId}
+            irId={irId}
+            zh={zh}
+          />
         </section>
       </div>
       <aside
@@ -196,16 +196,280 @@ export function AIReqRequirementDetailsContent({
   );
 }
 
+function RequirementComments({
+  projectId,
+  irId,
+  zh,
+}: {
+  projectId: string;
+  irId: string;
+  zh: boolean;
+}) {
+  const source = useAIReqDataSource();
+  const [attempt, setAttempt] = useState(0);
+  const [read, setRead] = useState<{
+    items?: AIReqRequirementComment[];
+    error?: string;
+    pending: boolean;
+  }>({ pending: true });
+  const [body, setBody] = useState("");
+  const [writing, setWriting] = useState<"add" | "delete">();
+  const [message, setMessage] = useState<{ text: string; error?: boolean }>();
+  const [deleting, setDeleting] = useState<{ id: string; label: string }>();
+  const deleteTrigger = useRef<HTMLButtonElement>(null);
+  const composer = useRef<HTMLTextAreaElement>(null);
+  const restoreComposer = useRef(false);
+  const busy = Boolean(writing) || read.pending;
+
+  useEffect(() => {
+    let active = true;
+    void source.readRequirementComments({ projectId, irId }).then(
+      (items) => {
+        if (active) setRead({ items, pending: false });
+      },
+      (cause: unknown) => {
+        if (!active) return;
+        const error = formatUserFacingError(
+          cause,
+          zh ? "评论加载失败。" : "Could not load comments.",
+        );
+        setRead((previous) => ({ ...previous, error, pending: false }));
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [source, projectId, irId, zh, attempt]);
+
+  function reloadComments() {
+    setRead((previous) => ({ items: previous.items, pending: true }));
+    setAttempt((previous) => previous + 1);
+  }
+
+  async function publish() {
+    if (busy || !body.trim() || body.length > AIREQ_REQUIREMENT_COMMENT_MAX_LENGTH) return;
+    setWriting("add");
+    setMessage(undefined);
+    try {
+      const added = await source.addRequirementComment({ projectId, irId }, body);
+      setRead((current) => ({
+        ...current,
+        items: [
+          ...(current.items ?? []).filter((item) => added.id === null || item.id !== added.id),
+          added,
+        ],
+      }));
+      setBody("");
+      setMessage({ text: zh ? "评论已发布。" : "Comment posted." });
+      reloadComments();
+      composer.current?.focus({ preventScroll: true });
+    } catch (cause) {
+      setMessage({
+        text: formatUserFacingError(
+          cause,
+          zh
+            ? "评论提交未确认，请先重新加载评论。"
+            : "The post could not be confirmed. Reload the comments to check.",
+        ),
+        error: true,
+      });
+    } finally {
+      setWriting(undefined);
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deleting || busy) return;
+    setWriting("delete");
+    setMessage(undefined);
+    try {
+      await source.deleteRequirementComment({ projectId, irId }, deleting.id);
+      setRead((current) => ({
+        ...current,
+        items: current.items?.filter(({ id }) => id !== deleting.id),
+      }));
+      restoreComposer.current = true;
+      setMessage({ text: zh ? "评论已删除。" : "Comment deleted." });
+      reloadComments();
+    } catch (cause) {
+      setMessage({
+        text: formatUserFacingError(
+          cause,
+          zh
+            ? "评论删除未确认，请先重新加载评论。"
+            : "The deletion could not be confirmed. Reload the comments to check.",
+        ),
+        error: true,
+      });
+    } finally {
+      setDeleting(undefined);
+      setWriting(undefined);
+    }
+  }
+
+  return (
+    <>
+      <form
+        className="space-y-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void publish();
+        }}
+      >
+        <Textarea
+          ref={composer}
+          aria-label={zh ? "评论内容" : "Comment text"}
+          placeholder={zh ? "写评论…" : "Write a comment…"}
+          value={body}
+          onChange={(event) => setBody(event.currentTarget.value)}
+          maxLength={AIREQ_REQUIREMENT_COMMENT_MAX_LENGTH}
+          readOnly={Boolean(writing)}
+          rows={3}
+          className="min-h-20 resize-y"
+        />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0 text-ui-caption">
+            {message && (
+              <p
+                role={message.error ? "alert" : "status"}
+                className={message.error ? "text-destructive" : "text-foreground-subtle"}
+              >
+                {message.text}
+              </p>
+            )}
+            {read.error && (
+              <p role="alert" className="text-destructive">
+                {read.error}
+              </p>
+            )}
+            {(read.error || message?.error) && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={busy}
+                onClick={() => {
+                  setMessage(undefined);
+                  reloadComments();
+                }}
+              >
+                {zh ? "重新加载评论" : "Reload comments"}
+              </Button>
+            )}
+          </div>
+          <Button type="submit" className="ml-auto" disabled={busy || !body.trim()}>
+            {writing === "add" ? (zh ? "发布中…" : "Posting…") : zh ? "发表评论" : "Post comment"}
+          </Button>
+        </div>
+      </form>
+      {read.pending && (
+        <p role="status" className="text-ui-caption text-foreground-subtle">
+          {zh ? "正在加载评论…" : "Loading comments…"}
+        </p>
+      )}
+      {!!read.items?.length && (
+        <ol className="space-y-3">
+          {read.items.map(({ id, body: text, author, createdAt }, index) => {
+            const label = zh ? `评论 ${index + 1}` : `Comment ${index + 1}`;
+            return (
+              <li key={id ?? `no-id-${index}`}>
+                <TextSection
+                  label={label}
+                  body={text}
+                  meta={[author, createdAt].filter(Boolean).join(" · ")}
+                  zh={zh}
+                  action={
+                    id && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="text-foreground-subtle hover:text-destructive"
+                        aria-label={zh ? `删除${label}` : `Delete ${label}`}
+                        title={zh ? "删除评论" : "Delete comment"}
+                        disabled={busy}
+                        onClick={(event) => {
+                          deleteTrigger.current = event.currentTarget;
+                          restoreComposer.current = false;
+                          setDeleting({ id, label });
+                        }}
+                      >
+                        <Trash2 aria-hidden="true" />
+                      </Button>
+                    )
+                  }
+                />
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      {!read.pending && read.items?.length === 0 && (
+        <p className="text-foreground-subtle">{zh ? "暂无评论" : "No comments"}</p>
+      )}
+      <AlertDialog
+        open={Boolean(deleting)}
+        onOpenChange={(open) => {
+          if (!open && !writing) setDeleting(undefined);
+        }}
+      >
+        <AlertDialogContent
+          overlayClassName="z-[70]"
+          className="z-[70]"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            const previous = deleteTrigger.current;
+            (restoreComposer.current || !previous?.isConnected
+              ? composer.current
+              : previous
+            )?.focus();
+          }}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>{zh ? "删除评论？" : "Delete comment?"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {zh
+                ? `「${deleting?.label ?? ""}」将从该 IR 移除，删除后无法恢复。`
+                : `${deleting?.label ?? "This comment"} will be removed from this IR. This cannot be undone.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={Boolean(writing)}>
+              {zh ? "取消" : "Cancel"}
+            </AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={Boolean(writing)}
+              onClick={() => void confirmDelete()}
+            >
+              {writing === "delete"
+                ? zh
+                  ? "删除中…"
+                  : "Deleting…"
+                : zh
+                  ? "确认删除"
+                  : "Delete comment"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
 function TextSection({
   label,
   body,
   meta,
   zh,
+  action,
 }: {
   label: string;
   body: string;
   meta?: string;
   zh: boolean;
+  action?: ReactNode;
 }) {
   const hasBody = Boolean(body.trim());
   return (
@@ -215,41 +479,44 @@ function TextSection({
           <h3 className="font-semibold">{label}</h3>
           {meta && <p className="wrap-anywhere text-ui-caption text-foreground-subtle">{meta}</p>}
         </div>
-        {hasBody && (
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                aria-label={zh ? `全屏阅读 · ${label}` : `Read full screen · ${label}`}
+        <div className="flex shrink-0 items-center gap-1">
+          {hasBody && (
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  aria-label={zh ? `全屏阅读 · ${label}` : `Read full screen · ${label}`}
+                >
+                  <Maximize2 aria-hidden="true" />
+                  {zh ? "全屏阅读" : "Full screen"}
+                </Button>
+              </DialogTrigger>
+              <DialogContent
+                aria-describedby={undefined}
+                overlayClassName="z-[70]"
+                className="top-0 left-0 z-[70] flex h-dvh w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 p-0"
               >
-                <Maximize2 aria-hidden="true" />
-                {zh ? "全屏阅读" : "Full screen"}
-              </Button>
-            </DialogTrigger>
-            <DialogContent
-              aria-describedby={undefined}
-              overlayClassName="z-[70]"
-              className="top-0 left-0 z-[70] flex h-dvh w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 p-0"
-            >
-              <DialogHeader className="shrink-0 border-b border-border px-6 py-4 pr-16">
-                <DialogTitle className="text-ui-lg font-semibold">{label}</DialogTitle>
-                {meta && (
-                  <p className="wrap-anywhere text-ui-caption text-foreground-subtle">{meta}</p>
-                )}
-              </DialogHeader>
-              <div
-                role="region"
-                aria-label={label}
-                tabIndex={0}
-                className={`${scrollRegion} flex-1 px-6 py-6`}
-              >
-                <RequirementBody className="mx-auto max-w-4xl" body={body} />
-              </div>
-            </DialogContent>
-          </Dialog>
-        )}
+                <DialogHeader className="shrink-0 border-b border-border px-6 py-4 pr-16">
+                  <DialogTitle className="text-ui-lg font-semibold">{label}</DialogTitle>
+                  {meta && (
+                    <p className="wrap-anywhere text-ui-caption text-foreground-subtle">{meta}</p>
+                  )}
+                </DialogHeader>
+                <div
+                  role="region"
+                  aria-label={label}
+                  tabIndex={0}
+                  className={`${scrollRegion} flex-1 px-6 py-6`}
+                >
+                  <RequirementBody className="mx-auto max-w-4xl" body={body} />
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
+          {action}
+        </div>
       </header>
       {hasBody ? (
         <div className="min-w-0 px-4 py-3">

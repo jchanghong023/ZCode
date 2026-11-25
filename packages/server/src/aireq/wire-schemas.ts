@@ -3,6 +3,7 @@ import {
   AIREQ_AGENT_ROLES,
   AIREQ_DOCUMENT_PATHS,
   AIREQ_PROPOSAL_COLUMNS,
+  AIREQ_REQUIREMENT_COMMENT_MAX_LENGTH,
 } from "@zcode/services/aireq";
 import type { AIReqRemotePath } from "@zcode/services/aireq";
 
@@ -108,6 +109,15 @@ export const argumentSchemas = {
   readWorkflow: z.tuple([workflowTargetSchema]),
   "projects.refreshSnapshot": z.tuple([workflowTargetSchema]),
   readRequirementDetails: z.tuple([target]),
+  "requirementComments.list": z.tuple([target]),
+  "requirementComments.add": z.tuple([
+    target,
+    z
+      .string()
+      .max(AIREQ_REQUIREMENT_COMMENT_MAX_LENGTH)
+      .refine((body) => Boolean(body.trim()) && !body.includes("\0")),
+  ]),
+  "requirementComments.delete": z.tuple([target, z.string().min(1).max(36)]),
   "proposals.syncToRedZone": z.tuple([]),
   "proposalTable.readPreferences": z.tuple([]),
   "proposalTable.savePreferences": z.tuple([proposalTablePreferencesSchema, z.boolean()]),

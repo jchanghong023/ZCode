@@ -186,6 +186,12 @@ export async function createRemoteAIReqDataSource(
     },
     readRequirementDetails: ({ projectId, irId }) =>
       call("readRequirementDetails", [{ projectId, irId }]),
+    readRequirementComments: ({ projectId, irId }) =>
+      call("requirementComments.list", [{ projectId, irId }]),
+    addRequirementComment: ({ projectId, irId }, body) =>
+      call("requirementComments.add", [{ projectId, irId }, body]),
+    deleteRequirementComment: ({ projectId, irId }, commentId) =>
+      call("requirementComments.delete", [{ projectId, irId }, commentId]),
     syncRequirementList: () => call("proposals.syncToRedZone", []),
     async readProposalTablePreferences() {
       await preferenceWrite;

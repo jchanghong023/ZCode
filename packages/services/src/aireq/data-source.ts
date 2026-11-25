@@ -17,6 +17,7 @@ import type {
   AIReqDocumentValidation,
   AIReqObjectRef,
   AIReqRequirementDetails,
+  AIReqRequirementComment,
   AIReqProposalTablePreferences,
   AIReqRequirementListSyncReceipt,
 } from "./types.js";
@@ -75,6 +76,9 @@ export interface AIReqDataSource {
   readWorkflow(target: AIReqWorkflowTarget): Promise<AIReqWorkflowView>;
   refreshProjects(target: AIReqWorkflowTarget): Promise<AIReqWorkflowView>;
   readRequirementDetails(target: AIReqObjectRef): Promise<AIReqRequirementDetails>;
+  readRequirementComments(target: AIReqObjectRef): Promise<AIReqRequirementComment[]>;
+  addRequirementComment(target: AIReqObjectRef, body: string): Promise<AIReqRequirementComment>;
+  deleteRequirementComment(target: AIReqObjectRef, commentId: string): Promise<null>;
   syncRequirementList(): Promise<AIReqRequirementListSyncReceipt>;
   readProposalTablePreferences(): Promise<AIReqProposalTablePreferences | null>;
   saveProposalTablePreferences(

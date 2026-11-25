@@ -94,6 +94,7 @@ export interface AIReqProposalTablePreferences {
   columns: AIReqProposalColumn[];
   sort: { column: AIReqProposalColumn; direction: "ascending" | "descending" };
 }
+export const AIREQ_FULL_SYNC_INTERVAL_MINUTES = 5;
 export interface AIReqRequirementListSyncReceipt {
   status: "simulated" | "completed";
   projectCount: number;
@@ -103,9 +104,10 @@ export interface AIReqRequirementListSyncReceipt {
 export interface AIReqRequirementDetails {
   description: string;
   fields: { name: string; value: string }[];
-  comments: { items: AIReqRequirementComment[] } | { unavailable: true };
 }
+export const AIREQ_REQUIREMENT_COMMENT_MAX_LENGTH = 10_000;
 export interface AIReqRequirementComment {
+  id: string | null;
   body: string;
   author?: string;
   createdAt?: string;
