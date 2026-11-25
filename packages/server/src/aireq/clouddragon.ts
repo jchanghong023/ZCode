@@ -6,6 +6,10 @@ import { businessRule } from "./errors.js";
 const logger = createServiceLogger("clouddragon");
 const projectId = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/);
 const project = z.object({ id: projectId, name: z.string() });
+const projectResponse = z.object({
+  project: projectId,
+  items: z.array(project.extend({ id: projectId.nullable() })),
+});
 const domainId = z.string().regex(/^[0-9]+$/);
 const requirement = z.object({
   businessNo: z.string().regex(/^IR[0-9]+$/),
@@ -25,12 +29,64 @@ const requirementResponse = z.object({
     z.object({
       id: domainId,
       count: z.number().int().nonnegative().optional(),
-      irs: z.array(requirement),
+      items: z.array(requirement),
     }),
   ),
 });
 export type CloudDragonProject = z.infer<typeof project>;
 type CloudDragonRequirement = z.infer<typeof requirement>;
+
+const useMockCloudDragon = process.env["ZCODE_CLOUDDRAGON_MODE"] === "mock";
+const mockProjects = [
+  { id: "gmockdev01", name: "协作平台开发" },
+  { id: "gmockdev02", name: "工作台开发" },
+] satisfies CloudDragonProject[];
+
+const mockRequirements = [
+  {
+    projectId: "gmockdev01",
+    domain: "900001",
+    businessNo: "IR20990101000001",
+    name: "按需求域筛选需求列表",
+    description:
+      "<p>项目成员需要快速定位自己负责的需求。</p><p>切换需求域后保留已选择的进展筛选。</p>",
+    process: "开发",
+    pi: "101",
+    piName: "体验优化",
+  },
+  {
+    projectId: "gmockdev01",
+    domain: "900001",
+    businessNo: "IR20990101000002",
+    name: "统一需求列表的空状态提示",
+    description: "<p>筛选无结果时提示用户调整筛选条件。</p>",
+    process: "完成",
+    pi: "101",
+    piName: "体验优化",
+  },
+  {
+    projectId: "gmockdev01",
+    domain: "900001",
+    businessNo: "IR20990101000003",
+    name: "明确需求延期的通知范围",
+    description: "<p>梳理延期时需要通知的项目角色。</p>",
+    process: "分析",
+    pi: null,
+    piName: null,
+  },
+  {
+    projectId: "gmockdev02",
+    domain: "900002",
+    businessNo: "IR20990101000004",
+    name: "展示最近访问的项目",
+    description: "<p>从工作台快速打开最近访问的项目。</p>",
+    process: "测试",
+    pi: "201",
+    piName: "工作台导航",
+  },
+] satisfies (Omit<CloudDragonRequirement, "creator" | "submitter" | "createDate"> & {
+  projectId: string;
+})[];
 
 const failure = z.object({
   ok: z.literal(false),
@@ -119,16 +175,19 @@ function runCloudDragon<T extends { project: string }>(
 }
 
 export async function readCloudDragonProjects(): Promise<CloudDragonProject[]> {
+  if (useMockCloudDragon) return mockProjects;
   const nameFilter = "开发";
-  const { projects } = await runCloudDragon(
-    ["projects", "--name", nameFilter],
-    z.object({ project: projectId, projects: z.array(project) }),
+  const { items } = await runCloudDragon(
+    ["project", "list", "--name", nameFilter],
+    projectResponse,
   );
-  const visible = projects.filter(({ name }) => name.includes(nameFilter));
+  const visible = items.filter(
+    (item): item is CloudDragonProject => item.id !== null && item.name.includes(nameFilter),
+  );
   logger.info(undefined, "云龙项目读取完成", {
-    returned: projects.length,
+    returned: items.length,
     matched: visible.length,
-    namesWithReplacementCharacters: projects.filter(({ name }) => name.includes("\ufffd")).length,
+    namesWithReplacementCharacters: items.filter(({ name }) => name.includes("\ufffd")).length,
   });
   return visible;
 }
@@ -136,15 +195,24 @@ export async function readCloudDragonProjects(): Promise<CloudDragonProject[]> {
 export async function readCloudDragonRequirements(
   project: string,
 ): Promise<CloudDragonRequirement[]> {
-  const { domains } = await runCloudDragon(["irs"], requirementResponse, project);
+  if (useMockCloudDragon)
+    return mockRequirements
+      .filter(({ projectId }) => projectId === project)
+      .map(({ projectId: _projectId, ...item }) => ({
+        ...item,
+        creator: "a00000001",
+        submitter: "a00000001",
+        createDate: "2026-11-01 09:00:00",
+      }));
+  const { domains } = await runCloudDragon(["ir", "list", "--all"], requirementResponse, project);
   const [group] = domains;
   if (!group) return [];
   if (
     domains.length !== 1 ||
-    (group.count !== undefined && group.count !== group.irs.length) ||
-    group.irs.some((item) => item.domain !== group.id)
+    (group.count !== undefined && group.count !== group.items.length) ||
+    group.items.some((item) => item.domain !== group.id)
   )
     throw businessRule("云龙返回的需求与项目需求域不匹配，请重试。");
-  const requirements = new Map(group.irs.map((item) => [item.businessNo, item]));
+  const requirements = new Map(group.items.map((item) => [item.businessNo, item]));
   return [...requirements.values()];
 }

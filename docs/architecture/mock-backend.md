@@ -35,15 +35,13 @@ web/main.tsx → @zcode/client → 同源 /ws 二进制 Channel RPC
 
 服务端校验身份、参数和项目角色，再提交并通知。原生执行绑定对象和会话。材料变化更新当前未确认版本，或在上一版已确认时开启下一版。服务端提供只读文件检查。定版再次校验完整性与格式，通过后在同一事务保存当前全部文件。按需评审绑定发起时的文件快照。
 
-默认项目为 Aurora 协作控制台，默认 Release 为 2026.11 · 体验优化。样例包含尚无文件、当前未确认和已有确认版本的需求。 预置项目的固定目录位于服务工作区的 `.zcode-runtime/aireq-projects`。启动时发布当前样例材料，已归属且内容一致的目录直接复用。上次运行的输出若与初始样例不同，保存在同一项目的隐藏归档目录。
+`bun run dev` 在服务端启用本地云龙样例，工作流通过与真实云龙相同的读取入口同步项目和 IR。`bun run dev --use-clouddragon` 与直接启动服务端使用真实 CLI。角色、材料及项目仓库配置由内存后端管理。见[云龙对接](../specs/aireq/proposals.md#黄区需求澄清与云龙对接)。
 
 ### 原型后端业务初始数据
 
 项目和 Release 的需求总数来自同一工作流。Release 同时汇总当前文档版本已确认的需求数。
 
-每个预置项目的开发和测试名单在工作流初始化时各加入两名相同的演示成员。角色管理读取工作流中的实际名单，管理员可通过现有操作维护。验收检查两个名单均有预置成员，且成员可进入对应项目的方案 Agent。
-
-需求共创的预置样例和两个 Agent 生成的 Markdown 材料均包含简单的 Mermaid 流程图。预置历史版本在确认快照前写入图示，Agent 在保存材料前补齐图示，正文、摘要与大小随快照一起保存。依赖清单使用纯 JSON，由右侧文档区按对应版本绘制依赖图。
+本地云龙样例提供项目和 IR。角色、材料和文档版本通过现有业务操作维护。两个 Agent 生成的 Markdown 材料包含 Mermaid 流程图，正文、摘要与大小随确认快照一起保存。依赖清单使用纯 JSON，由右侧文档区按对应版本绘制依赖图。
 
 演示验收从右侧文档区打开当前及历史版本，并在需求 Agent 和方案 Agent 会话中生成材料，确认各 Markdown 文件能显示流程图，依赖图能读取同版依赖。
 
@@ -98,7 +96,7 @@ Skill 主入口隐藏，但私有会话、附件、预览、保存和草稿门�
 
 - `packages/server/src/entry-http.ts`、`mock/index.ts`：入口与 `createMockServices`。
 - `packages/server/src/http.ts`：`publicMembers`、`setupChannelServer`、`createMockHttpServer`。
-- `packages/server/src/aireq/fixtures.ts`：需求与文档版本样例。
+- `packages/server/src/aireq/clouddragon.ts`：云龙读取与本地项目、IR 样例。
 - `packages/server/src/aireq/service.ts`：`MockAIReqService`、`getConnectionServices`。
 - `packages/server/src/mock/runtime.ts`、`mock/zcodeAgent.ts`：会话、水位与附件。
 - 精确原生契约：`packages/services/src/zcode-agent/zcodeAgent.ts`、`packages/shared/src/zcode-protocol-v4/`。

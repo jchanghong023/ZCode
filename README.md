@@ -34,7 +34,13 @@ bun run dev
 
 浏览器打开 <http://localhost:5174>。Vite 监听 `5174`，模拟后端监听 `3031`，开发代理转发 `/api` 和 `/ws`。
 
-输入一位小写字母加八位数字的工号后进入「所有项目」，从 Release 卡片打开对应版本工作区。产品范围与各功能规格见[文档索引](docs/README.md)。
+默认使用本地云龙样例，无需内网、CLI 或凭据。输入示例工号 `a00000001` 进入「所有项目」，从 Release 卡片打开对应版本工作区。产品范围与各功能规格见[文档索引](docs/README.md)。
+
+在内网开发并需要真实云龙项目和 IR 时，安装新版 CLI 并设置 `w3Account` 和 `password`，然后运行以下命令。见[云龙工具安装与登录](docs/specs/aireq/proposals.md#安装与登录)。
+
+```bash
+bun run dev --use-clouddragon
+```
 
 打开 <http://localhost:5174/chat> 进入独立的 Web Agent 聊天，浏览器无需登录。聊天使用服务端内存模拟，工作目录根沿用 `ZCODE_SERVER_WORKSPACE` 或服务工作目录。聊天的会话范围见 [Web Agent 聊天](docs/specs/web-agent-chat.md)。
 

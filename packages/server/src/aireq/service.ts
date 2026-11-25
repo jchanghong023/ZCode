@@ -24,6 +24,7 @@ import { withAIReqIdentity, validateAIReqIdentity, currentIdentity } from "./ide
 import { PROTOTYPE_BACKEND } from "./backend.js";
 import {
   getPrototypeWorkflow,
+  refreshPrototypeProjects,
   refreshPrototypeWorkflow,
   retryPrototypeWorkflowMaterial,
   readPrototypeProjectWorkspace,
@@ -221,28 +222,32 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
     return result;
   }
   async bootstrap(identity: AIReqIdentity): Promise<AIReqRemoteBootstrap> {
-    return withAIReqIdentity(identity, () => ({
-      contractVersion: AIREQ_CONTRACT_VERSION,
-      backend: { id: PROTOTYPE_BACKEND.id },
-      capabilities: {
-        workflowCommands: [...commands],
-      },
-      models: {
-        choices: models.PROTOTYPE_AGENT_MODELS.map(({ id, name, provider }) => ({
-          id,
-          name,
-          provider,
-        })),
-        settings: models.readPrototypeAgentModels(),
-        revision: models.prototypeAgentModelConfigurationRevision(),
-      },
-      prompts: prompts.readPrototypeAgentPrompts(),
-      projects: { workspaces: readPrototypeProjectWorkspaces() },
-      skillDesignStorage: {
-        workspacePath: PROTOTYPE_BACKEND.configDirectory,
-        sharedSkillsDirectory: PROTOTYPE_BACKEND.userSkillsDirectory,
-      },
-    }));
+    return withAIReqIdentity(identity, async () => {
+      // 首次连接需先同步项目目录，bootstrap 才能与工作流返回相同的工作区。
+      await refreshPrototypeProjects();
+      return {
+        contractVersion: AIREQ_CONTRACT_VERSION,
+        backend: { id: PROTOTYPE_BACKEND.id },
+        capabilities: {
+          workflowCommands: [...commands],
+        },
+        models: {
+          choices: models.PROTOTYPE_AGENT_MODELS.map(({ id, name, provider }) => ({
+            id,
+            name,
+            provider,
+          })),
+          settings: models.readPrototypeAgentModels(),
+          revision: models.prototypeAgentModelConfigurationRevision(),
+        },
+        prompts: prompts.readPrototypeAgentPrompts(),
+        projects: { workspaces: readPrototypeProjectWorkspaces() },
+        skillDesignStorage: {
+          workspacePath: PROTOTYPE_BACKEND.configDirectory,
+          sharedSkillsDirectory: PROTOTYPE_BACKEND.userSkillsDirectory,
+        },
+      };
+    });
   }
   async call<P extends AIReqRemotePath>(
     identity: AIReqIdentity,

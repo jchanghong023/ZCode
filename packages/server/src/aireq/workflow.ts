@@ -82,7 +82,7 @@ export function readPrototypeWorkflowRevision(): number {
 let projectRead: Promise<void> | undefined;
 const requirementReads = new Map<string, Promise<void>>();
 
-async function refreshProjects(): Promise<void> {
+export async function refreshPrototypeProjects(): Promise<void> {
   projectRead ??= readCloudDragonProjects()
     .then((cloudProjects) => {
       syncPrototypeProjectNames(cloudProjects);
@@ -189,7 +189,7 @@ function refreshRequirements(projectId: string): Promise<void> {
 export async function refreshPrototypeWorkflow({
   projectId,
 }: AIReqWorkflowTarget): Promise<string[] | undefined> {
-  await refreshProjects();
+  await refreshPrototypeProjects();
   if (projectId) {
     if (readPrototypeProjectSetting(projectId)) await refreshRequirements(projectId);
     return undefined;
