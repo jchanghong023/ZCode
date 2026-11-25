@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { RefreshCw, Send } from "lucide-react";
+import { LoaderCircle, RefreshCw, Send } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
+import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { useAIReq } from "../AIReqContext.js";
 import { AIREQ_FULL_SYNC_INTERVAL_MINUTES } from "../contract.js";
@@ -12,6 +13,7 @@ export function AIReqProposalListActions({ zh }: { zh: boolean }) {
   const { projectId } = ai.selection;
   const [action, setAction] = useState<"refresh" | "sync">();
   const [feedback, setFeedback] = useState<{ text: string; error?: boolean }>();
+  const syncLabel = zh ? "同步到红区（所有项目）" : "Sync to red zone (all projects)";
 
   async function run(next: "refresh" | "sync") {
     if (action || (next === "refresh" && !projectId)) return;
@@ -24,16 +26,7 @@ export function AIReqProposalListActions({ zh }: { zh: boolean }) {
           text: zh ? "已更新项目和需求。" : "Projects and requirements updated.",
         });
       } else {
-        const { status, projectCount, count, documentCount } = await source.syncRequirementList();
-        const text =
-          status === "simulated"
-            ? zh
-              ? `已模拟全量同步到红区：${projectCount} 个项目、${count} 条 IR、${documentCount} 份需求文档。`
-              : `Simulated red-zone sync: ${projectCount} projects, ${count} IRs, ${documentCount} requirements documents.`
-            : zh
-              ? `已全量同步到红区：${projectCount} 个项目、${count} 条 IR、${documentCount} 份需求文档。`
-              : `Synced ${projectCount} projects, ${count} IRs, and ${documentCount} requirements documents to the red zone.`;
-        setFeedback({ text });
+        await source.syncRequirementList();
       }
     } catch (cause) {
       if (next === "sync")
@@ -69,27 +62,32 @@ export function AIReqProposalListActions({ zh }: { zh: boolean }) {
               ? "刷新项目"
               : "Refresh projects"}
         </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="lg"
-          disabled={!!action}
-          onClick={() => void run("sync")}
-          title={
+        <ControlHintTooltip
+          title={syncLabel}
+          description={
             zh
-              ? `全量同步所有项目的 IR、描述和需求文档到红区。后台每 ${AIREQ_FULL_SYNC_INTERVAL_MINUTES} 分钟自动同步一次。`
-              : `Sync all projects, IRs, descriptions, and requirements documents to the red zone. The server syncs automatically every ${AIREQ_FULL_SYNC_INTERVAL_MINUTES} minutes.`
+              ? `同步 IR、描述和需求文档。后台每 ${AIREQ_FULL_SYNC_INTERVAL_MINUTES} 分钟自动同步一次。`
+              : `Sync IRs, descriptions, and requirements documents. The server syncs automatically every ${AIREQ_FULL_SYNC_INTERVAL_MINUTES} minutes.`
           }
+          side="bottom"
+          align="end"
         >
-          <Send aria-hidden="true" />
-          {action === "sync"
-            ? zh
-              ? "同步到红区中…"
-              : "Syncing to red zone…"
-            : zh
-              ? "同步到红区（所有项目）"
-              : "Sync to red zone (all projects)"}
-        </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-lg"
+            aria-label={syncLabel}
+            aria-busy={action === "sync"}
+            disabled={!!action}
+            onClick={() => void run("sync")}
+          >
+            {action === "sync" ? (
+              <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />
+            ) : (
+              <Send aria-hidden="true" />
+            )}
+          </Button>
+        </ControlHintTooltip>
       </div>
       {feedback && (
         <p
