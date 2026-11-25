@@ -1,7 +1,9 @@
 import { execFile } from "node:child_process";
+import { createServiceLogger } from "@zcode/services/logger";
 import { z } from "zod";
 import { businessRule } from "./errors.js";
 
+const logger = createServiceLogger("clouddragon");
 const projectId = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/);
 const project = z.object({ id: projectId, name: z.string() });
 const domainId = z.string().regex(/^[0-9]+$/);
@@ -41,7 +43,22 @@ const failure = z.object({
   error: z.object({ type: z.string(), message: z.string() }),
 });
 
-function parseJson(output: string): unknown {
+function decodeOutput(output: Uint8Array): string | undefined {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(output);
+  } catch {
+    if (process.platform !== "win32") return;
+    try {
+      // Windows 子进程的管道可能使用中文代码页，宽松的 UTF-8 解码会破坏项目名称。
+      return new TextDecoder("gb18030", { fatal: true }).decode(output);
+    } catch {
+      return undefined;
+    }
+  }
+}
+
+function parseJson(output: string | undefined): unknown {
+  if (output === undefined) return;
   try {
     return JSON.parse(output.trim());
   } catch {
@@ -60,23 +77,44 @@ function runCloudDragon<T extends { project: string }>(
     execFile(
       "clouddragon",
       [...projectArgs, ...args],
-      { encoding: "utf8", maxBuffer: 32 * 1024 * 1024, timeout: 60_000, windowsHide: true },
+      {
+        encoding: "buffer",
+        env: { ...process.env, PYTHONIOENCODING: "utf-8" },
+        maxBuffer: 32 * 1024 * 1024,
+        timeout: 60_000,
+        windowsHide: true,
+      },
       (error, stdout, stderr) => {
         if (error) {
-          const result = failure.safeParse(parseJson(stderr));
-          if (error.code === "ENOENT")
-            reject(businessRule("服务端找不到 clouddragon，请检查安装和 PATH。"));
-          else if (result.success && result.data.error.type === "AuthenticationError")
-            reject(businessRule("云龙鉴权失败，请检查服务端的云龙登录状态。"));
-          else reject(businessRule("云龙读取失败，请检查 clouddragon 后重试。"));
+          const result = failure.safeParse(parseJson(decodeOutput(stderr)));
+          const message =
+            error.code === "ENOENT"
+              ? "服务端找不到 clouddragon，请检查安装和 PATH。"
+              : result.success && result.data.error.type === "AuthenticationError"
+                ? "云龙鉴权失败，请检查服务端的云龙登录状态。"
+                : "云龙读取失败，请检查 clouddragon 后重试。";
+          logger.warn(undefined, message, {
+            command: args[0],
+            exitCode: typeof error.code === "number" ? error.code : undefined,
+            timedOutOrKilled: error.killed === true,
+          });
+          reject(businessRule(message));
           return;
         }
-        const result = response.safeParse(parseJson(stdout));
+        const output = decodeOutput(stdout);
+        if (output === undefined) {
+          logger.warn(undefined, "云龙输出编码无法识别。", { command: args[0] });
+          reject(businessRule("无法解码 clouddragon 输出，请检查 CLI 的输出编码。"));
+          return;
+        }
+        const result = response.safeParse(parseJson(output));
         if (!result.success) {
+          logger.warn(undefined, "云龙返回格式无法解析。", { command: args[0] });
           reject(businessRule("云龙返回了无法读取的数据。"));
           return;
         }
         if (selectedProjectId && result.data.data.project !== selectedProjectId) {
+          logger.warn(undefined, "云龙返回的项目与请求项目不匹配。", { command: args[0] });
           reject(businessRule("云龙返回的项目与请求项目不匹配。"));
           return;
         }
@@ -91,7 +129,13 @@ export async function readCloudDragonProjects(): Promise<CloudDragonProject[]> {
     ["projects"],
     z.object({ project: projectId, projects: z.array(project) }),
   );
-  return projects.filter(({ name }) => name.includes("开发"));
+  const visible = projects.filter(({ name }) => name.includes("开发"));
+  logger.info(undefined, "云龙项目读取完成", {
+    returned: projects.length,
+    matched: visible.length,
+    namesWithReplacementCharacters: projects.filter(({ name }) => name.includes("\ufffd")).length,
+  });
+  return visible;
 }
 
 function readRequirementPage(project: string, domain: string, page: number, size: number) {
