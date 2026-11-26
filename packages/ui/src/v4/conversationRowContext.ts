@@ -26,8 +26,6 @@ import type { CommandAck } from "@zcode/shared/zcode-protocol-v4";
 export interface ConversationRowRenderContext {
   logEpoch?: string;
   workspacePath: string;
-  /** 当前 workspace Host 的用户 Home，用于解析 Assistant 输出中的 ~/ 路径。 */
-  workspaceHomePath?: string;
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
   /** SessionPane 从目标 Host 读取的同一份模型选择 View。 */

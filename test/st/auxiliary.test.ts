@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  IModelSelectionService,
-  IProjectService,
-  IProviderSettingsService,
-  ISystemService,
-} from "@zcode/services";
+import { IModelSelectionService, IProjectService } from "@zcode/services";
 import { connectST, expectRpcUnavailable, unique, type STClient } from "./client.js";
 import { config, requireConfig } from "./config.js";
 import { readRequirement, takeRequirement } from "./business.js";
@@ -330,14 +325,7 @@ describe("ST auxiliary public contracts", () => {
         } finally {
           await settingsService.update({ locale: settings.locale });
         }
-        await expectRpcUnavailable(
-          c.probeRpc,
-          "call",
-          ISystemService.channelName,
-          "info",
-          [],
-          true,
-        );
+        await expectRpcUnavailable(c.probeRpc, "call", "system", "info", [], true);
         const bootstrap = await c.bootstrap();
         const workflowRoles = bootstrap.models.settings.agents.map((agent) => agent.id).sort();
         expect(workflowRoles).toEqual([
@@ -422,14 +410,7 @@ describe("ST auxiliary public contracts", () => {
             await c.probeRpc("call", modelSelectionChannel, "getView", [invalid]),
           ).toMatchObject({ type: 202 }); // PromiseError
         }
-        await expectRpcUnavailable(
-          c.probeRpc,
-          "call",
-          IProviderSettingsService.channelName,
-          "getView",
-          [],
-          true,
-        );
+        await expectRpcUnavailable(c.probeRpc, "call", "provider-settings", "getView", [], true);
       } finally {
         await c.close();
       }

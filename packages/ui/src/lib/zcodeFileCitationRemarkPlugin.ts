@@ -1,8 +1,5 @@
 import type { Plugin } from "unified";
-import {
-  resolveAssistantRawFilePath,
-  type AssistantFilePathResolveOptions,
-} from "@/lib/assistantFileReferences.js";
+import { resolveAssistantRawFilePath } from "@/lib/assistantFileReferences.js";
 import { getPathLeaf } from "@/lib/path.js";
 import { extractZCodeFileCitations } from "@/lib/zcodeFileCitation.js";
 
@@ -18,7 +15,6 @@ const SKIPPED_PARENT_TYPES = new Set(["code", "html", "image", "inlineCode", "li
 function projectCitationTextNode(
   node: CitationMarkdownNode,
   workspacePath: string,
-  options: AssistantFilePathResolveOptions,
 ): CitationMarkdownNode[] | null {
   const value = node.value ?? "";
   const citations = extractZCodeFileCitations(value);
@@ -27,7 +23,7 @@ function projectCitationTextNode(
   const nextNodes: CitationMarkdownNode[] = [];
   let cursor = 0;
   for (const citation of citations) {
-    const path = resolveAssistantRawFilePath(workspacePath, citation.path, options);
+    const path = resolveAssistantRawFilePath(workspacePath, citation.path);
     if (!path) continue;
     if (citation.start > cursor) {
       nextNodes.push({ type: "text", value: value.slice(cursor, citation.start) });
@@ -49,31 +45,27 @@ function projectCitationTextNode(
 function transformCitationChildren(
   node: CitationMarkdownNode,
   workspacePath: string,
-  options: AssistantFilePathResolveOptions,
 ): void {
   if (!node.children || SKIPPED_PARENT_TYPES.has(node.type)) return;
 
   for (let index = 0; index < node.children.length; index += 1) {
     const child = node.children[index]!;
     if (child.type === "text") {
-      const replacement = projectCitationTextNode(child, workspacePath, options);
+      const replacement = projectCitationTextNode(child, workspacePath);
       if (replacement) {
         node.children.splice(index, 1, ...replacement);
         index += replacement.length - 1;
       }
       continue;
     }
-    transformCitationChildren(child, workspacePath, options);
+    transformCitationChildren(child, workspacePath);
   }
 }
 
-export function createZCodeFileCitationRemarkPlugin(
-  workspacePath: string,
-  homePath?: string,
-): Plugin {
+export function createZCodeFileCitationRemarkPlugin(workspacePath: string): Plugin {
   return function zcodeFileCitationRemarkPlugin() {
     return (tree: unknown) => {
-      transformCitationChildren(tree as CitationMarkdownNode, workspacePath, { homePath });
+      transformCitationChildren(tree as CitationMarkdownNode, workspacePath);
     };
   };
 }

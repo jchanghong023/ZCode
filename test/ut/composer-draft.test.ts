@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearV4ComposerDraft,
-  clearV4ComposerDraftTaskGroup,
   composerDraftScopeKey,
   getV4ComposerDraftStorageKey,
   persistV4ComposerDraft,
@@ -56,6 +55,8 @@ describe("composer draft persistence", () => {
   };
   const otherEmployee = { ...scope, clientNamespace: "j00000002:client-1" };
   const otherClient = { ...scope, clientNamespace: "j00000001:client-2" };
+  const otherIdentity = "workspace-b";
+  const otherWorkspaceScope = { ...scope, hostId: otherIdentity };
 
   beforeEach(() => {
     storage = new MemoryStorage();
@@ -74,7 +75,6 @@ describe("composer draft persistence", () => {
       planEnabled: true,
       modelSelection: { providerId: "provider-a", modelId: "model-a" },
       projectId: "project-a",
-      taskGroupId: "group-a",
     };
     expect(persistV4ComposerDraft(path, identity, V4_DRAFT_SCOPE_ROOT, draft, scope)).toBe(true);
     expect(readV4ComposerDraft(path, identity, V4_DRAFT_SCOPE_ROOT, scope)).toMatchObject(draft);
@@ -85,7 +85,7 @@ describe("composer draft persistence", () => {
       { ...scope, clientNamespace: "j00000002:client-1" },
       { ...scope, clientNamespace: "j00000001:client-2" },
       { ...scope, projectId: "project-b" },
-      { ...scope, hostId: "workspace-b" },
+      otherWorkspaceScope,
     ];
     persistV4ComposerDraft(path, identity, V4_DRAFT_SCOPE_ROOT, { text: "我的草稿" }, scope);
     for (const other of alternatives) {
@@ -131,7 +131,7 @@ describe("composer draft persistence", () => {
         uploadStatus: "waitingSession",
         uploadProgress: 0,
         autoRetryCount: 0,
-        runtimeRebuildRetryCount: 0,
+        connectionReplacementRetryCount: 0,
         showComplete: false,
         localZeroCopy: false,
       },
@@ -182,21 +182,31 @@ describe("composer draft persistence", () => {
   });
 
   it("isolates session drafts by workspace identity and session, even when paths are equal", () => {
-    persistV4ComposerDraft(path, identity, "session-a", { text: "会话 A" });
-    persistV4ComposerDraft(path, identity, "session-b", { text: "会话 B" });
-    persistV4ComposerDraft(path, "workspace-b", "session-a", { text: "另一工作区" });
-    expect(readV4ComposerDraft(path, identity, "session-a")?.text).toBe("会话 A");
-    expect(readV4ComposerDraft(path, identity, "session-b")?.text).toBe("会话 B");
-    expect(readV4ComposerDraft(path, "workspace-b", "session-a")?.text).toBe("另一工作区");
-    expect(readV4ComposerDraft(path, "workspace-c", "session-a")).toBeNull();
+    persistV4ComposerDraft(path, identity, "session-a", { text: "会话 A" }, scope);
+    persistV4ComposerDraft(path, identity, "session-b", { text: "会话 B" }, scope);
+    persistV4ComposerDraft(
+      path,
+      otherIdentity,
+      "session-a",
+      { text: "另一工作区" },
+      otherWorkspaceScope,
+    );
+    expect(readV4ComposerDraft(path, identity, "session-a", scope)?.text).toBe("会话 A");
+    expect(readV4ComposerDraft(path, identity, "session-b", scope)?.text).toBe("会话 B");
+    expect(readV4ComposerDraft(path, otherIdentity, "session-a", otherWorkspaceScope)?.text).toBe(
+      "另一工作区",
+    );
+    expect(readV4ComposerDraft(path, "workspace-c", "session-a", scope)).toBeNull();
   });
 
   it("uses stable workspace identity when the display path changes", () => {
-    persistV4ComposerDraft(path, identity, "session-a", { text: "按身份恢复" });
-    expect(readV4ComposerDraft("/renamed/path", identity, "session-a")?.text).toBe("按身份恢复");
+    persistV4ComposerDraft(path, identity, "session-a", { text: "按身份恢复" }, scope);
+    expect(readV4ComposerDraft("/renamed/path", identity, "session-a", scope)?.text).toBe(
+      "按身份恢复",
+    );
   });
 
-  it("preserves project and group intent when only the text changes, and honors explicit clearing", () => {
+  it("preserves project intent when only the text changes, and honors explicit clearing", () => {
     persistV4ComposerDraft(
       path,
       identity,
@@ -204,7 +214,6 @@ describe("composer draft persistence", () => {
       {
         text: "原文",
         projectId: "project-a",
-        taskGroupId: "group-a",
       },
       scope,
     );
@@ -212,7 +221,6 @@ describe("composer draft persistence", () => {
     expect(readV4ComposerDraft(path, identity, V4_DRAFT_SCOPE_ROOT, scope)).toMatchObject({
       text: "修改后的原文",
       projectId: "project-a",
-      taskGroupId: "group-a",
     });
     persistV4ComposerDraft(
       path,
@@ -221,25 +229,31 @@ describe("composer draft persistence", () => {
       {
         text: "仍保留正文",
         projectId: null,
-        taskGroupId: null,
       },
       scope,
     );
     expect(readV4ComposerDraft(path, identity, V4_DRAFT_SCOPE_ROOT, scope)).toMatchObject({
       text: "仍保留正文",
       projectId: null,
-      taskGroupId: null,
     });
   });
 
   it("clears only the requested session draft", () => {
-    persistV4ComposerDraft(path, identity, "session-a", { text: "已发送正文" });
-    persistV4ComposerDraft(path, identity, "session-b", { text: "其他未发送正文" });
-    persistV4ComposerDraft(path, "workspace-b", "session-a", { text: "其他工作区正文" });
-    expect(clearV4ComposerDraft(path, identity, "session-a")).toBe(true);
-    expect(readV4ComposerDraft(path, identity, "session-a")).toBeNull();
-    expect(readV4ComposerDraft(path, identity, "session-b")?.text).toBe("其他未发送正文");
-    expect(readV4ComposerDraft(path, "workspace-b", "session-a")?.text).toBe("其他工作区正文");
+    persistV4ComposerDraft(path, identity, "session-a", { text: "已发送正文" }, scope);
+    persistV4ComposerDraft(path, identity, "session-b", { text: "其他未发送正文" }, scope);
+    persistV4ComposerDraft(
+      path,
+      otherIdentity,
+      "session-a",
+      { text: "其他工作区正文" },
+      otherWorkspaceScope,
+    );
+    expect(clearV4ComposerDraft(path, identity, "session-a", scope)).toBe(true);
+    expect(readV4ComposerDraft(path, identity, "session-a", scope)).toBeNull();
+    expect(readV4ComposerDraft(path, identity, "session-b", scope)?.text).toBe("其他未发送正文");
+    expect(readV4ComposerDraft(path, otherIdentity, "session-a", otherWorkspaceScope)?.text).toBe(
+      "其他工作区正文",
+    );
   });
 
   it("deleting text does not resurrect the old draft or erase another project", () => {
@@ -253,56 +267,39 @@ describe("composer draft persistence", () => {
     expect(readV4ComposerDraft(path, identity, V4_DRAFT_SCOPE_ROOT, other)?.text).toBe("其他项目");
   });
 
-  it("removing a group placement preserves the project and text and leaves other projects intact", () => {
-    const other = { ...scope, projectId: "project-b" };
-    for (const target of [scope, other]) {
-      persistV4ComposerDraft(
-        path,
-        identity,
-        V4_DRAFT_SCOPE_ROOT,
-        {
-          text: target.projectId!,
-          projectId: target.projectId,
-          taskGroupId: "group-a",
-        },
-        target,
-      );
-    }
-    expect(clearV4ComposerDraftTaskGroup(path, identity, scope)).toBe(true);
-    const retained = readV4ComposerDraft(path, identity, V4_DRAFT_SCOPE_ROOT, scope);
-    expect(retained).toMatchObject({ text: "project-a", projectId: "project-a" });
-    expect(retained?.taskGroupId).toBeUndefined();
-    expect(readV4ComposerDraft(path, identity, V4_DRAFT_SCOPE_ROOT, other)).toMatchObject({
-      text: "project-b",
-      taskGroupId: "group-a",
-    });
-  });
-
   it("reports an unavailable browser store rather than a successful save", () => {
     vi.stubGlobal("window", {});
-    expect(persistV4ComposerDraft(path, identity, "session-a", { text: "不能假报已保存" })).toBe(
+    expect(persistV4ComposerDraft(path, identity, "session-a", { text: "不能假报已保存" }, scope)).toBe(
       false,
     );
-    expect(readV4ComposerDraft(path, identity, "session-a")).toBeNull();
+    expect(readV4ComposerDraft(path, identity, "session-a", scope)).toBeNull();
   });
 
   it("reports failed saves and clears without losing the last persisted text", () => {
-    persistV4ComposerDraft(path, identity, "quota-case", { text: "最后一次保存" });
+    persistV4ComposerDraft(path, identity, "quota-case", { text: "最后一次保存" }, scope);
     storage.failWrites = true;
-    expect(persistV4ComposerDraft(path, identity, "quota-case", { text: "保存失败的新输入" })).toBe(
-      false,
-    );
-    expect(clearV4ComposerDraft(path, identity, "quota-case")).toBe(false);
-    expect(readV4ComposerDraft(path, identity, "quota-case")?.text).toBe("最后一次保存");
+    expect(
+      persistV4ComposerDraft(path, identity, "quota-case", { text: "保存失败的新输入" }, scope),
+    ).toBe(false);
+    expect(clearV4ComposerDraft(path, identity, "quota-case", scope)).toBe(false);
+    expect(readV4ComposerDraft(path, identity, "quota-case", scope)?.text).toBe("最后一次保存");
   });
 
   it("ignores corrupt saved data without erasing it during a read or affecting other workspaces", () => {
-    persistV4ComposerDraft(path, identity, "session-a", { text: "损坏前" });
-    persistV4ComposerDraft(path, "workspace-b", "session-a", { text: "可恢复正文" });
-    const key = getV4ComposerDraftStorageKey(path, identity);
+    persistV4ComposerDraft(path, identity, "session-a", { text: "损坏前" }, scope);
+    persistV4ComposerDraft(
+      path,
+      otherIdentity,
+      "session-a",
+      { text: "可恢复正文" },
+      otherWorkspaceScope,
+    );
+    const key = getV4ComposerDraftStorageKey(path, identity, scope.clientNamespace);
     storage.setItem(key, "{broken-json");
-    expect(readV4ComposerDraft(path, identity, "session-a")).toBeNull();
+    expect(readV4ComposerDraft(path, identity, "session-a", scope)).toBeNull();
     expect(storage.getItem(key)).toBe("{broken-json");
-    expect(readV4ComposerDraft(path, "workspace-b", "session-a")?.text).toBe("可恢复正文");
+    expect(readV4ComposerDraft(path, otherIdentity, "session-a", otherWorkspaceScope)?.text).toBe(
+      "可恢复正文",
+    );
   });
 });

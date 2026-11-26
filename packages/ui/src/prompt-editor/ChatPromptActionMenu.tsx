@@ -9,23 +9,13 @@ import { getSessionMentionWorkspaceScope } from "@/mentions/mentionPanelRouting.
 import { useChatViewActiveTaskProvider } from "@/v4/activeTaskProvider.js";
 import { useMemo, useRef, useState, type MutableRefObject } from "react";
 import type { EditorState } from "lexical";
-import { GoalIcon, Info, PaperclipIcon, PencilRuler, PlusIcon } from "lucide-react";
+import { Info, PaperclipIcon, PencilRuler, PlusIcon } from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Button } from "@/components/ui/button.js";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover.js";
-import { buildSlashApplyMentionPayload } from "@/lib/slashApplyMentionPayload.js";
 import type { LexicalChatInputHandle } from "@/LexicalChatInput.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { MentionPanel, type MentionPanelSection } from "@/mentions/components/MentionPanel.js";
-
-/**
- * 「添加」分区里紧随附件之后的命令快捷项，选中即插入与 `/` 面板相同的命令标签。
- * 两者都只在消息开头解析/展开，所以只对严格空草稿提供。
- */
-const QUICK_COMMANDS = {
-  goal: { id: "add-goal", labelId: "chat.goalBanner.label", Icon: GoalIcon },
-} as const;
-type QuickCommand = keyof typeof QUICK_COMMANDS;
 
 export interface ComposerDrawingAction {
   label: string;
@@ -45,7 +35,6 @@ export function ChatPromptActionMenu({
   sessionId,
   container,
   showContext,
-  excludedSlashCommandNames,
 }: {
   actionMenuTitle: string;
   attachmentAction?: {
@@ -63,11 +52,9 @@ export function ChatPromptActionMenu({
   sessionId: string | null;
   container: HTMLElement | null;
   showContext: boolean;
-  excludedSlashCommandNames?: readonly string[];
 }) {
   const { intl } = useZCodeIntl();
   const [open, setOpen] = useState(false);
-  const [quickCommands, setQuickCommands] = useState<QuickCommand[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const selectionStateRef = useRef<EditorState | undefined>(undefined);
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -115,7 +102,6 @@ export function ChatPromptActionMenu({
   const attachmentCount = attachmentAction ? 1 : 0;
   const options = [
     ...(attachmentAction ? [{ disabled: false }] : []),
-    ...quickCommands.map(() => ({ disabled: false })),
     ...mentionItems,
   ];
   const sections: MentionPanelSection[] = [
@@ -144,21 +130,6 @@ export function ChatPromptActionMenu({
               },
             ]
           : []),
-        ...quickCommands.map((command) => {
-          const { id, labelId, Icon } = QUICK_COMMANDS[command];
-          const label = intl.formatMessage({ id: labelId });
-          return {
-            id,
-            label,
-            description: "",
-            content: (
-              <>
-                <Icon className="size-4 shrink-0" />
-                <span className="truncate text-ui-base font-medium">{label}</span>
-              </>
-            ),
-          };
-        }),
       ],
     },
     ...contextGroups.map((group) => ({
@@ -182,16 +153,7 @@ export function ChatPromptActionMenu({
       attachmentAction.onSelect();
       return;
     }
-    const command = quickCommands[index - attachmentCount];
-    const item = command
-      ? buildSlashApplyMentionPayload({
-          id: `slash:${command}`,
-          trigger: "/",
-          value: command,
-          label: `/${command}`,
-          description: "",
-        })
-      : mentionItems[index - attachmentCount - quickCommands.length];
+    const item = mentionItems[index - attachmentCount];
     if (!item) return;
     restoreEditorFocusRef.current = true;
     inputApiRef.current?.insertMention(item, selectionStateRef.current);
@@ -202,12 +164,7 @@ export function ChatPromptActionMenu({
       open={open && !disabled}
       onOpenChange={(nextOpen) => {
         if (nextOpen && !drawingAction) {
-          // 打开瞬间快照，菜单打开期间候选不平移，键盘选择不会错位。
-          // /goal 仍是消息开头命令且是会话级目标：仅新会话空草稿提供，避免在消息中间插入后被忽略。
-          const emptyDraft = inputApiRef.current?.getText() === "";
-          const offered = (command: QuickCommand, available: boolean) =>
-            emptyDraft && available && !excludedSlashCommandNames?.includes(command);
-          setQuickCommands(offered("goal", sessionId === null) ? ["goal"] : []);
+          // 在打开时记下编辑器选区；点选引用后插回原位置。
           selectionStateRef.current = inputApiRef.current?.getEditorState();
           setSelectedIndex(0);
         }

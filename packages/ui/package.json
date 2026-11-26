@@ -11,16 +11,7 @@
     "./input": "./src/components/ui/input.tsx",
     "./label": "./src/components/ui/label.tsx",
     "./alert": "./src/components/ui/alert.tsx",
-    "./dialog": "./src/components/ui/dialog.tsx",
-    "./alert-dialog": "./src/components/ui/alert-dialog.tsx",
-    "./dropdown-menu": "./src/components/ui/dropdown-menu.tsx",
-    "./select": "./src/components/ui/select.tsx",
     "./useTheme": "./src/useTheme.ts",
-    "./oauth-provider-icon": "./src/lib/oauthProviderIcon.tsx",
-    "./app-logo": "./src/components/mobile-ui/ZCodeAppLogo.tsx",
-    "./bottom-sheet": "./src/components/mobile-ui/bottom-sheet.tsx",
-    "./device-platform-icon": "./src/components/mobile-ui/DevicePlatformIcon.tsx",
-    "./message": "./src/components/ai-elements/message.tsx",
     "./styles.css": "./src/styles.css"
   },
   "scripts": {

@@ -70,7 +70,7 @@ Skill 主入口隐藏，但私有会话、附件、预览、保存和草稿门�
 | `/ws`                           | 校验工号、客户端身份、可选 `pageId` 和部署 token；仅二进制 Channel RPC，文本消息以 1003 关闭                                                        |
 | `/chat`                         | 浏览器聊天页面，静态托管读取 `chat/index.html`；不要求工号，不经过部署 token 校验                                                                   |
 | `/ws/chat`                      | 校验匿名 UUID `clientId` 和可选部署 token；使用聊天白名单与同一二进制协议                                                                           |
-| `GET /api/v1/client/configs`    | `no-store`，返回 `{code:0,data:{configs:{feedbackUrl:…}}}`；独立于 RPC 配置服务                                                                     |
+| `GET /api/v1/client/configs`    | 兼容 HTTP 接口，独立于 RPC 配置服务，当前 Web 不消费。读取 [`config/default.json`](../../config/default.json)，以 `Cache-Control: no-store` 返回 `{code:0,data:{configs:{feedbackUrl:…}}}` |
 | `POST /api/v1/telemetry/events` | 严格 shared `ui`／`arms` 信封；清洗副本交诊断后返回 202 空响应；非法 JSON／字段 400，未授权 401，内部失败安全 500                                   |
 | 静态托管                        | 配置 staticRoot 后启用；HTML `no-cache`，带内容哈希 assets 一年 immutable，其他资源重新校验；支持 HEAD、br/gzip/identity 与 `Vary: Accept-Encoding` |
 | SPA fallback                    | 不覆盖 `/api/` 或 `/ws` 及其子路由；拒绝目录穿越、盘符路径及 `.map`；没有可接受编码返回 406                                                         |
@@ -89,7 +89,7 @@ Skill 主入口隐藏，但私有会话、附件、预览、保存和草稿门�
 | `ZCODE_WEB_STATIC_ROOT`     | 静态目录，设置后启用 SPA fallback                 |
 | `ZCODE_SERVER_AUTH_TOKEN`   | 可选部署访问控制，只保护 `/ws`、`/ws/…`、`/api/…` |
 
-原型受保护请求接受匹配 Bearer、查询 token 或 `zcode_lite_token` Cookie。有效的 token 查询可设置 `Path=/; HttpOnly; SameSite=Lax` Cookie。静态页可直接打开，浏览器把页面 URL 中的 token 传给 WebSocket。正式服务的监听范围、来源与 API 凭据见[连接身份](../specs/aireq/connection-identity.md#1-身份来源)。帮助配置 fetch 保持 `credentials:"same-origin"`、`redirect:"error"`。
+原型受保护请求接受匹配 Bearer、查询 token 或 `zcode_lite_token` Cookie。有效的 token 查询可设置 `Path=/; HttpOnly; SameSite=Lax` Cookie。静态页可直接打开，浏览器把页面 URL 中的 token 传给 WebSocket。正式服务的监听范围、来源与 API 凭据见[连接身份](../specs/aireq/connection-identity.md#1-身份来源)。
 
 ## 5. 部署限制与后端替换
 

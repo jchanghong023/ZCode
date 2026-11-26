@@ -1,5 +1,5 @@
 /* eslint-disable max-lines -- ZCode agent service 接口集中声明 protocol/session/workspace 方法，拆分会增加 service descriptor 迁移成本。 */
-import type { Event, IDisposable } from "@zcode/rpc";
+import type { Event } from "@zcode/rpc";
 import { ServiceChannels } from "@zcode/shared/channels";
 import type { ZCodeSkillsReferenceCatalogResult, ZCodeTaskClientMode } from "@zcode/shared";
 import type {
@@ -44,22 +44,9 @@ export interface ZCodeAgentSessionTarget extends ZCodeAgentWorkspaceTarget {
   sessionId: string;
 }
 
-export interface ZCodeAgentWorkspaceRuntimeIdentity {
-  generation: number;
-  identity: string;
-  processId?: number;
-  workspaceKey: string;
-}
-
 export const ZCODE_AGENT_RUNTIME_UNAVAILABLE_CODE = "ZCODE_AGENT_RUNTIME_UNAVAILABLE";
 
 export type ZCodeAgentRuntimePolicy = "start-if-needed" | "existing-only";
-
-export interface ZCodeAgentRuntimeLifecycleEvent extends ZCodeAgentWorkspaceTarget {
-  workspaceKey: string;
-  runtimeIdentity: ZCodeAgentWorkspaceRuntimeIdentity;
-  state: "available" | "unavailable";
-}
 
 // ── v4 conversation 通道（竖切）──
 // host 只做转发：subscribe/unsubscribe/command 透传给 CLI v4 gateway，
@@ -211,19 +198,6 @@ export interface IZCodeAgentService {
   onDynamicConversationFrame(
     params: ZCodeAgentWorkspaceTarget,
   ): Event<ConversationTopicWireCandidate>;
-  /**
-   * （CLI 重连重订）：agent 进程换代通知（超时回收/崩溃后重新拉起）。
-   * v4 订阅活在 CLI 进程内存，进程换代即失效；订阅方（task-index syncer 等）
-   * 收到后必须对该 workspaceKey 重发 subscribe，否则帧流静默中断。
-   */
-  onAgentRuntimeRestarted?(listener: (event: { workspaceKey: string }) => void): IDisposable;
-  /**
-   * Agent client 在 service 内完成登记后发布 available，当前 client 关闭后发布 unavailable。
-   * 这是被动 observer attach/detach 的唯一生命周期信号，不表达用户使用租约。
-   */
-  onAgentRuntimeLifecycle?: (
-    listener: (event: ZCodeAgentRuntimeLifecycleEvent) => void,
-  ) => IDisposable;
 }
 
 const WEB_CONVERSATION_METHODS = [

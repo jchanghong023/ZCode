@@ -369,20 +369,11 @@ export function useDraftConfigControl(params: {
   draftConfigRef.current = draftConfig;
   const createDraftPersistence = useCallback(
     (targetScopeId = stateRef.current.promotedSessionId ?? scopeId) => {
-      const workspace = useZCodeSessionStore
+      // 捕获当前草稿的项目意图；切换项目或新建草稿后，延迟保存仍只写入原 scope。
+      const { draftProjectId: projectId } = useZCodeSessionStore
         .getState()
         .getWorkspaceState(workspacePath, workspaceIdentity);
       return (value: V4ComposerDraft) => {
-        const current = useZCodeSessionStore
-          .getState()
-          .getWorkspaceState(workspacePath, workspaceIdentity);
-        // Bug 根因：自动保存不再触发父级 render 后，旧闭包可能把已关闭的分组归属写回来。
-        // 同一草稿从唯一 owner 读取最新意图；新草稿/项目已接管时仍冻结原 scope 的归属。
-        const placement =
-          current.draftFocusVersion === workspace.draftFocusVersion &&
-          current.draftProjectId === workspace.draftProjectId
-            ? current
-            : workspace;
         return persistV4ComposerDraft(
           workspacePath,
           workspaceIdentity,
@@ -390,12 +381,7 @@ export function useDraftConfigControl(params: {
           scopeId === V4_DRAFT_SCOPE_ROOT
             ? {
                 ...value,
-                projectId:
-                  placement.draftProjectId !== undefined
-                    ? placement.draftProjectId
-                    : value.projectId,
-                // undefined 是显式撤销分组，不能回退到旧正文快照中的 taskGroupId。
-                taskGroupId: placement.draftTaskGroupId,
+                projectId: projectId === undefined ? value.projectId : projectId,
               }
             : value,
           rootScope,

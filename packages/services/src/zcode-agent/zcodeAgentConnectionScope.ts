@@ -202,8 +202,6 @@ interface PendingOwnership {
   frames: RoutedTopicFrame[];
   stagedBytes: number;
   overflowReason: string | null;
-  runtimeGeneration: number;
-  invalidatedByRuntimeRestart: boolean;
 }
 
 interface RoutedFrameEvent {
@@ -330,7 +328,6 @@ export function createZCodeAgentConnectionScope(
   const routeKeyByOwnership = new Map<string, string>();
   const pendingByOwnership = new Map<string, Set<PendingOwnership>>();
   const routedFrameEvents = new Map<string, RoutedFrameEvent>();
-  const runtimeGenerationByWorkspaceKey = new Map<string, number>();
   let disposed = false;
   // trusted relay 已在外层 transport（stdio / Node-only WS role header）完成身份
   // 选择；终端 UI 仍必须走 hello → clientHello。
@@ -445,8 +442,6 @@ export function createZCodeAgentConnectionScope(
       frames: [],
       stagedBytes: 0,
       overflowReason: null,
-      runtimeGeneration: runtimeGenerationByWorkspaceKey.get(workspaceKey(target)) ?? 0,
-      invalidatedByRuntimeRestart: false,
     };
     const key = ownershipKey(kind, target, topic);
     const group = pendingByOwnership.get(key) ?? new Set<PendingOwnership>();
@@ -467,7 +462,7 @@ export function createZCodeAgentConnectionScope(
     pending.overflowReason = null;
   };
   const stageFrame = (pending: PendingOwnership, frame: RoutedTopicFrame): void => {
-    if (pending.overflowReason || pending.invalidatedByRuntimeRestart) return;
+    if (pending.overflowReason) return;
     const bytes = frameBytes(frame);
     if (
       pending.frames.length + 1 > MAX_PENDING_OWNERSHIP_FRAMES ||
@@ -567,18 +562,6 @@ export function createZCodeAgentConnectionScope(
   ): Promise<void> => {
     removePendingOwnership(pending);
     const complete = { ...entry, subscriptionId };
-    // 关闭会清空 generation 表；已观察到的换代仍由 pending 标记区分。
-    if (
-      pending.invalidatedByRuntimeRestart ||
-      (!disposed &&
-        pending.runtimeGeneration !==
-          (runtimeGenerationByWorkspaceKey.get(workspaceKey(entry.target)) ?? 0))
-    ) {
-      // 旧 runtime 的迟到 ACK 可能与新 runtime 复用同一 subId。
-      // 这里只丢本地 owner，绝不能向新 runtime 反向 unsubscribe 同名 subscription。
-      discardPendingOwnership(pending);
-      throw new Error("fault.subscription.runtimeRestarted");
-    }
     if (disposed) {
       // port close 与 subscribe ACK 可并发；迟到 ACK 不能在已关闭 facade
       // 重新登记 owner，必须立即反向 unsubscribe。
@@ -606,45 +589,6 @@ export function createZCodeAgentConnectionScope(
     pending.frames.length = 0;
     pending.stagedBytes = 0;
   };
-
-  const invalidateWorkspaceRuntime = (invalidatedWorkspaceKey: string, generation: number) => {
-    runtimeGenerationByWorkspaceKey.set(invalidatedWorkspaceKey, generation);
-    // runtime 内 subscription 已全部消失；本地 owner 直接 forget，不向新 runtime 清理。
-    for (const entry of owned.values()) {
-      if (workspaceKey(entry.target) === invalidatedWorkspaceKey) forget(entry);
-    }
-    const invalidatedPending = [...pendingByOwnership.values()]
-      .flatMap((group) => [...group])
-      .filter((pending) => workspaceKey(pending.target) === invalidatedWorkspaceKey);
-    for (const pending of invalidatedPending) {
-      pending.invalidatedByRuntimeRestart = true;
-      // 从 routing group 摘除，避免旧 ACK 永不到达时继续为新 runtime 每帧积压；
-      // pending 对象仍由原 Promise continuation 持有，可据 generation 拒绝迟到 ACK。
-      removePendingOwnership(pending);
-      pending.frames.length = 0;
-      pending.stagedBytes = 0;
-    }
-  };
-
-  const hasRuntimeLifecycle = Boolean(base.onAgentRuntimeLifecycle);
-  const runtimeLifecycleDisposable = base.onAgentRuntimeLifecycle?.((event) => {
-    if (event.state === "available") {
-      // 首次冷启动的 subscribe 会先登记 pending，再由同一次启动发布
-      // available(gen1)，最后才收到 ACK。available 不是旧 ownership 的失效边界；
-      // 若在这里推进 generation，会把当前 runtime 的合法 ACK 误判成 restart。
-      // 真正的换代一定先发布 unavailable，由下方分支清理旧 owner/pending。
-      return;
-    }
-    // attachment facade 若只监听 restart，runtime 退出但未重启时就会保留旧 owner，
-    // 后续 UI cleanup 会重建 unsubscribe 参数并误走启动型 client；因此 unavailable 直接失效本地 owner。
-    invalidateWorkspaceRuntime(event.workspaceKey, event.runtimeIdentity.generation);
-  });
-  const runtimeRestartDisposable = hasRuntimeLifecycle
-    ? undefined
-    : base.onAgentRuntimeRestarted?.(({ workspaceKey: restarted }) => {
-        const nextGeneration = (runtimeGenerationByWorkspaceKey.get(restarted) ?? 0) + 1;
-        invalidateWorkspaceRuntime(restarted, nextGeneration);
-      });
 
   const listRecentChatSessions = base.listRecentChatSessions?.bind(base);
   const overrides: Partial<WebScopedAgent> = {
@@ -946,9 +890,6 @@ export function createZCodeAgentConnectionScope(
         route.emitter.dispose();
       }
       routedFrameEvents.clear();
-      runtimeLifecycleDisposable?.dispose();
-      runtimeRestartDisposable?.dispose();
-      runtimeGenerationByWorkspaceKey.clear();
       await Promise.allSettled(entries.map((entry) => unsubscribeBase(entry)));
     },
   };

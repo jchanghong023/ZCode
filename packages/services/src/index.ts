@@ -4,12 +4,9 @@ export { ServiceCollection, type ServiceExposurePolicy } from "./collection.js";
 export { IAIReqService } from "./aireq/contract.js";
 export {
   IModelSelectionService,
-  IProviderSettingsService,
   WEB_MODEL_SELECTION_METHODS,
   type ModelSelectionView,
   type ModelSelectionViewInput,
-  type ProviderSettingsProviderView,
-  type ProviderSettingsView,
   type WebModelSelectionService,
   type WebModelSelectionView,
 } from "./model-provider/providerFacadeServices.js";
@@ -25,9 +22,6 @@ export type { IServiceAccessor } from "./accessor.js";
 // Web file service descriptor and its wire types
 export { IFileService } from "./file/file.js";
 export type { WebFileMediaPreview, WebFileService, WebWorkspaceFileEntry } from "./file/file.js";
-
-// System service — ISystemService is both a type (interface) and value (descriptor)
-export { ISystemService } from "./system/system.js";
 
 // Web settings service descriptor, projection, and patch schema
 export {
@@ -74,14 +68,10 @@ export type {
   ZCodeAgentAttachmentBeginParams,
   ZCodeAgentAttachmentChunkParams,
   ZCodeAgentAttachmentTerminalParams,
-  ZCodeAgentRuntimeLifecycleEvent,
   ZCodeAgentRuntimePolicy,
   ZCodeAgentSessionTarget,
   ZCodeAgentWorkspaceTarget,
 } from "./zcode-agent/zcodeAgent.js";
-
-// Subagents service — ISubagentsService is both a type (interface) and value (descriptor)
-export { ISubagentsService } from "./subagents/subagents.js";
 
 export { IProjectService, LEGACY_SINGLE_ROOT_PROJECT_PREFIX } from "#src/project/contract.js";
 export {

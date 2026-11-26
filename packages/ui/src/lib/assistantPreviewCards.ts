@@ -12,7 +12,6 @@ import {
   parseAssistantFileUrlPath,
   resolveAssistantRawFilePath,
   type AssistantFileReference,
-  type AssistantFilePathResolveOptions,
   type AssistantPreviewFileKind,
   type AssistantPreviewFileSubtitleId,
 } from "@/lib/assistantFileReferences.js";
@@ -79,7 +78,6 @@ const MARKDOWN_LINK_RE = /\[([^\]\n]*)\]\(([^)\n]+)\)/g;
 
 interface AssistantPreviewCardOptions {
   changedFilePaths?: readonly string[];
-  homePath?: string;
   suppressWebRemoteCards?: boolean;
 }
 
@@ -195,13 +193,12 @@ function resolveLocalhostHtmlChangedPath(
   url: string,
   workspacePath: string,
   changedFilePaths: readonly string[],
-  options: AssistantFilePathResolveOptions = {},
 ): string | null {
   try {
     const parsedUrl = new URL(url);
     const pathname = decodeFilePathUriEscapes(parsedUrl.pathname).replace(/^\/+/, "");
     if (!isAssistantPreviewHtmlPath(pathname)) return null;
-    const path = resolveAssistantRawFilePath(workspacePath, pathname, options);
+    const path = resolveAssistantRawFilePath(workspacePath, pathname);
     if (!path) return null;
     return findMatchingChangedFilePath(
       { start: 0, end: 0, kind: "html", path, raw: pathname },
@@ -279,9 +276,7 @@ export function buildAssistantPreviewCardsFromReferences(
     if (!isValidAssistantPreviewWebsiteUrl(url)) continue;
     // Web 远控没有本地端口转发或 HTML 运行环境；在候选上限前过滤，避免隐藏卡片占位。
     if (options.suppressWebRemoteCards) continue;
-    const filePath = resolveLocalhostHtmlChangedPath(url, workspacePath, changedFilePaths, {
-      homePath: options.homePath,
-    });
+    const filePath = resolveLocalhostHtmlChangedPath(url, workspacePath, changedFilePaths);
     if (filePath && matchesGenUiSourcePath(filePath, genUiSources)) continue;
     hasLocalHttpPreview = true;
     positionedCards.push({

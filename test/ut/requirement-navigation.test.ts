@@ -15,12 +15,10 @@ describe("requirement navigation history", () => {
     expect(restoreMainView("proposals")).toBe("proposals");
     expect(restoreMainView("chat")).toBe("chat");
     expect(restoreMainView("unknown")).toBe("projectProgress");
-    expect(restoreMainView("ideas")).toBe("projectProgress");
   });
 
-  it("restores settings but discards the retired draft overlay", () => {
+  it("restores settings and rejects unknown overlays", () => {
     expect(restoreNavigationOverlay({ kind: "settings" })).toEqual({ kind: "settings" });
-    expect(restoreNavigationOverlay({ kind: "proposal", draft: { id: "draft" } })).toBeNull();
     expect(restoreNavigationOverlay({ kind: "unknown" })).toBeNull();
   });
 

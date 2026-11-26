@@ -18,9 +18,8 @@ import { composerEditSessionKey, isComposerEditScopeId } from "@/composer-edit-m
 
 export interface V4ComposerDraft {
   text: string;
-  /** 未提交草稿的组织意图；真实任务归属始终由 Host 管理。 */
+  /** 未提交草稿的项目意图；真实任务归属始终由 Host 管理。 */
   projectId?: string | null;
-  taskGroupId?: string | null;
   editorStateJson?: string;
   mention?: ComposerMentionPrefill;
   /** 有合法 mode 表示已经初始化；没有模型仍是明确空态，不能按旧文本草稿补默认。 */
@@ -137,33 +136,6 @@ export function resolveComposerScope(
   };
 }
 
-function workspaceScopeKey(
-  path: string,
-  identity: string | undefined,
-  clientNamespace: string,
-): string {
-  return `zcode-composer-workspace-scope:v1:${JSON.stringify([clientNamespace, identity?.trim() || path])}`;
-}
-export function readComposerWorkspaceScope(
-  path: string,
-  identity: string | undefined,
-  clientNamespace = "desktop",
-): ComposerScope | undefined {
-  try {
-    const raw = getStorage()?.getItem(workspaceScopeKey(path, identity, clientNamespace));
-    const value = raw ? JSON.parse(raw) : null;
-    if (
-      value?.clientNamespace === clientNamespace &&
-      value.hostId === resolveComposerScope(null, identity, clientNamespace).hostId &&
-      (value.projectId === null || typeof value.projectId === "string")
-    )
-      return value;
-  } catch {
-    /* 旧版没有导航身份，不能从目录猜项目。 */
-  }
-  return undefined;
-}
-
 function draftStorageKey(
   path: string,
   identity: string | undefined,
@@ -270,9 +242,6 @@ function readDraft(value: unknown): V4ComposerDraft | null {
     );
   return {
     text: value.text,
-    ...(value.taskGroupId === null || typeof value.taskGroupId === "string"
-      ? { taskGroupId: value.taskGroupId as string | null }
-      : {}),
     ...(value.projectId === null || (typeof value.projectId === "string" && value.projectId.trim())
       ? { projectId: value.projectId as string | null }
       : {}),
@@ -358,29 +327,22 @@ export function persistV4ComposerDraft(
 ) {
   const key = draftStorageKey(workspacePath, workspaceIdentity, scopeId, scope);
   if (isComposerEditScopeId(scopeId)) {
-    const { projectId: _projectId, taskGroupId: _taskGroupId, ...content } = draft;
+    const { projectId: _projectId, ...content } = draft;
     editScopeDrafts.set(editScopeDraftKey(key, scopeId), { ...content, updatedAt: Date.now() });
     return true;
   }
   const file = readDraftFile(key);
   const hadDraft = Boolean(file.scopes[scopeId]);
   // 正文/模型各自更新草稿时不能抹掉项目意图；显式新建传 null 才清除项目归属。
-  const savedGroupId = file.scopes[scopeId]?.taskGroupId;
   const savedProjectId = file.scopes[scopeId]?.projectId;
   const next = {
     ...draft,
-    ...(draft.taskGroupId === undefined && savedGroupId !== undefined
-      ? { taskGroupId: savedGroupId }
-      : {}),
     ...(draft.projectId === undefined && savedProjectId !== undefined
       ? { projectId: savedProjectId }
       : {}),
   };
-  // promotion 以后任务归属由 Host 查询；浏览器 Session 草稿不保留组织态副本。
-  if (scopeId !== V4_DRAFT_SCOPE_ROOT) {
-    delete next.projectId;
-    delete next.taskGroupId;
-  }
+  // promotion 以后任务归属由 Host 查询；浏览器 Session 草稿不保留项目意图。
+  if (scopeId !== V4_DRAFT_SCOPE_ROOT) delete next.projectId;
   // 空白页配置只留在 Composer 内存；不存在记录时也不执行无意义写盘。
   if (!next.text.trim()) {
     delete file.scopes[scopeId];
@@ -398,23 +360,6 @@ export function persistV4ComposerDraft(
         ?.projectId === scope.projectId)
   )
     file.legacyClaimed = true;
-  return writeDraftFile(key, file);
-}
-
-/** 旧版关闭分组草稿只撤销 placement；不能连带清空正在编辑的正文和项目。 */
-export function clearV4ComposerDraftTaskGroup(
-  workspacePath: string,
-  workspaceIdentity?: string,
-  scope?: ComposerScope,
-) {
-  const key = draftStorageKey(workspacePath, workspaceIdentity, V4_DRAFT_SCOPE_ROOT, scope);
-  const file = readDraftFile(key);
-  const draft = readV4ComposerDraft(workspacePath, workspaceIdentity, V4_DRAFT_SCOPE_ROOT, scope);
-  if (!draft || draft.taskGroupId === undefined) return true;
-  // 分组只是草稿的组织意图；关闭时必须沿用项目 key，不能修改同目录的其他项目。
-  delete draft.taskGroupId;
-  file.scopes[V4_DRAFT_SCOPE_ROOT] = draft;
-  if (scope?.projectId) file.legacyClaimed = true;
   return writeDraftFile(key, file);
 }
 

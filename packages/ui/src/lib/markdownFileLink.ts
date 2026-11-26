@@ -7,11 +7,6 @@ interface ParsedMarkdownFileLink {
   columnNumber: number | null;
 }
 
-export interface MarkdownFileLinkResolveOptions {
-  /** 当前 workspace Host 报告的用户 Home；Renderer 不自行读取本机 Home。 */
-  homePath?: string;
-}
-
 const LINE_AND_COLUMN_SUFFIX_RE = /^(?<path>.+):(?<line>\d+):(?<column>\d+)$/;
 const LINE_SUFFIX_RE = /^(?<path>.+):(?<line>\d+)$/;
 const HASH_LINE_SUFFIX_RE = /^(?<path>.+)#L(?<line>\d+)(?:-L?\d+)?$/i;
@@ -49,29 +44,12 @@ function isWorkspaceRelativeFileHref(href: string): boolean {
   return href.startsWith("./");
 }
 
-function normalizeHomeRelativePath(path: string): string | null {
-  if (path.startsWith("./~/") || path.startsWith("./~\\")) {
-    return path.slice(2);
-  }
-  return /^~[\\/]/.test(path) ? path : null;
-}
-
 function isHomeRelativeFilePath(path: string): boolean {
-  return normalizeHomeRelativePath(path) !== null;
+  return /^(?:\.\/)?~[\\/]/.test(path);
 }
 
 function isUnsupportedNamedHomePath(path: string): boolean {
   return /^~[^\\/]+[\\/]/.test(path);
-}
-
-function resolveHomeRelativeFilePath(path: string, homePath: string | undefined): string | null {
-  const homeRelativePath = normalizeHomeRelativePath(path);
-  if (!homeRelativePath || !homePath || !isAbsoluteFilePath(homePath)) {
-    return null;
-  }
-
-  const separator = homePath.includes("\\") && !homePath.includes("/") ? "\\" : "/";
-  return joinFilePath(homePath, homeRelativePath.slice(2).replace(/[\\/]/g, separator));
 }
 
 function isBareWorkspaceRelativeFileHref(href: string): boolean {
@@ -226,7 +204,6 @@ export function parseMarkdownFileLinkTarget(href: string): ParsedMarkdownFileLin
 export function resolveMarkdownFileLink(
   workspacePath: string | undefined,
   href: string,
-  options: MarkdownFileLinkResolveOptions = {},
 ): ParsedMarkdownFileLink | null {
   // 聊天消息里的本地文件链接现在既可能是 `./src/app.ts` 这种工作区相对路径，
   // 也可能是 `/abs/path/app.ts:30` 这种绝对路径 + 行号。
@@ -234,18 +211,9 @@ export function resolveMarkdownFileLink(
   // 同时 `:30` 也会混进文件名里。这里先拆掉可选行号，再把“相对路径”和“绝对路径”分开解析。
   const parsedTarget = parseMarkdownFileLinkTarget(href);
 
-  if (isUnsupportedNamedHomePath(parsedTarget.path)) {
+  // 未提供 Host Home；不要误把 `~/` 或 `~user/` 下的文件解析到工作区。
+  if (isUnsupportedNamedHomePath(parsedTarget.path) || isHomeRelativeFilePath(parsedTarget.path)) {
     return null;
-  }
-
-  const homePath = resolveHomeRelativeFilePath(parsedTarget.path, options.homePath);
-  if (isHomeRelativeFilePath(parsedTarget.path)) {
-    return homePath
-      ? {
-          ...parsedTarget,
-          path: homePath,
-        }
-      : null;
   }
 
   if (HARDEN_SAFE_WINDOWS_ABSOLUTE_PATH_RE.test(parsedTarget.path)) {

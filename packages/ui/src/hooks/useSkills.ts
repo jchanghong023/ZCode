@@ -35,8 +35,8 @@ export interface UseSkillsOptions {
 
 /**
  * Composer 的 Skill catalog。
- * 草稿读取工作区当前目录；预热或已有会话读取对应的冻结目录。工作区、会话、
- * 远程连接或运行时的作用域变化后，旧异步结果一律不得回填。
+ * 草稿读取工作区当前目录；预热或已有会话读取对应的冻结目录。工作区、会话或
+ * 远程连接的作用域变化后，旧异步结果一律不得回填。
  */
 export function useSkills(options: UseSkillsOptions): ConversationSkillCatalogState {
   const resolution = useWorkspaceServicesResolution(
@@ -46,24 +46,12 @@ export function useSkills(options: UseSkillsOptions): ConversationSkillCatalogSt
   );
   const [scopedState, setScopedState] =
     useState<ScopedConversationSkillCatalogState>(EMPTY_SCOPED_STATE);
-  const [runtimeRevision, setRuntimeRevision] = useState(0);
   const requestSeqRef = useRef(0);
   const workspaceKey = options.workspaceIdentity?.trim() || options.workspacePath;
   const remoteSessionId = options.preferredRemoteSessionId;
   const services = resolution.services;
   const rpcReady = resolution.rpcReady;
-  const requestKey = `${workspaceKey}|${remoteSessionId ?? "local"}|${options.sessionId ?? "draft"}|runtime:${runtimeRevision}`;
-
-  useEffect(() => {
-    if (!options.enabled || !options.sessionId || !rpcReady) return;
-    const subscription = services.zcodeAgentService.onAgentRuntimeRestarted?.((event) => {
-      if (event.workspaceKey !== workspaceKey) return;
-      // runtime 重建后 workspace/session key 不变，旧 catalog 会继续命中。
-      // 显式推进代次，使冷恢复后的新 runtime 重新读取会话目录。
-      setRuntimeRevision((current) => current + 1);
-    });
-    return subscription ? () => subscription.dispose() : undefined;
-  }, [options.enabled, options.sessionId, rpcReady, services, workspaceKey]);
+  const requestKey = `${workspaceKey}|${remoteSessionId ?? "local"}|${options.sessionId ?? "draft"}`;
 
   // 用 scope 身份隔离渲染：key 切换后的 effect 尚未执行时也只返回空态，避免旧 Session
   // 或旧 accessor 的 Skill 在一帧内泄漏到新 Composer。

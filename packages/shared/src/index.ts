@@ -13,7 +13,6 @@ export type {
   FileTextSlice,
   FileWatchEvent,
   WorkspaceFileEntry,
-  SystemInfo,
   AppSettings,
   IntegratedTerminalShellDialect,
   IntegratedTerminalShellSelection,
@@ -145,8 +144,6 @@ export * from "./storage.js";
 export * from "./oauth.js";
 export * from "./desktopMenu.js";
 export * from "./feedback.js";
-export * from "./remoteAppConfig.js";
-export * from "./helpAppConfig.js";
 export * from "./remoteAssetInstallMode.js";
 export * from "./onboardingRecord.js";
 export * from "./remoteResourcePackages.js";

@@ -1,10 +1,8 @@
 # 第三方材料维护
 
-当前产品是固定中文的纯 Web 应用：`packages/web` 提供界面，`packages/server` 提供本地 HTTP 服务，业务数据来自内存 mock。发行物只有 Web 部署目录，根目录的 [`THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md) 随部署根目录发布，构建后的 HTML 带 `rel="license"` 链接。
+`packages/web` 和 `packages/server` 的 workspace 依赖与复制资产归入根目录的 [`THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md)。Web 构建把同一份声明置于发布根目录，并从两个 HTML 入口以 `rel="license"` 引用。
 
-Web 部署根目录的声明同时覆盖随部署提供的服务端。
-
-Desktop、CLI、独立 Server 发行包/SEA 和原生搜索工具已退役，当前仓库没有对应构建入口，其许可材料不再作为当前发行输入。
+包含 OMP SDK 的发行包另合并 OMP 的许可和声明。正式黄／红区 ZIP 随包提供 `LICENSES.txt`，原型单文件通过 `--licenses` 输出。发布方式见[构建与部署](../README.md#构建与部署)。
 
 ## 生成与新鲜度校验
 
@@ -75,4 +73,4 @@ bun scripts/licenses.mjs check
 
 ## Web 交付验证
 
-运行 `bun run build:web`。核对 `packages/web/dist/THIRD-PARTY-NOTICES.md` 与根声明字节一致，并确认构建后的 `index.html` 通过 `rel="license"` 引用声明。
+运行 `bun run build:web`。核对 `packages/web/dist/THIRD-PARTY-NOTICES.md` 与根声明字节一致，且 `index.html` 和 `chat/index.html` 都通过 `rel="license"` 引用声明。

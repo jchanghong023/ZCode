@@ -25,7 +25,6 @@ export default defineConfig({
         replacement: resolve(__dirname, path),
       })),
       { find: "@", replacement: resolve(__dirname, "packages/ui/src") },
-      { find: "@web", replacement: resolve(__dirname, "packages/web/src") },
     ],
   },
   test: {
@@ -37,7 +36,6 @@ export default defineConfig({
     // 隐藏通过用例的日志，保留失败诊断。
     silent: "passed-only",
     hookTimeout: 30_000,
-    maxWorkers: 4,
     testTimeout: 30_000,
     projects: [
       {

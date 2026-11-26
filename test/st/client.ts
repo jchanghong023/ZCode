@@ -10,7 +10,7 @@ import {
   deserialize,
   serialize,
 } from "@zcode/rpc";
-import { ISubagentsService, IZCodeAgentService } from "@zcode/services";
+import { IZCodeAgentService } from "@zcode/services";
 import type {
   AIReqAction,
   AIReqIdentity,
@@ -342,7 +342,7 @@ export async function expectRetiredAgentRpc(
     expectRpcUnavailable(probeRpc, "listen", channel, "onDynamicSessionLifecycle", target),
     expectRpcUnavailable(probeRpc, "listen", channel, "onAgentRuntimeRestarted"),
     expectRpcUnavailable(probeRpc, "listen", channel, "onAgentRuntimeLifecycle"),
-    expectRpcUnavailable(probeRpc, "call", ISubagentsService.channelName, "list", [target], true),
+    expectRpcUnavailable(probeRpc, "call", "subagents", "list", [target], true),
   ]);
 }
 

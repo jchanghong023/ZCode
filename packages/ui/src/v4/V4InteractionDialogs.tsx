@@ -14,11 +14,8 @@ import {
 import { ElicitationDialog } from "@/ElicitationDialog.js";
 import { PermissionDialog } from "@/PermissionDialog.js";
 import { workflowSessionModelOf } from "@/components/workflow-timeline/workflowRunSettings.js";
-import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { usePendingInteractionTaskNotifications } from "@/hooks/useTaskNotifications.js";
 import { logger } from "@/logger.js";
-import { useZCodeStoreWithDefault } from "@/store/StoreProvider.js";
 import {
   getTaskUiState,
   getWorkspaceState,
@@ -93,7 +90,6 @@ export function V4InteractionDialogs({
   resolveRecentScope,
 }: V4InteractionDialogsProps) {
   const { sendCommand } = useV4Conversation();
-  const platform = useOptionalPlatform();
   const { intl } = useZCodeIntl();
   // task 切换时 sessionId 会先更新，旧 task snapshot 可能再保留一帧。
   // 若直接使用旧 snapshot，会把当前 task 的 renderer-local 问答草稿误判为过期并清理。
@@ -109,7 +105,6 @@ export function V4InteractionDialogs({
       (interaction) =>
         interaction.payload.kind === "permission" || interaction.payload.kind === "userInput",
     ) ?? null;
-  const notificationEnabled = useZCodeStoreWithDefault((state) => state.notificationEnabled, true);
   const botElicitationProgress = useZCodeSessionStore(
     (state) =>
       getTaskUiState(getWorkspaceState(state, workspacePath, workspaceIdentity), sessionId)
@@ -119,12 +114,6 @@ export function V4InteractionDialogs({
     if (!pending || pending.payload.kind !== "userInput") return undefined;
     return getTaskUiState(getWorkspaceState(state, workspacePath, workspaceIdentity), sessionId)
       .elicitationFormDraftsByRequestId[pending.interactionId];
-  });
-  usePendingInteractionTaskNotifications({
-    snapshot: currentSnapshot,
-    enabled: notificationEnabled,
-    platform,
-    formatMessage: intl.formatMessage,
   });
   const autoResolutionIntentRef = useRef(createInteractionAutoResolutionIntentTracker());
   const loggedSnoozeSourceIdsRef = useRef(new Set<string>());

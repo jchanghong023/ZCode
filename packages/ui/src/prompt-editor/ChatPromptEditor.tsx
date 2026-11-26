@@ -20,7 +20,6 @@ import {
   type UserInputPresence,
 } from "@/LexicalChatInput.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import type { AppSlashCommand } from "@/slashCommandHelpers.js";
 import type { ConversationCommandCatalogEntry } from "@zcode/shared/zcode-protocol-v4";
 import {
   ChatPromptActionMenu,
@@ -81,8 +80,6 @@ export function ChatPromptEditor({
   onCancel,
   onFocus,
   onPaste,
-  excludedSlashCommandNames,
-  appSlashCommands,
   conversationCommands,
   extraPlugins,
   enableMentionPanel,
@@ -140,9 +137,6 @@ export function ChatPromptEditor({
   onCancel?: () => void;
   onFocus?: () => void;
   onPaste?: (event: ChatComposerPasteEvent) => void;
-  excludedSlashCommandNames?: readonly string[];
-  /** App 层本地斜杠命令（透传 LexicalChatInput）。 */
-  appSlashCommands?: readonly AppSlashCommand[];
   conversationCommands?: readonly ConversationCommandCatalogEntry[];
   /** mention 面板开关（透传 LexicalChatInput）。 */
   enableMentionPanel?: boolean;
@@ -259,8 +253,6 @@ export function ChatPromptEditor({
         promptHistory={promptHistory}
         compactPlaceholder={compactPlaceholder}
         onPaste={onPaste}
-        excludedSlashCommandNames={excludedSlashCommandNames}
-        appSlashCommands={appSlashCommands}
         conversationCommands={conversationCommands}
         enableMentionPanel={enableMentionPanel}
       />
@@ -270,7 +262,6 @@ export function ChatPromptEditor({
     <span data-composer-action-menu className="flex shrink-0 items-center">
       <ChatPromptActionMenu
         actionMenuTitle={actionMenuTitle}
-        excludedSlashCommandNames={excludedSlashCommandNames}
         attachmentAction={attachmentAction}
         drawingAction={drawingAction}
         disabled={disabled}

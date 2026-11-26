@@ -19,8 +19,7 @@ describe("ST public HTTP contract", () => {
       const body = await response.json();
       expect(body).toMatchObject({ code: 0, data: { configs: expect.any(Object) } });
       const feedbackUrl: unknown = body.data.configs.feedbackUrl;
-      // HelpAppConfig 契约中 feedbackUrl 是配置对象；反馈链接是其中的 feedback_url。
-      // 旧断言把容器误当 URL 字符串，会拒绝合法响应，也会放过缺失配置对象。
+      // 兼容 HTTP 接口返回配置对象；实际反馈链接是其中的 feedback_url。
       expect(feedbackUrl).toEqual(expect.any(Object));
       expect(Array.isArray(feedbackUrl)).toBe(false);
       const helpConfig = feedbackUrl as Record<string, unknown>;

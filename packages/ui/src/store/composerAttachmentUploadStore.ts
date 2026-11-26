@@ -13,20 +13,19 @@ export type ComposerAttachmentUploadStatus =
 export interface ComposerAttachmentUploadItem extends ChatComposerAttachment {
   /**
    * composer-owned 仍处于上传/暂存生命周期；session-owned 是从权威 queue 撤回的既有 ref。
-   * 后者已经由 session 接管，runtime restart、cleanup 和 resend 都不能再次处理引用所有权。
+   * 后者已经由 session 接管；连接替换、cleanup 和 resend 都不能再次处理其引用所有权。
    */
   referenceOwnership: "composer" | "session";
   uploadStatus: ComposerAttachmentUploadStatus;
   uploadProgress: number;
   uploadError?: string;
-  uploadErrorKind?: "transient" | "permanent" | "runtimeRestarted";
+  uploadErrorKind?: "transient" | "permanent" | "connectionReplaced";
   attachmentRef?: AttachmentRef;
   autoRetryCount: number;
   /**
-   * 因 runtime 换代触发的重传次数，与上传失败重试分开计。
-   * 换代不是「上传失败」，共用计数器会让一次换代就烧掉用户可见的重试配额。
+   * 因连接替换触发的重传次数，与普通上传失败分开计。
    */
-  runtimeRebuildRetryCount: number;
+  connectionReplacementRetryCount: number;
   showComplete: boolean;
   localZeroCopy: boolean;
 }

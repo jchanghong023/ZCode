@@ -1,7 +1,4 @@
-import {
-  resolveMarkdownFileLink,
-  type MarkdownFileLinkResolveOptions,
-} from "@/lib/markdownFileLink.js";
+import { resolveMarkdownFileLink } from "@/lib/markdownFileLink.js";
 import { extractConversationPreviewFileReferences } from "@zcode/shared";
 import { decodeFilePathUriEscapes, joinFilePath } from "@/lib/path.js";
 import { MEDIA_PREVIEW_FORMATS } from "@zcode/shared";
@@ -48,8 +45,6 @@ export interface AssistantFileReference {
   raw: string;
   start: number;
 }
-
-export type AssistantFilePathResolveOptions = MarkdownFileLinkResolveOptions;
 
 // 新增文件类型只需登记扩展名和展示文案；正文抽取、卡片排序和批量校验复用同一路径。
 const ASSISTANT_PREVIEW_FILE_TYPES: readonly AssistantPreviewFileTypeDefinition[] = [
@@ -120,7 +115,6 @@ export function parseAssistantFileUrlPath(url: string): string | null {
 export function resolveAssistantRawFilePath(
   workspacePath: string,
   rawPath: string,
-  options: AssistantFilePathResolveOptions = {},
 ): string | null {
   if (/^file:\/\//i.test(rawPath)) return parseAssistantFileUrlPath(rawPath);
 
@@ -128,19 +122,16 @@ export function resolveAssistantRawFilePath(
   if (!cleanedPath || cleanedPath.startsWith("http://") || cleanedPath.startsWith("https://")) {
     return null;
   }
-  // `~` 是 Home-relative 语义；Host Home 尚未注入或使用了 `~other` 时必须失败关闭，
-  // 不能继续走 `./${cleanedPath}` 的 workspace-relative 兜底分支。
-  if (/^~(?:[\\/]|[^\\/]+[\\/])/.test(cleanedPath)) {
-    return resolveMarkdownFileLink(workspacePath, cleanedPath, options)?.path ?? null;
-  }
+  // 没有 Host Home；不能转入 `./${cleanedPath}` 的 workspace-relative 分支。
+  if (/^~[^\\/]*[\\/]/.test(cleanedPath)) return null;
 
-  const parsedLink = resolveMarkdownFileLink(workspacePath, rawPath, options);
+  const parsedLink = resolveMarkdownFileLink(workspacePath, rawPath);
   if (parsedLink) return parsedLink.path;
 
   if (!cleanedPath.includes("/") && !cleanedPath.includes("\\")) {
     return joinFilePath(workspacePath, cleanedPath);
   }
-  return resolveMarkdownFileLink(workspacePath, `./${cleanedPath}`, options)?.path ?? null;
+  return resolveMarkdownFileLink(workspacePath, `./${cleanedPath}`)?.path ?? null;
 }
 
 function normalizeMarkdownHref(href: string): string {
@@ -154,7 +145,6 @@ function overlapsRanges(start: number, end: number, ranges: readonly [number, nu
 export function extractAssistantFileReferences(
   content: string,
   workspacePath: string,
-  options: AssistantFilePathResolveOptions = {},
 ): AssistantFileReference[] {
   if (!content.trim()) return [];
 
@@ -166,7 +156,7 @@ export function extractAssistantFileReferences(
     // 从而绕过 citation 只允许 Office/PDF 卡片的产品边界。
     protectedRanges.push([citation.start, citation.end]);
     if (!citation.path) continue;
-    const path = resolveAssistantRawFilePath(workspacePath, citation.path, options);
+    const path = resolveAssistantRawFilePath(workspacePath, citation.path);
     const kind = path
       ? resolveZCodeFileCitationPreviewKind({
           artifactKind: citation.artifactKind,
@@ -186,7 +176,7 @@ export function extractAssistantFileReferences(
 
   for (const match of content.matchAll(MARKDOWN_LINK_RE)) {
     const href = match[2] ? normalizeMarkdownHref(match[2]) : "";
-    const path = resolveAssistantRawFilePath(workspacePath, href, options);
+    const path = resolveAssistantRawFilePath(workspacePath, href);
     const definition = path ? getAssistantPreviewFileTypeDefinition(path) : null;
     const start = match.index ?? 0;
     const end = start + (match[0]?.length ?? 0);
@@ -223,12 +213,12 @@ export function extractAssistantFileReferences(
       continue;
     }
 
-    if (/^~[^\\/]+[\\/]/.test(raw) || (/^~[\\/]/.test(raw) && !options.homePath)) {
+    if (/^~[^\\/]*[\\/]/.test(raw)) {
       protectedRanges.push([fullStart, fullEnd]);
       continue;
     }
 
-    const path = resolveAssistantRawFilePath(workspacePath, raw, options);
+    const path = resolveAssistantRawFilePath(workspacePath, raw);
     const definition = path ? getAssistantPreviewFileTypeDefinition(path) : null;
     if (path && definition) {
       const start = fullStart + fullMatch.indexOf(raw);
@@ -266,7 +256,7 @@ export function extractAssistantFileReferences(
       continue;
     }
 
-    const path = resolveAssistantRawFilePath(workspacePath, raw, options);
+    const path = resolveAssistantRawFilePath(workspacePath, raw);
     const definition = path ? getAssistantPreviewFileTypeDefinition(path) : null;
     if (path && definition) {
       references.push({ start, end, kind: definition.kind, path, raw });
@@ -286,9 +276,8 @@ export function extractAssistantFileReferences(
 export function hasAssistantPreviewFileChangeCandidates(
   content: string,
   workspacePath: string,
-  options: AssistantFilePathResolveOptions = {},
 ): boolean {
-  return extractAssistantFileReferences(content, workspacePath, options).some(
+  return extractAssistantFileReferences(content, workspacePath).some(
     (reference) => reference.kind === "markdown" || reference.kind === "html",
   );
 }

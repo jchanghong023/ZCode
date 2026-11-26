@@ -12,7 +12,7 @@
  * 独立输入展示壳，不承载会话编排逻辑，仅做三处适配：
  * 1. useChatViewActiveTaskProvider 来自 @/v4/activeTaskProvider.js（配置面读取）；
  * 2. ChatComposerPasteEvent 收口为本文件导出的结构类型；
- * 3. mention 面板用 enableMentionPanel 控制；slash command 始终读取 CLI workspace catalog。
+ * 3. mention 面板用 enableMentionPanel 控制；`/` 补全只展示调用方的会话命令目录。
  */
 import { $getPromptMarkdown } from "@/mentions/promptSerialization.js";
 import { PromptClipboardPlugin } from "@/mentions/PromptClipboardPlugin.js";
@@ -50,7 +50,6 @@ import {
   type LexicalEditor,
 } from "lexical";
 import { SlashCommandPlugin } from "./SlashCommandPlugin.js";
-import type { AppSlashCommand } from "./slashCommandHelpers.js";
 import type { ConversationCommandCatalogEntry } from "@zcode/shared/zcode-protocol-v4";
 import { MentionPlugin } from "./mentions/MentionPlugin.js";
 import { useChatViewActiveTaskProvider } from "@/v4/activeTaskProvider.js";
@@ -1339,10 +1338,7 @@ interface LexicalChatInputProps {
   promptHistory?: readonly string[];
   compactPlaceholder?: boolean;
   onPaste?: (event: ChatComposerPasteEvent) => void;
-  excludedSlashCommandNames?: readonly string[];
-  /** App 层本地斜杠命令（如 `/plan`），选中即执行 UI 行为，不发送。 */
-  appSlashCommands?: readonly AppSlashCommand[];
-  /** When provided (including an empty list), slash completion uses only the session catalog. */
+  /** 缺少服务端目录时不提供 `/` 补全项。 */
   conversationCommands?: readonly ConversationCommandCatalogEntry[];
   /** mention（@/#）面板开关。v4 数据面未就绪时显式关闭，入口保留。 */
   enableMentionPanel?: boolean;
@@ -1353,6 +1349,8 @@ interface LexicalChatInputProps {
 const EDITOR_THEME = {
   paragraph: "m-0",
 };
+
+const EMPTY_CONVERSATION_COMMANDS: readonly ConversationCommandCatalogEntry[] = [];
 
 export function LexicalChatInput({
   placeholder,
@@ -1378,8 +1376,6 @@ export function LexicalChatInput({
   promptHistory = [],
   compactPlaceholder = false,
   onPaste,
-  excludedSlashCommandNames,
-  appSlashCommands,
   conversationCommands,
   extraPlugins,
   enableMentionPanel = true,
@@ -1525,15 +1521,9 @@ export function LexicalChatInput({
           <PasteCapturePlugin disabled={disabled} onPaste={onPaste} />
         </div>
         <SlashCommandPlugin
-          workspacePath={workspacePath}
-          workspaceIdentity={workspaceIdentity}
-          sessionId={skillCatalogSessionId ?? taskId}
-          provider={activeTaskProvider}
           container={triggerPanelContainer}
           disabled={disabled}
-          excludedCommandNames={excludedSlashCommandNames}
-          appCommands={appSlashCommands}
-          conversationCommands={conversationCommands}
+          conversationCommands={conversationCommands ?? EMPTY_CONVERSATION_COMMANDS}
         />
         {enableMentionPanel ? (
           <MentionPlugin

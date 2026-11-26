@@ -156,8 +156,6 @@ export interface WorkspaceZCodeUIState {
   draftRuntime: DraftRuntimeState;
   /** 未提交草稿的项目选择；已提交归属只在 Host。 */
   draftProjectId?: string | null;
-  /** 未提交任务的分组意图；无文字时仅保留在当前 Renderer 内存。 */
-  draftTaskGroupId?: string | null;
   /**
    * 草稿运行时能力失效版本；Skill 等能力变化时递增。
    * V4 pane 独占预热会话，配置界面只发布失效版本。
@@ -241,14 +239,12 @@ export interface ZCodeSessionStoreState {
     requestId: number,
     workspaceIdentity?: string,
   ) => void;
-  clearDraftTaskGroup: (workspacePath: string, workspaceIdentity?: string) => void;
   startDraft: (
     workspacePath: string,
     provider?: ZCodeProvider,
     workspaceIdentity?: string,
     options?: {
       projectId?: string | null;
-      taskGroupId?: string | null;
       createSource?: SessionCreateSource;
     },
   ) => void;

@@ -7,7 +7,6 @@ import { logger } from "@/logger.js";
 
 export interface ImageFilePreviewContext {
   workspacePath: string;
-  workspaceHomePath?: string;
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
 }
@@ -18,7 +17,6 @@ type PreviewState = { key: string; loading: boolean; error: boolean; src?: strin
 export function useImageFilePreview(href: string, context?: ImageFilePreviewContext) {
   const services = useOptionalServices();
   const workspacePath = context?.workspacePath;
-  const workspaceHomePath = context?.workspaceHomePath;
   const path = useMemo(() => {
     if (workspacePath === undefined) return undefined;
     // 无目录段的显式 href 也是工作区相对目标；只补目标的 ./，绝不改用显示 label。
@@ -28,11 +26,9 @@ export function useImageFilePreview(href: string, context?: ImageFilePreviewCont
     const parsed = parseMarkdownFileLinkTarget(href);
     const target = isAbsoluteFilePath(parsed.path)
       ? parsed
-      : resolveMarkdownFileLink(workspacePath, targetHref, {
-          homePath: workspaceHomePath,
-        });
+      : resolveMarkdownFileLink(workspacePath, targetHref);
     return target && isImagePreviewPath(target.path) ? target.path : undefined;
-  }, [href, workspacePath, workspaceHomePath]);
+  }, [href, workspacePath]);
   const workspaceKey = context?.workspaceIdentity?.trim() || context?.workspacePath || "";
   const key = JSON.stringify([workspaceKey, context?.workspaceRemoteSessionId ?? "", path]);
   const sequence = useRef(0);

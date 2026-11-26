@@ -22,9 +22,11 @@
 
 AIReq 的七个频道在 `/ws` 连接上复用同一二进制传输，共 28 个方法和 3 个事件。独立聊天的浏览器页面是 `/chat`，在同一 HTTP 服务上通过 `/ws/chat` 升级连接；该连接只公开 Agent 的 10 个方法和 1 个事件，以及 ModelSelection 的 1 个方法。
 
+浏览器构建只提供 AIReq `/` 与个人 `/chat`。旧 `/remote` 路径和 `remote` 查询参数不触发专门的跳转、登录或远端连接。
+
 Git、文件监听、MCP 同步、独立媒体预览、client-config RPC、skills RPC、任务分组、跨宿主附件转移不属于公开服务。HTTP configs、原生 Skill catalog 与 AIReq Skill 不因此消失。受管 worktree、插件、终端等纯类型或通用展示组件存留不授权对应 RPC。
 
-Web 不公开 `system.info`，不读取也不返回宿主主目录或平台。工作区目录继续使用业务工作区标识及路径。
+Web 不提供 `system` 或 `subagents` 服务声明与代理，不读取宿主主目录，不加载子代理目录。工作区目录继续使用业务工作区标识及路径；子代理工作记录从父会话帧投影展示。
 
 Web 不公开 `provider-settings`。AIReq 和 `/chat` 通过 `model-selection.getView` 读取模型目录，不订阅目录事件。供应商条目不包含 `templateId`；供应商的 `config` 只包含可选的 `logo`、`api` 和 `access`，不下发分组、可见性规则或模型 ID／排序配置。`config.api` 只投影 `type`，不下发 `baseUrl` 或 `headers`；`config.access` 只投影访问类型和套餐展示字段，不下发 `apiKey` 或 `apiKeyManagementUrl`。Web 发送遥测保留模型与供应商 ID，不上报端点主机名。服务端决定可选供应商及模型；Web 选择器按 `providers[].models` 显示候选和顺序，不因缺少可选的 `config.api` 隐藏候选。模型配置不另返回 `enabled`。模型的 `config.optionSpecs` 只包含 `reasoningLevel.values`，用于展示与校验思考档位；`config.properties` 只包含 `inputFormat.supportsImage`，用于展示图片能力。运行中的上下文窗口由会话用量快照提供。AIReq 业务模型设置仍由 AIReq 管理，变更通过 `aireq.onDidChange` 的 `models` 通知投影失效。
 
@@ -50,7 +52,7 @@ Web 的 `project.readTree()` 不接收参数；传入 `hostId` 或其他实参�
 
 AIReq 与 `/chat` 的 `getConversationCommandCatalog` 按已选连接定位目录。请求对象只接收 `workspacePath`、可选的 `workspaceIdentity` 和可选的 `sessionId`；`remoteSessionId` 等额外字段在读取目录前拒绝。目录内容和会话归属校验不变。
 
-唯一会话事件为 `onDynamicConversationFrame`。AIReq 与 `/chat` 的 Web 监听只接收 `workspacePath` 和可选的 `workspaceIdentity`；`remoteSessionId` 等额外字段在建立帧监听前拒绝。帧仍按当前连接、工作区、topic 和 `subscriptionId` 校验归属，帧格式和释放语义不变。Web 通过连接、订阅、快照和 `logEpoch` 恢复，不查询或订阅独立的 Agent 进程／会话生命周期。
+唯一会话事件为 `onDynamicConversationFrame`。AIReq 与 `/chat` 的 Web 监听只接收 `workspacePath` 和可选的 `workspaceIdentity`；`remoteSessionId` 等额外字段在建立帧监听前拒绝。帧仍按当前连接、工作区、topic 和 `subscriptionId` 校验归属，帧格式和释放语义不变。Web 仅通过连接、订阅、快照和 `logEpoch` 恢复；浏览器和服务连接作用域均不装配独立的 Agent 运行时生命周期事件。
 
 AIReq Web 的 `getSkillReferenceCatalog` 只返回 `{ skills }`，其中只包含已启用且正文非空的技能，条目没有 `enabled` 字段。带 `sessionId` 时读取所属会话的冻结目录，否则读取当前工作区目录；会话归属校验和通用技能目录契约不变。
 
@@ -86,7 +88,7 @@ AIReq Web 的 `attachmentAbortV4` 在清理前拒绝 `remoteSessionId`，按上�
 
 AIReq 的 `attachmentReadV4` 在读取前拒绝 `remoteSessionId`，按当前连接、工作区、`sessionId` 和 `ref` 定位附件并校验消息行归属。回执只包含 `dataBase64`、`mediaType` 和 `totalBytes`。前端用请求偏移与实际解码字节数计算后续偏移；分片限制和通用 CLI 协议不变。
 
-精确请求／结果由 `packages/services/src/zcode-agent/zcodeAgent.ts` 和 shared `zcode-protocol-v4` 的 schemas 定义。当前服务接口不提供 Host 流控、按工作区或全局销毁、旧 Plan／子代理查询、选区批注探测及独立会话生命周期查询或事件。WebSocket 关闭由服务端释放该连接的订阅；不清除共享会话、其他连接的订阅或历史。原生帧 schema、进程观察信号和 workspace-config 通用 wire 类型不变。
+精确请求／结果由 `packages/services/src/zcode-agent/zcodeAgent.ts` 和 shared `zcode-protocol-v4` 的 schemas 定义。当前服务接口不提供 Host 流控、按工作区或全局销毁、旧 Plan／子代理查询、选区批注探测及独立会话生命周期查询或事件。WebSocket 关闭由服务端释放该连接的订阅；不清除共享会话、其他连接的订阅或历史。原生帧 schema 和 workspace-config 通用 wire 类型不变。
 
 AIReq 与 `/chat` 的发送、停止和状态使用 [OMP 对齐的聊天语义](conversation.md#聊天命令和会话配置)。`/chat` 白名单包含 `queryConversationCommandsV4`，回执与会话同受匿名归属约束。现有二进制传输、时间线行和其他 Agent 消费者的契约保持不变。
 

@@ -15,7 +15,6 @@ const fileIcons = {
 };
 
 export const FOLDER_FILE_ICON_SRC = fileIcons.folder;
-let defaultFileDisplayBasePath: string | null = null;
 
 export interface FileDisplayDescriptor {
   fileIcon: string;
@@ -34,10 +33,6 @@ export interface FileDisplayOptions {
   className?: string;
   fileNameClassName?: string;
   filePathClassName?: string;
-}
-
-export function setDefaultFileDisplayBasePath(basePath: string | null) {
-  defaultFileDisplayBasePath = basePath;
 }
 
 function stripBasePath(path: string, basePath?: string): string {
@@ -81,8 +76,7 @@ export function resolveFileDisplayDescriptor(
 ): FileDisplayDescriptor {
   const normalizedPath = normalizePath(filePath);
   const fileName = getPathLeaf(normalizedPath);
-  const effectiveBasePath = options.basePath ?? defaultFileDisplayBasePath ?? undefined;
-  const relativePath = stripBasePath(normalizedPath, effectiveBasePath);
+  const relativePath = stripBasePath(normalizedPath, options.basePath);
   const resolvedFilePath = buildFilePath(relativePath, fileName);
   const fileIcon = options.kind === "directory" ? "folder" : resolveIconName(fileName);
 
@@ -93,45 +87,6 @@ export function resolveFileDisplayDescriptor(
     filePath: resolvedFilePath,
     normalizedPath,
   };
-}
-
-export function createFileDisplayDom(
-  filePath: string,
-  options: FileDisplayOptions = {},
-): HTMLSpanElement {
-  const descriptor = resolveFileDisplayDescriptor(filePath, {
-    basePath: options.basePath,
-    kind: options.kind,
-  });
-  const container = document.createElement("span");
-  container.className =
-    options.className ?? "inline-flex max-w-full items-center gap-1.5 align-middle";
-
-  if (options.showIcon !== false) {
-    const icon = document.createElement("img");
-    icon.src = descriptor.fileIconSrc;
-    icon.alt = "";
-    icon.width = options.iconSize ?? 14;
-    icon.height = options.iconSize ?? 14;
-    icon.className = "shrink-0";
-    icon.setAttribute("aria-hidden", "true");
-    container.append(icon);
-  }
-
-  const primary = document.createElement("span");
-  primary.className = options.fileNameClassName ?? "truncate text-[0.95em] leading-[1.6]";
-  primary.textContent = descriptor.fileName;
-  container.append(primary);
-
-  if (options.showFilePath && descriptor.filePath) {
-    const secondary = document.createElement("span");
-    secondary.className =
-      options.filePathClassName ?? "truncate text-[0.85em] text-muted-foreground";
-    secondary.textContent = descriptor.filePath;
-    container.append(secondary);
-  }
-
-  return container;
 }
 
 export function FileDisplayInline({

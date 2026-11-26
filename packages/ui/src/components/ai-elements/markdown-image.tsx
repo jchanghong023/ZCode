@@ -28,7 +28,6 @@ export { clampImagePreviewOffset as clampMarkdownImagePreviewOffset } from "@/co
 export type MarkdownImageProps = ComponentProps<"img"> & {
   node?: unknown;
   workspacePath?: string;
-  workspaceHomePath?: string;
   sessionId?: string;
   readAttachment?: (params: {
     sessionId: string;
@@ -149,7 +148,6 @@ export function MarkdownImage({
   sessionId,
   src,
   workspacePath,
-  workspaceHomePath,
   ...props
 }: MarkdownImageProps) {
   const { intl } = useZCodeIntl();
@@ -157,11 +155,9 @@ export function MarkdownImage({
   const resolvedSrc = typeof src === "string" ? src : "";
   const artifactRef = useMemo(() => decodeMarkdownArtifactImageSource(resolvedSrc), [resolvedSrc]);
   const localImageLink = useMemo(() => {
-    const fileLink = resolveMarkdownFileLink(workspacePath, resolvedSrc, {
-      homePath: workspaceHomePath,
-    });
+    const fileLink = resolveMarkdownFileLink(workspacePath, resolvedSrc);
     return fileLink && isImagePreviewPath(fileLink.path) ? fileLink : null;
-  }, [resolvedSrc, workspaceHomePath, workspacePath]);
+  }, [resolvedSrc, workspacePath]);
   const [localImageDataUrl, setLocalImageDataUrl] = useState<string | null>(null);
   const [localImageFailed, setLocalImageFailed] = useState(false);
   const [artifactImageUrl, setArtifactImageUrl] = useState<string | null>(null);

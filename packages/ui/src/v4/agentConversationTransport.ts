@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- transport 将上传、分块读取和 runtime 生命周期保持在同一 host 边界。 */
+/* oxlint-disable eslint(max-lines) -- transport 集中处理 v4 帧、上传和分块读取。 */
 // ConversationTransport 桥接渲染服务访问器中的 v4 RPC；数据层不感知连接细节。
 import type { IServiceAccessor } from "@zcode/services";
 import {
@@ -50,8 +50,6 @@ export type ConversationV4AgentService = Pick<
   | "attachmentAbortV4"
   | "attachmentReadV4"
   | "onDynamicConversationFrame"
-  | "onAgentRuntimeRestarted"
-  | "onAgentRuntimeLifecycle"
 >;
 
 /**
@@ -78,10 +76,6 @@ export function createAgentConversationTransport(
       deliveryKind?: TopicFrameDeliveryKind;
     }) => void
   >();
-  const runtimeRestartListeners = new Set<
-    Parameters<NonNullable<ConversationTransport["onRuntimeRestart"]>>[0]
-  >();
-  const runtimeLifecycleListeners = new Set<(state: "available" | "unavailable") => void>();
   const decoder = createTopicWireDecoder(
     new TopicWireFrameAssembler(conversationTopicFrameSchema),
     (frame: ConversationTopicFrame, deliveryKind) => {
@@ -96,9 +90,6 @@ export function createAgentConversationTransport(
   });
   const topicBySubscriptionId = new Map<string, string>();
   let upstream: { dispose(): void } | null = null;
-  let runtimeRestartUpstream: { dispose(): void } | null = null;
-  let runtimeLifecycleUpstream: { dispose(): void } | null = null;
-  let runtimeGeneration = 0;
   const targetWorkspaceKey = target.workspaceIdentity?.trim() || target.workspacePath;
   const lifecycleContext = {
     workspaceKey: targetWorkspaceKey,
@@ -118,37 +109,10 @@ export function createAgentConversationTransport(
         event: "v4.conversation.frames.upstream_attached",
         listenerCount: listeners.size,
         module: "ui.v4.conversation_transport",
-        runtimeGeneration,
         status: "completed",
       });
     }
   };
-  const attachRuntimeRestartUpstream = () => {
-    runtimeRestartUpstream ??=
-      agentService.onAgentRuntimeRestarted?.((event) => {
-        if (event.workspaceKey !== targetWorkspaceKey) return;
-        runtimeGeneration += 1;
-        // runtime generation 可复用 subId/ordinal；ownership 与 assembler 必须原子失效。
-        barrier.clear();
-        decoder.clear();
-        topicBySubscriptionId.clear();
-        for (const restartListener of runtimeRestartListeners) restartListener("runtimeRestart");
-      }) ?? null;
-  };
-  const attachRuntimeLifecycleUpstream = () => {
-    runtimeLifecycleUpstream ??=
-      agentService.onAgentRuntimeLifecycle?.((event) => {
-        if (event.workspaceKey !== targetWorkspaceKey) return;
-        // 只转发、不动 runtimeGeneration/barrier/decoder/topicBySubscriptionId：那是
-        // onRuntimeRestart 的语义（新 runtime 已存在、可安全重订阅）。unavailable 时
-        // 旧 CLI 已死不会再有帧到达，而提前递增 generation 会让随后 restart 的
-        // ownership 判定错位。available 与 restart 同刻到达，清理由那一路完成。
-        for (const lifecycleListener of runtimeLifecycleListeners) {
-          lifecycleListener(event.state);
-        }
-      }) ?? null;
-  };
-
   const decodeBase64Chunk = (value: string): Uint8Array => {
     const decoded = atob(value);
     const bytes = new Uint8Array(decoded.length);
@@ -168,7 +132,6 @@ export function createAgentConversationTransport(
         ...lifecycleContext,
         event: "v4.conversation.subscribe.started",
         module: "ui.v4.conversation_transport",
-        runtimeGeneration,
         sessionId,
         status: "started",
         topic: params.topic,
@@ -177,29 +140,12 @@ export function createAgentConversationTransport(
       try {
         await ensureHandshake();
         pending = barrier.begin(params.topic);
-        const subscribeRuntimeGeneration = runtimeGeneration;
         const result = await agentService.subscribeConversationV4({
           ...workspace,
           sessionId,
           ...(params.base ? { base: params.base } : {}),
           ...(params.visibility ? { visibility: params.visibility } : {}),
         });
-        if (subscribeRuntimeGeneration !== runtimeGeneration) {
-          // 旧 runtime 的迟到 ACK 可能复用新 runtime 的 subId；此处只能
-          // 丢本地 pending，不能向新 runtime 盲退订同名 subscription。
-          barrier.cancel(pending);
-          logger.lifecycle.warn("v4 conversation subscription ACK became stale", {
-            ...lifecycleContext,
-            durationMs: Date.now() - startedAt,
-            event: "v4.conversation.subscribe.stale_ack",
-            module: "ui.v4.conversation_transport",
-            runtimeGeneration,
-            sessionId,
-            status: "failed",
-            topic: params.topic,
-          });
-          throw new Error("fault.subscription.runtimeRestarted");
-        }
         try {
           barrier.bind(pending, result.ack.subscriptionId);
         } catch (error) {
@@ -221,7 +167,6 @@ export function createAgentConversationTransport(
           durationMs: Date.now() - startedAt,
           event: "v4.conversation.subscribe.acknowledged",
           module: "ui.v4.conversation_transport",
-          runtimeGeneration,
           sessionId,
           status: "completed",
           subscriptionId: result.ack.subscriptionId,
@@ -236,7 +181,6 @@ export function createAgentConversationTransport(
           errorMessage: error instanceof Error ? error.message : String(error),
           event: "v4.conversation.subscribe.failed",
           module: "ui.v4.conversation_transport",
-          runtimeGeneration,
           sessionId,
           status: "failed",
           topic: params.topic,
@@ -254,7 +198,6 @@ export function createAgentConversationTransport(
         ...lifecycleContext,
         event: "v4.conversation.subscribe.activated",
         module: "ui.v4.conversation_transport",
-        runtimeGeneration,
         status: "completed",
         subscriptionId,
         ...(activation?.topic ? { topic: activation.topic } : {}),
@@ -285,7 +228,6 @@ export function createAgentConversationTransport(
         ...lifecycleContext,
         event: "v4.conversation.unsubscribe.started",
         module: "ui.v4.conversation_transport",
-        runtimeGeneration,
         status: "started",
         subscriptionId,
         ...(subscriptionTopic ? { topic: subscriptionTopic } : {}),
@@ -301,7 +243,6 @@ export function createAgentConversationTransport(
           durationMs: Date.now() - startedAt,
           event: "v4.conversation.unsubscribe.completed",
           module: "ui.v4.conversation_transport",
-          runtimeGeneration,
           status: "completed",
           subscriptionId,
           ...(subscriptionTopic ? { topic: subscriptionTopic } : {}),
@@ -313,7 +254,6 @@ export function createAgentConversationTransport(
           errorMessage: error instanceof Error ? error.message : String(error),
           event: "v4.conversation.unsubscribe.failed",
           module: "ui.v4.conversation_transport",
-          runtimeGeneration,
           status: "failed",
           subscriptionId,
           ...(subscriptionTopic ? { topic: subscriptionTopic } : {}),
@@ -461,7 +401,6 @@ export function createAgentConversationTransport(
             event: "v4.conversation.frames.upstream_detached",
             listenerCount: 0,
             module: "ui.v4.conversation_transport",
-            runtimeGeneration,
             status: "completed",
           });
         }
@@ -471,37 +410,5 @@ export function createAgentConversationTransport(
       faultListeners.add(listener);
       return () => faultListeners.delete(listener);
     },
-    ...(agentService.onAgentRuntimeRestarted
-      ? {
-          onRuntimeRestart(
-            listener: Parameters<NonNullable<ConversationTransport["onRuntimeRestart"]>>[0],
-          ) {
-            runtimeRestartListeners.add(listener);
-            attachRuntimeRestartUpstream();
-            return () => {
-              runtimeRestartListeners.delete(listener);
-              if (runtimeRestartListeners.size === 0) {
-                runtimeRestartUpstream?.dispose();
-                runtimeRestartUpstream = null;
-              }
-            };
-          },
-        }
-      : {}),
-    ...(agentService.onAgentRuntimeLifecycle
-      ? {
-          onRuntimeLifecycle(listener: (state: "available" | "unavailable") => void) {
-            runtimeLifecycleListeners.add(listener);
-            attachRuntimeLifecycleUpstream();
-            return () => {
-              runtimeLifecycleListeners.delete(listener);
-              if (runtimeLifecycleListeners.size === 0) {
-                runtimeLifecycleUpstream?.dispose();
-                runtimeLifecycleUpstream = null;
-              }
-            };
-          },
-        }
-      : {}),
   };
 }

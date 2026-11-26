@@ -36,10 +36,7 @@ import { composerDraftScopeKey } from "@/v4/composer/composerDraftStore.js";
 export const COMPOSER_ATTACHMENT_UPLOAD_CONCURRENCY = 2;
 export const COMPOSER_ATTACHMENT_AUTO_RETRY_DELAY_MS = 500;
 export const COMPOSER_ATTACHMENT_COMPLETE_VISIBLE_MS = 300;
-/**
- * 换代重传的兜底上限。dev 实测同一 workspace 可达 runtimeGeneration=4（3 次换代），
- * 取 5 留余量；它只防 Helper 反复崩溃时的无限重传，正常使用不该触达。
- */
+/** 限制同一附件因连接反复替换而自动重传的次数。 */
 export const COMPOSER_ATTACHMENT_REBUILD_RETRY_LIMIT = 5;
 const EMPTY_COMPOSER_ATTACHMENTS: ComposerAttachmentUploadItem[] = [];
 const REMOTE_ATTACHMENT_NOT_STAGED_ERROR_CODE = "remoteAttachmentNotStaged";
@@ -105,12 +102,7 @@ export interface UseComposerAttachmentsOptions {
   clientNamespace?: string;
   attachmentSessionId?: string | null;
   attachmentPut: AttachmentPutFn;
-  onRuntimeRestart?: (listener: () => void) => () => void;
-  /**
-   * 承载 transport 暴露 runtime 存活态时优先用它，替代 onRuntimeRestart。
-   * unavailable 在 workspace-dispose 当场到达，把作废与唤醒拆到两个真实时点。
-   */
-  onRuntimeLifecycle?: (listener: (state: "available" | "unavailable") => void) => () => void;
+  onConnectionReplaced?: (listener: () => void) => () => void;
   disabled?: boolean;
   /**
    * 是否消费全局 add-to-chat 事件（图片/附件注入）。
@@ -153,7 +145,7 @@ function createSessionOwnedAttachmentItems(
       uploadProgress: 100,
       attachmentRef: { ...attachmentRef },
       autoRetryCount: 0,
-      runtimeRebuildRetryCount: 0,
+      connectionReplacementRetryCount: 0,
       showComplete: false,
       localZeroCopy: false,
     };
@@ -253,8 +245,7 @@ export function useComposerAttachments(
     clientNamespace,
     attachmentSessionId = null,
     attachmentPut,
-    onRuntimeRestart,
-    onRuntimeLifecycle,
+    onConnectionReplaced,
     disabled = false,
     listenAddToChatEvents = true,
   } = options;
@@ -272,11 +263,8 @@ export function useComposerAttachments(
     (state) => state.scopes[scopeKey] ?? EMPTY_COMPOSER_ATTACHMENTS,
   );
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
-  /**
-   * runtime 换代计数。换代后 attachmentSessionId 可能原地不变（正式会话由 cold-resume 恢复），
-   * 只靠它做依赖会漏掉唤醒，附件将永久停在 waitingSession。
-   */
-  const [restartEpoch, setRestartEpoch] = useState(0);
+  // 正式会话的 id 可能不变；连接替换仍需唤醒待重传的附件。
+  const [connectionReplacementEpoch, setConnectionReplacementEpoch] = useState(0);
   const [isDraggingOverComposer, setIsDraggingOverComposer] = useState(false);
   const attachmentInputRef = useRef<HTMLInputElement | null>(null);
   const dragFeedbackTimerRef = useRef<number | null>(null);
@@ -520,19 +508,15 @@ export function useComposerAttachments(
     attachmentSessionId,
     enqueueUpload,
     remoteSessionId,
-    restartEpoch,
+    connectionReplacementEpoch,
     scopeKey,
     updateItem,
     workspaceIdentity,
   ]);
 
-  /**
-   * 换代作废：撤掉 in-flight 上传与远端暂存，把附件降回 waitingSession 等新会话。
-   * silent=true 时不写错误文案——那是一次全自动恢复（作废 → 预热重建 → 重传，1-2s 内完成），
-   * 报错只会让用户以为出了问题；waitingSession 本身已渲染成「正在等待会话」。
-   */
-  const invalidateAttachmentsForRuntimeChange = useCallback(
-    ({ silent }: { silent: boolean }) => {
+  useEffect(() => {
+    return onConnectionReplaced?.(() => {
+      const uploadError = intl.formatMessage({ id: "chat.attachments.upload.connectionReplaced" });
       for (const [targetScopeKey, items] of Object.entries(
         useComposerAttachmentUploadStore.getState().scopes,
       )) {
@@ -549,67 +533,25 @@ export function useComposerAttachments(
           const key = `${targetScopeKey}\u0000${item.id}`;
           controllersRef.current.get(key)?.abort();
           controllersRef.current.delete(key);
-          if (item.runtimeRebuildRetryCount >= COMPOSER_ATTACHMENT_REBUILD_RETRY_LIMIT) {
-            // 重传配额用尽是真失败，无论静默与否都必须让用户看见。
-            updateItem(targetScopeKey, item.id, (current) => ({
-              ...current,
-              uploadStatus: "failed",
-              uploadProgress: 0,
-              uploadError: intl.formatMessage({
-                id: "chat.attachments.upload.runtimeRestarted",
-              }),
-              uploadErrorKind: "runtimeRestarted",
-              attachmentRef: undefined,
-              showComplete: false,
-            }));
-            continue;
-          }
-          // 换代后 targetsRef 里的 sessionId 必然陈旧（它在渲染期写入，而换代事件先于
-          // 下一次渲染到达），拿它入队会直撞 sessionNotFound。一律降到 waitingSession，
-          // 由 restartEpoch / 新 attachmentSessionId 驱动的唤醒 effect 在会话可用后统一入队。
+          const exhausted =
+            item.connectionReplacementRetryCount >= COMPOSER_ATTACHMENT_REBUILD_RETRY_LIMIT;
+          // 草稿由重建后的 sessionId 唤醒；id 不变时由 connectionReplacementEpoch 唤醒。
           updateItem(targetScopeKey, item.id, (current) => ({
             ...current,
-            uploadStatus: "waitingSession",
+            uploadStatus: exhausted ? "failed" : "waitingSession",
             uploadProgress: 0,
-            ...(silent
-              ? { uploadError: undefined, uploadErrorKind: undefined }
-              : {
-                  uploadError: intl.formatMessage({
-                    id: "chat.attachments.upload.runtimeRestarted",
-                  }),
-                  uploadErrorKind: "runtimeRestarted" as const,
-                }),
+            uploadError,
+            uploadErrorKind: "connectionReplaced",
             attachmentRef: undefined,
             showComplete: false,
-            runtimeRebuildRetryCount: current.runtimeRebuildRetryCount + 1,
+            connectionReplacementRetryCount:
+              current.connectionReplacementRetryCount + (exhausted ? 0 : 1),
           }));
         }
       }
-    },
-    [intl, updateItem],
-  );
-
-  useEffect(() => {
-    // 二选一订阅：两条通道都订会让同一次换代作废两次，白烧一次重传配额。
-    if (onRuntimeLifecycle) {
-      return onRuntimeLifecycle((state) => {
-        if (state === "unavailable") {
-          // 作废与唤醒到此才真正解耦：此刻旧 CLI 已死、新的还没起来，递增 restartEpoch 会让
-          // 唤醒 effect 立即入队并直撞死进程（正式会话态 sessionId 原地不变时尤其明显）。
-          invalidateAttachmentsForRuntimeChange({ silent: true });
-          return;
-        }
-        // 草稿态实际由重建后的新 attachmentSessionId 唤醒；这一路是正式会话态的兜底。
-        setRestartEpoch((current) => current + 1);
-      });
-    }
-    if (!onRuntimeRestart) return;
-    return onRuntimeRestart(() => {
-      invalidateAttachmentsForRuntimeChange({ silent: false });
-      // 作废与唤醒解耦：这里只负责作废，入队交给依赖 restartEpoch 的唤醒 effect。
-      setRestartEpoch((current) => current + 1);
+      setConnectionReplacementEpoch((current) => current + 1);
     });
-  }, [invalidateAttachmentsForRuntimeChange, onRuntimeLifecycle, onRuntimeRestart]);
+  }, [intl, onConnectionReplaced, updateItem]);
 
   const showAttachmentLimitWarning = useCallback(() => {
     // 只更新输入框底部文字时，重复超限缺少明显反馈；每次添加都弹提示，同一输入框不堆叠。
@@ -656,7 +598,7 @@ export function useComposerAttachments(
               }
             : {}),
           autoRetryCount: 0,
-          runtimeRebuildRetryCount: 0,
+          connectionReplacementRetryCount: 0,
           showComplete: false,
           localZeroCopy,
         };
@@ -858,7 +800,7 @@ export function useComposerAttachments(
         uploadErrorKind: undefined,
         attachmentRef: undefined,
         autoRetryCount: 0,
-        runtimeRebuildRetryCount: 0,
+        connectionReplacementRetryCount: 0,
         showComplete: false,
       }));
       if (target?.sessionId) enqueueUpload(scopeKey, id);

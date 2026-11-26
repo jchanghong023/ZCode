@@ -40,4 +40,4 @@ sequenceDiagram
     Owner->>Owner: 新accessor / 新Root / fresh订阅
 ```
 
-旧产品 OAuth 页面、回调、token交换、账号恢复和 OAuth RPC 均退出产品路径，不提供兼容假账号。旧 `/remote` 路径和 `?remote=` 在启动时规范化为 `/`，不解释授权参数或转接旧 Host。Provider 配置、API Key、MCP OAuth 等模型/工具凭据仍由原服务负责。
+登录入口只处理工号，不解释旧 OAuth、`/remote` 路径或 `remote` 查询参数。Provider 配置、API Key、MCP OAuth 等模型／工具凭据仍由各自服务负责。

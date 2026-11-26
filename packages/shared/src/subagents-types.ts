@@ -44,8 +44,6 @@ export type AgentColor =
   | "pink"
   | "cyan";
 
-export type SubagentsListMode = "allRuntimeScopes" | "settingsUserOnly";
-
 export interface AgentSummary {
   id: string;
   name: string;
@@ -78,19 +76,6 @@ export interface AgentDiagnostic {
   code: string;
   message: string;
   path?: string;
-}
-
-export interface AgentsCapability {
-  userScopeAvailable: boolean;
-  userScopeReason?: "desktop_only";
-}
-
-export interface AgentsListResult {
-  agents: AgentSummary[];
-  userAgents: AgentSummary[];
-  pluginAgents: AgentSummary[];
-  capability: AgentsCapability;
-  diagnostics?: AgentDiagnostic[];
 }
 
 /** Agent 配置，用于创建/更新 agent */

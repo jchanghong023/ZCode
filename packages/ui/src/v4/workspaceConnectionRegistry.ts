@@ -203,7 +203,7 @@ export function acquireWorkspaceConnection(
         return;
       }
       // acquire 会在 React render 中执行；若此处同步 replace，会经
-      // runtimeRestart listener 更新外部 store 并发起 RPC。租约只捕获候选 service，
+      // onConnectionReplaced listener 更新外部 store 并发起 RPC。租约只捕获候选 service，
       // 由 Provider 在 commit 阶段显式激活，同时保持 generation 单向切换。
       if (!entry.replaceableTransport) {
         throw new Error("会话连接缺少可换代 transport");

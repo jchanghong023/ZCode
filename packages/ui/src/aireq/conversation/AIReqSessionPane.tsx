@@ -40,7 +40,7 @@ export function AIReqSessionPane(props: SessionPaneProps) {
   const agent = services.zcodeAgentService;
   const loadConversationCommands = useCallback(() => {
     if (!rpcReady) return;
-    return agent.getConversationCommandCatalog?.({
+    return agent.getConversationCommandCatalog({
       workspacePath: props.workspacePath,
       ...(props.workspaceIdentity ? { workspaceIdentity: props.workspaceIdentity } : {}),
       ...(sessionId ? { sessionId } : {}),

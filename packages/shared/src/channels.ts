@@ -85,19 +85,14 @@ export const ServiceChannels = {
   /** AIReq 共享内存业务，经现有二进制 Channel RPC 提供。 */
   AIReq: "aireq",
   File: "file",
-  System: "system",
   Setting: "setting",
   /** 跨窗口广播 */
   Broadcast: "broadcast",
   /** ZCode Protocol agent 服务 */
   ZCodeAgent: "zcode-agent",
   Project: "project",
-  /** 新 Provider Config 的设置读写 Facade */
-  ProviderSettings: "provider-settings",
   /** 新 Provider Registry 的模型选择 Facade */
   ModelSelection: "model-selection",
-  /** Subagents 管理服务 */
-  Subagents: "subagents",
 } as const;
 
 export type ServiceChannelName = (typeof ServiceChannels)[keyof typeof ServiceChannels];

@@ -87,13 +87,6 @@ function connection() {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("browser theme preference", () => {
-  it("keeps the generic store's motion default when no initial theme is provided", () => {
-    const browser = openBrowser();
-    const store = createZCodeStore(connection().service);
-    expect(store.getState().theme).toBe("zai-motion");
-    expectRootTheme(browser, "dark", "theme-zai-motion");
-  });
-
   it("applies only the chosen AIReq palette and restores the default on a fresh load", () => {
     const browser = openBrowser();
     const store = createZCodeStore(connection().service, AIREQ_STORE_OPTIONS);
@@ -111,7 +104,7 @@ describe("browser theme preference", () => {
     expectCobaltDay(createZCodeStore(connection().service, AIREQ_STORE_OPTIONS), browser);
   });
 
-  it.each([null, "light", "zai-dark", "system"])(
+  it.each(["light", "zai-dark", "system"])(
     "starts AIReq in Cobalt Day without reading the old browser preference %s",
     (saved) => {
       const browser = openBrowser(saved);

@@ -3,10 +3,6 @@ import type { ConversationTransport } from "@/v4/transport.js";
 
 type FrameListener = Parameters<ConversationTransport["onFrame"]>[0];
 type AssemblyFaultListener = Parameters<ConversationTransport["onAssemblyFault"]>[0];
-type RuntimeRestartListener = Parameters<NonNullable<ConversationTransport["onRuntimeRestart"]>>[0];
-type RuntimeLifecycleListener = Parameters<
-  NonNullable<ConversationTransport["onRuntimeLifecycle"]>
->[0];
 
 async function unsubscribeIgnoringFailure(
   transport: ConversationTransport,
@@ -24,7 +20,7 @@ async function unsubscribeIgnoringFailure(
 }
 
 /**
- * 远程 service proxy 换代期间保持 renderer 侧 transport 身份稳定。
+ * Web service proxy 换代期间保持 renderer 侧 transport 身份稳定。
  *
  * 同一 workspace 的存量 pane 会继续持有本对象；replace 后命令与订阅统一转发到
  * 最新 proxy，旧 proxy 的监听先同步解除，避免新旧 Store 竞争同一 topic ownership。
@@ -32,36 +28,12 @@ async function unsubscribeIgnoringFailure(
 export class ReplaceableConversationTransport implements ConversationTransport {
   private readonly frameListeners = new Set<FrameListener>();
   private readonly assemblyFaultListeners = new Set<AssemblyFaultListener>();
-  private readonly runtimeRestartListeners = new Set<RuntimeRestartListener>();
-  private readonly runtimeLifecycleListeners = new Set<RuntimeLifecycleListener>();
+  private readonly connectionReplacementListeners = new Set<() => void>();
   private readonly transportBySubscriptionId = new Map<string, ConversationTransport>();
   private offFrame: (() => void) | null = null;
   private offAssemblyFault: (() => void) | null = null;
-  private offRuntimeRestart: (() => void) | null = null;
-  private offRuntimeLifecycle: (() => void) | null = null;
 
-  /**
-   * 承载方不支持 runtime lifecycle 时本方法在构造期被抹掉，消费方据此回落 onRuntimeRestart。
-   * 能力按构造时的 current 判定：同一 workspace 的后续 transport 均由
-   * createAgentConversationTransport 产出，支持性只取决于 agentService，换代不会翻转。
-   */
-  onRuntimeLifecycle?: (listener: RuntimeLifecycleListener) => () => void = (listener) => {
-    this.runtimeLifecycleListeners.add(listener);
-    this.bindRuntimeLifecycleListener();
-    return () => {
-      this.runtimeLifecycleListeners.delete(listener);
-      if (this.runtimeLifecycleListeners.size === 0) {
-        this.offRuntimeLifecycle?.();
-        this.offRuntimeLifecycle = null;
-      }
-    };
-  };
-
-  constructor(private current: ConversationTransport) {
-    if (!current.onRuntimeLifecycle) {
-      this.onRuntimeLifecycle = undefined;
-    }
-  }
+  constructor(private current: ConversationTransport) {}
 
   replace(transport: ConversationTransport): void {
     if (transport === this.current) return;
@@ -78,9 +50,8 @@ export class ReplaceableConversationTransport implements ConversationTransport {
 
     this.current = transport;
     this.bindCurrentListeners();
-    // proxy 换代只会让 connection ownership 失效，CLI runtime/logEpoch 仍可能连续；
-    // 显式携带原因，让 Store 用当前水位 fresh subscribe，由服务端裁决 resume/snapshot。
-    for (const listener of this.runtimeRestartListeners) listener("transportReplaced");
+    // 连接 ownership 失效，但 logEpoch 仍可能连续；由 Store 携当前水位重订阅。
+    for (const listener of this.connectionReplacementListeners) listener();
   }
 
   async subscribe(
@@ -175,23 +146,14 @@ export class ReplaceableConversationTransport implements ConversationTransport {
     };
   }
 
-  onRuntimeRestart(listener: RuntimeRestartListener): () => void {
-    this.runtimeRestartListeners.add(listener);
-    this.bindRuntimeRestartListener();
-    return () => {
-      this.runtimeRestartListeners.delete(listener);
-      if (this.runtimeRestartListeners.size === 0) {
-        this.offRuntimeRestart?.();
-        this.offRuntimeRestart = null;
-      }
-    };
+  onConnectionReplaced(listener: () => void): () => void {
+    this.connectionReplacementListeners.add(listener);
+    return () => this.connectionReplacementListeners.delete(listener);
   }
 
   private bindCurrentListeners(): void {
     this.bindFrameListener();
     this.bindAssemblyFaultListener();
-    this.bindRuntimeRestartListener();
-    this.bindRuntimeLifecycleListener();
   }
 
   private bindFrameListener(): void {
@@ -208,36 +170,10 @@ export class ReplaceableConversationTransport implements ConversationTransport {
     });
   }
 
-  private bindRuntimeRestartListener(): void {
-    if (this.offRuntimeRestart || this.runtimeRestartListeners.size === 0) return;
-    const owner = this.current;
-    this.offRuntimeRestart =
-      owner.onRuntimeRestart?.(() => {
-        for (const [subscriptionId, subscriptionOwner] of this.transportBySubscriptionId) {
-          if (subscriptionOwner === owner) {
-            this.transportBySubscriptionId.delete(subscriptionId);
-          }
-        }
-        for (const listener of this.runtimeRestartListeners) listener();
-      }) ?? null;
-  }
-
-  private bindRuntimeLifecycleListener(): void {
-    if (this.offRuntimeLifecycle || this.runtimeLifecycleListeners.size === 0) return;
-    this.offRuntimeLifecycle =
-      this.current.onRuntimeLifecycle?.((state) => {
-        for (const listener of this.runtimeLifecycleListeners) listener(state);
-      }) ?? null;
-  }
-
   private detachCurrentListeners(): void {
     this.offFrame?.();
     this.offFrame = null;
     this.offAssemblyFault?.();
     this.offAssemblyFault = null;
-    this.offRuntimeRestart?.();
-    this.offRuntimeRestart = null;
-    this.offRuntimeLifecycle?.();
-    this.offRuntimeLifecycle = null;
   }
 }

@@ -73,10 +73,6 @@ export function buildSkillMentionMarkdown(label: string, skillPath?: string): st
   return `[${escapeMarkdownLabel(`$${label}`)}](${escapeMarkdownDestination(normalizeMarkdownDestination(skillPath))})`;
 }
 
-export function buildSubagentMentionMarkdown(label: string): string {
-  return `@${label}`;
-}
-
 export function buildSessionMentionMarkdown(sessionId: string, label?: string): string {
   const trimmedLabel = label?.trim();
   if (!trimmedLabel || trimmedLabel === sessionId) {

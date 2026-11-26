@@ -184,8 +184,7 @@ export interface PluginSandboxPortsEvent {
   port: PluginSandboxTransportPort;
 }
 /**
- * renderer 可用的沙箱平台端口，以 `IPlatformService.pluginSandbox` 可选字段挂载；web 端为 undefined，UI 据此回退。
- * 登记沙箱不在这里：它由 host 经 parentPort 完成，renderer 只拿句柄。
+ * 宿主 renderer 使用的沙箱操作端口。沙箱由 host 经 parentPort 登记，renderer 只拿句柄。
  */
 export interface PluginSandboxPlatformPort {
   /** preload 已安装限定的沙箱原子移动适配。 */

@@ -26,8 +26,6 @@ export interface AckActivationBarrier<T extends { topic: string; subscriptionId:
   ): { topic: string; previousSubscriptionId: string | null } | undefined;
   forget(subscriptionId: string): void;
   accept(frame: T): void;
-  /** runtime/attachment generation invalidation：丢弃全部 active/pending ownership。 */
-  clear(): void;
 }
 
 /** transport-local physical-wire barrier；同 topic 并发 pending 各自等 ACK 决定 owner。 */
@@ -128,18 +126,6 @@ export function createAckActivationBarrier<T extends { topic: string; subscripti
         pending.frames.push(frame);
         pending.stagedBytes += bytes;
       }
-    },
-    clear() {
-      for (const group of pendingByTopic.values()) {
-        for (const pending of group) {
-          pending.frames.length = 0;
-          pending.stagedBytes = 0;
-        }
-      }
-      pendingByTopic.clear();
-      pendingBySubscriptionId.clear();
-      activeByTopic.clear();
-      topicByActiveSubscription.clear();
     },
   };
 }

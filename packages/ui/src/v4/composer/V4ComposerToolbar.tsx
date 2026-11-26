@@ -322,7 +322,7 @@ function V4ComposerModelControlsImpl({
   const planGroups = useMemo(
     () =>
       // 保留目录套餐的布局；Web 不再切换需要持久化的账号身份。
-      buildComposerPlanGroups(modelSelectGroups, []).map((group) =>
+      buildComposerPlanGroups(modelSelectGroups).map((group) =>
         group.connection?.selection
           ? { ...group, connection: { ...group.connection, disabled: true } }
           : group,

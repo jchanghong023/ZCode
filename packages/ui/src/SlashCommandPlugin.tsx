@@ -1,9 +1,8 @@
-/* eslint-disable max-lines -- Lexical slash 插件的 trigger/面板/键盘导航同属一个协议状态机，oxfmt 换行后略超 400 行。 */
 /**
  * SlashCommandPlugin — Lexical trigger 面板插件
  *
- * 处理 `/` 面板里的 slash commands 和 subagents：
- * 1. `/` 直接展示 ZCode Agent 广播的真实 slash commands，并补充可用 subagents
+ * 处理 `/` 面板里的会话命令：
+ * 1. `/` 只展示服务端会话目录中的命令及技能
  * 2. 面板通过 portal 渲染到输入区上方的独立挂载层，展开时直接覆盖消息区
  * 3. 支持 Esc 关闭、上下键切换、Enter / Tab 选中，以及跟随输入做模糊搜索
  */
@@ -17,12 +16,11 @@ import {
   type RefObject,
   type SetStateAction,
 } from "react";
-import type { ZCodeProvider } from "@zcode/shared";
+import type { ConversationCommandCatalogEntry } from "@zcode/shared/zcode-protocol-v4";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { createPortal } from "react-dom";
 import {
   type LexicalEditor,
-  $createTextNode,
   BLUR_COMMAND,
   COMMAND_PRIORITY_CRITICAL,
   COMMAND_PRIORITY_LOW,
@@ -32,12 +30,7 @@ import {
   KEY_ESCAPE_COMMAND,
   KEY_TAB_COMMAND,
 } from "lexical";
-import { useSubagents } from "@/hooks/useSubagents.js";
-import { useSkills } from "@/hooks/useSkills.js";
-import { buildSlashApplyMentionPayload } from "@/lib/slashApplyMentionPayload.js";
-import { filterSkillsForProvider } from "@/lib/skillSourceFilter.js";
 import { useZCodeIntl } from "./i18n/IntlProvider.js";
-import { $createPromptMentionNode } from "./mentions/nodes/PromptMentionNode.js";
 import {
   extractActivePromptInputTrigger,
   filterPromptInputSuggestions,
@@ -48,16 +41,7 @@ import {
   type PromptInputSuggestionItem,
 } from "./lib/promptInputTriggers.js";
 import { MentionPanel } from "./mentions/components/MentionPanel.js";
-import {
-  buildAppSlashCommandSuggestions,
-  buildConversationCommandSuggestions,
-  buildSkillSuggestions,
-  buildSubagentSuggestions,
-  getTextAroundCursor,
-  isAppSlashCommandSuggestion,
-  normalizeSlashCommandValue,
-  type SlashCommandPluginProps,
-} from "./slashCommandHelpers.js";
+import { buildConversationCommandSuggestions, getTextAroundCursor } from "./slashCommandHelpers.js";
 import { useSlashCommandMentionPanelSections } from "./slashCommandPanelSections.js";
 import { getCurrentTextNodeSelection } from "./mentions/mentionHelpers.js";
 import {
@@ -67,8 +51,7 @@ import {
 } from "./mentions/activePromptInputToken.js";
 import { shouldSlashPanelProcessUpdate } from "./lib/slashPanelUpdateFilter.js";
 
-// Bug 原因：常驻 Lexical listener 与 applySuggestion 共享组件作用域，连带保留旧 appCommands。
-// 触发器监听只接收编辑器与本地 trigger 状态，不持有会话命令回调。
+// 触发器监听只接收编辑器与本地 trigger 状态，不持有会话目录。
 function useSlashTriggerListener(
   editor: LexicalEditor,
   disabled: boolean,
@@ -149,76 +132,40 @@ function useSlashTriggerListener(
 }
 
 export function SlashCommandPlugin({
-  workspacePath,
-  workspaceIdentity,
-  sessionId,
-  provider,
+  conversationCommands,
   container,
   disabled = false,
-  excludedCommandNames,
-  appCommands,
-  conversationCommands,
-}: SlashCommandPluginProps & { provider: ZCodeProvider }) {
+}: {
+  conversationCommands: readonly ConversationCommandCatalogEntry[];
+  container?: HTMLElement | null;
+  disabled?: boolean;
+}) {
   const [editor] = useLexicalComposerContext();
-  const { intl, locale } = useZCodeIntl();
+  const { intl } = useZCodeIntl();
   const [activeTrigger, setActiveTrigger] = useState<ActivePromptInputTrigger | null>(null);
-  const conversationCatalog = conversationCommands !== undefined;
-  const {
-    agents,
-    loading: subagentsLoading,
-    error: subagentsError,
-  } = useSubagents(conversationCatalog ? null : workspacePath, provider, workspaceIdentity);
-  const {
-    skills,
-    loading: skillsLoading,
-    error: skillsError,
-  } = useSkills({
-    workspacePath,
-    workspaceIdentity,
-    sessionId: sessionId ?? null,
-    enabled: !conversationCatalog && !disabled && activeTrigger?.trigger === "/",
-  });
   const [selectedIndex, setSelectedIndex] = useState(0);
   const dismissedSignatureRef = useRef<string | null>(null);
   const activeSignatureRef = useRef<string | null>(null);
   const activeTokenRef = useRef<ActivePromptInputTokenSnapshot | null>(null);
-  const commandSuggestions = useMemo(() => {
-    if (conversationCommands) {
-      return buildConversationCommandSuggestions(conversationCommands, "builtin");
-    }
-    const excluded = new Set((excludedCommandNames ?? []).map(normalizeSlashCommandValue));
-    // App 命令由当前 Composer 注册；子代理与 Skill 仍各自读取原生目录。
-    return buildAppSlashCommandSuggestions(appCommands ?? []).filter(
-      (item) => !excluded.has(item.value),
-    );
-  }, [appCommands, conversationCommands, excludedCommandNames]);
-  const subagentSuggestions = useMemo(() => buildSubagentSuggestions(agents), [agents]);
+  const commandSuggestions = useMemo(
+    () => buildConversationCommandSuggestions(conversationCommands, "builtin"),
+    [conversationCommands],
+  );
   const skillSuggestions = useMemo(
-    () =>
-      conversationCommands
-        ? buildConversationCommandSuggestions(conversationCommands, "skill")
-        : buildSkillSuggestions(filterSkillsForProvider(skills, provider), locale),
-    [conversationCommands, locale, provider, skills],
+    () => buildConversationCommandSuggestions(conversationCommands, "skill"),
+    [conversationCommands],
   );
   const filteredCommandSuggestions = useMemo(
     () => filterPromptInputSuggestions(commandSuggestions, activeTrigger?.query ?? null),
     [commandSuggestions, activeTrigger?.query],
-  );
-  const filteredSubagentSuggestions = useMemo(
-    () => filterPromptInputSuggestions(subagentSuggestions, activeTrigger?.query ?? null),
-    [subagentSuggestions, activeTrigger?.query],
   );
   const filteredSkillSuggestions = useMemo(
     () => filterPromptInputSuggestions(skillSuggestions, activeTrigger?.query ?? null),
     [skillSuggestions, activeTrigger?.query],
   );
   const filteredSuggestions = useMemo(
-    () => [
-      ...filteredCommandSuggestions,
-      ...filteredSkillSuggestions,
-      ...filteredSubagentSuggestions,
-    ],
-    [filteredCommandSuggestions, filteredSkillSuggestions, filteredSubagentSuggestions],
+    () => [...filteredCommandSuggestions, ...filteredSkillSuggestions],
+    [filteredCommandSuggestions, filteredSkillSuggestions],
   );
   const activeSignature = useMemo(
     () => getPromptInputTriggerSignature(activeTrigger),
@@ -231,9 +178,7 @@ export function SlashCommandPlugin({
   }, [activeSignature]);
 
   useEffect(() => {
-    // 面板展示需要保留 commands/subagents 分组顺序，但键盘默认选中不能固定落在第一个分组。
-    // 例如 `/rev` 时 command 描述里的弱匹配可能排在 subagent 分组前面，导致无法默认选中最佳 subagent。
-    // 这里按统一的模糊评分选择全局最佳项，同时不改变面板的分组展示顺序。
+    // 按统一的模糊评分选择全局最佳项，不改变命令和技能的分组顺序。
     setSelectedIndex(
       getBestPromptInputSuggestionIndex(filteredSuggestions, activeTrigger?.query ?? null),
     );
@@ -268,7 +213,6 @@ export function SlashCommandPlugin({
 
   const applySuggestion = useCallback(
     (suggestion: PromptInputSuggestionItem) => {
-      const isAppCommand = isAppSlashCommandSuggestion(suggestion);
       editor.update(() => {
         const selectionState = getCurrentTextNodeSelection();
         if (!selectionState) {
@@ -303,40 +247,18 @@ export function SlashCommandPlugin({
           tokenEnd,
         );
 
-        if (conversationCatalog) {
-          selectionState.selection.insertText(`${suggestion.label} `);
-          return;
-        }
-
-        if (isAppCommand) {
-          // App 层命令"选中即执行"：只移除输入中的 `/xxx` token，不插入 mention、不发送。
-          selectionState.selection.removeText();
-          return;
-        }
-
-        const mentionNode = $createPromptMentionNode(buildSlashApplyMentionPayload(suggestion));
-        const trailingWhitespace = $createTextNode(" ");
-        selectionState.selection.insertNodes([mentionNode, trailingWhitespace]);
-        trailingWhitespace.selectEnd();
+        selectionState.selection.insertText(`${suggestion.label} `);
       });
 
       dismissedSignatureRef.current = null;
       activeTokenRef.current = null;
       setActiveTrigger(null);
       setSelectedIndex(0);
-      if (isAppCommand) {
-        // 本地操作也要保留输入焦点；在执行回调前恢复，避免抢走回调新开的辅助对话焦点。
-        editor.focus();
-        appCommands
-          ?.find((command) => normalizeSlashCommandValue(command.value) === suggestion.value)
-          ?.run();
-        return;
-      }
       requestAnimationFrame(() => {
         editor.focus();
       });
     },
-    [appCommands, conversationCatalog, editor],
+    [editor],
   );
 
   const selectSuggestion = useCallback(
@@ -391,12 +313,11 @@ export function SlashCommandPlugin({
       KEY_ENTER_COMMAND,
       (event) => {
         if (
-          conversationCatalog &&
-          (event?.isComposing ||
-            event?.shiftKey ||
-            event?.ctrlKey ||
-            event?.metaKey ||
-            event?.altKey)
+          event?.isComposing ||
+          event?.shiftKey ||
+          event?.ctrlKey ||
+          event?.metaKey ||
+          event?.altKey
         ) {
           return false;
         }
@@ -461,37 +382,18 @@ export function SlashCommandPlugin({
       unregisterEscape();
       unregisterBlur();
     };
-  }, [
-    conversationCatalog,
-    editor,
-    filteredSuggestions.length,
-    isOpen,
-    selectSuggestion,
-    selectedIndex,
-  ]);
+  }, [editor, filteredSuggestions.length, isOpen, selectSuggestion, selectedIndex]);
 
   const panelTitle = intl.formatMessage({ id: "chat.slash.title" });
   const hasActiveQuery = (activeTrigger?.query ?? "").trim().length > 0;
-  const panelDescription = hasActiveQuery
-    ? ""
-    : conversationCatalog
-      ? locale === "zh-CN"
-        ? "搜索命令或技能"
-        : "Search commands or skills"
-      : intl.formatMessage({ id: "chat.slash.searchHint" });
+  const panelDescription = hasActiveQuery ? "" : intl.formatMessage({ id: "chat.slash.searchHint" });
 
-  // 空状态按未过滤查询的应用命令计数，区分“无可用命令”和“无匹配结果”。
+  // 空状态按未过滤的服务端命令区分“无可用命令”和“无匹配结果”。
   const panelSections = useSlashCommandMentionPanelSections(
     intl,
     commandSuggestions.length,
     filteredCommandSuggestions,
     filteredSkillSuggestions,
-    skillsLoading,
-    skillsError,
-    filteredSubagentSuggestions,
-    subagentsLoading,
-    subagentsError,
-    conversationCatalog,
   );
 
   if (!isOpen || !container) {

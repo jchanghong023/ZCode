@@ -25,17 +25,3 @@ export function applyUiFontSizePx(fontSizePx: number): void {
   // 只更新 UI 字号 Token 的基准变量，避免根 font-size 连带缩放图标、间距和圆角。
   rootStyle.setProperty("--ui-font-size", `${normalizeUiFontSizePx(fontSizePx)}px`);
 }
-
-export function subscribeToUiFontSizeStorageChanges(): () => void {
-  const handleStorage = (event: StorageEvent) => {
-    if (event.key !== UI_FONT_SIZE_STORAGE_KEY) {
-      return;
-    }
-
-    const storedValue = event.newValue === null ? Number.NaN : Number(event.newValue);
-    applyUiFontSizePx(Number.isFinite(storedValue) ? storedValue : DEFAULT_UI_FONT_SIZE_PX);
-  };
-
-  window.addEventListener("storage", handleStorage);
-  return () => window.removeEventListener("storage", handleStorage);
-}

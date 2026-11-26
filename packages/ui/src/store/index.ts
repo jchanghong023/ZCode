@@ -17,12 +17,6 @@ import {
   normalizeUiFontSizePx,
   UI_FONT_SIZE_STORAGE_KEY,
 } from "@/lib/uiFontSize.js";
-import {
-  isTaskNotificationEnabled,
-  isTaskNotificationSoundPreferenceEnabled,
-  persistTaskNotificationEnabled,
-  persistTaskNotificationSoundEnabled,
-} from "@/lib/taskNotificationPreferences.js";
 import type { Theme } from "../useTheme.js";
 import { applyTheme, DEFAULT_THEME, isTheme, normalizeThemePreference } from "../useTheme.js";
 
@@ -89,14 +83,6 @@ export interface ZCodeState {
   performanceMode: boolean;
   setPerformanceMode: (enabled: boolean) => void;
 
-  /** 是否启用任务通知（桌面通知；提示音由子开关控制） */
-  notificationEnabled: boolean;
-  setNotificationEnabled: (enabled: boolean) => void;
-
-  /** 是否启用任务通知声音（依附于任务通知总开关） */
-  notificationSoundEnabled: boolean;
-  setNotificationSoundEnabled: (enabled: boolean) => void;
-
   /** 浏览器 owner 注入的当前操作者只读展示；不广播、不参与共享数据归属。 */
   readonly user: UserInfo | null;
   /** 本 Root 生命周期的模型额度请求代次；工号退出会卸载整个 Root。 */
@@ -110,15 +96,9 @@ export interface ZCodeState {
 // 需要广播的字段 —— 只有这些字段的变更会发送给其他窗口
 // ============================================================================
 
-const BROADCAST_FIELDS = new Set(["theme", "uiFontSizePx", "interfaceMode", "notificationEnabled"]);
+const BROADCAST_FIELDS = new Set(["theme", "uiFontSizePx", "interfaceMode"]);
 
-type BroadcastField =
-  | "theme"
-  | "uiFontSizePx"
-  | "interfaceMode"
-  // 任务通知开关跨窗口同步：角标是应用级表面，A 窗口关通知而 B 窗口仍上报未读时，
-  // 主进程 max 聚合会让任务栏/托盘继续亮，设置与提醒状态错位。
-  | "notificationEnabled";
+type BroadcastField = "theme" | "uiFontSizePx" | "interfaceMode";
 
 /** 广播频道名前缀 */
 const STATE_CHANNEL_PREFIX = "state:";
@@ -205,18 +185,6 @@ export function createZCodeStore(
     setPerformanceMode: (enabled: boolean) => {
       writeSafeLocalStorage(PERFORMANCE_MODE_STORAGE_KEY, enabled ? "true" : "false");
       set({ performanceMode: enabled });
-    },
-
-    notificationEnabled: isTaskNotificationEnabled(),
-    setNotificationEnabled: (enabled: boolean) => {
-      persistTaskNotificationEnabled(enabled);
-      set({ notificationEnabled: enabled });
-    },
-
-    notificationSoundEnabled: isTaskNotificationSoundPreferenceEnabled(),
-    setNotificationSoundEnabled: (enabled: boolean) => {
-      persistTaskNotificationSoundEnabled(enabled);
-      set({ notificationSoundEnabled: enabled });
     },
 
     user: options.initialUser ?? null,
@@ -313,8 +281,6 @@ export function createZCodeStore(
         state.setInterfaceMode(normalizeInterfaceMode(msg.payload));
       } else if (field === "uiFontSizePx" && typeof msg.payload === "number") {
         state.setUiFontSizePx(msg.payload);
-      } else if (field === "notificationEnabled" && typeof msg.payload === "boolean") {
-        state.setNotificationEnabled(msg.payload);
       }
     } finally {
       applyingBroadcast = false;

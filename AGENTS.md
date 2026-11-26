@@ -40,6 +40,7 @@ JavaScript／TypeScript 只用 `mise.toml` 固定的 Bun。`node:*` 与 `@types/
 ## 验证与交付
 
 - 按实际影响选择最小充分验证。UI 行为必须在真实电脑浏览器验证；未执行或受环境限制时如实说明，不用静态检查代替运行证据。
+- 正式后端的测试与验收凡需调用模型，一律使用隔离的 OMP 配置连接本地 VidaiMock；不使用真实模型或凭据，模拟服务不可用时报告阻塞，不回退真实端点。接入说明见[不调用真实模型的正式后端联调](docs/testing/unit-test-quality.md#不调用真实模型的正式后端联调)。
 - 代码变更收口一次 `bun run typecheck`、`bun run lint`、`bun run architecture:check --changed`；文档修改只核验相关事实、命令、链接与格式。已有结果仍适用时不重复检查。
 - React 组件／hooks 改动必须复核 Hooks Lint，包括缺失、多余和不稳定依赖及调用位置；忽略文件按 [Hooks 检查说明](docs/testing/unit-test-quality.md#react-hooks-检查) 专项检查，不禁用规则或机械补整个对象依赖。
 - 不新增占位测试、永久验收 harness、产品调试接口或 window 夹具。测试编写须基于明确需求与消费者可观察行为；没有测试不等于通过。

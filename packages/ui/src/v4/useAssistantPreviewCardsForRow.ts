@@ -11,7 +11,6 @@ interface UseAssistantPreviewCardsForAssistantTextRowParams {
   assistantTextRows: readonly AssistantTextRow[];
   latestAssistantTextRow?: AssistantTextRow;
   workspacePath: string;
-  workspaceHomePath?: string;
   compactForRemoteControl?: boolean;
   changedFilePaths?: readonly string[];
 }
@@ -30,7 +29,6 @@ export function useAssistantPreviewCardsForAssistantTextRow({
   assistantTextRows,
   latestAssistantTextRow,
   workspacePath,
-  workspaceHomePath,
   compactForRemoteControl,
   changedFilePaths = EMPTY_CHANGED_FILE_PATHS,
 }: UseAssistantPreviewCardsForAssistantTextRowParams): AssistantPreviewCard[] {
@@ -40,13 +38,8 @@ export function useAssistantPreviewCardsForAssistantTextRow({
     latestAssistantTextRow?.rowId === row.rowId &&
     (row.state === "complete" || row.state === "interrupted");
   const fileReferences = useMemo(
-    () =>
-      canBuildCards
-        ? extractAssistantFileReferences(turnText, workspacePath, {
-            homePath: workspaceHomePath,
-          })
-        : [],
-    [canBuildCards, turnText, workspaceHomePath, workspacePath],
+    () => (canBuildCards ? extractAssistantFileReferences(turnText, workspacePath) : []),
+    [canBuildCards, turnText, workspacePath],
   );
 
   return useMemo(
@@ -54,7 +47,6 @@ export function useAssistantPreviewCardsForAssistantTextRow({
       canBuildCards
         ? buildAssistantPreviewCardsFromReferences(turnText, workspacePath, fileReferences, {
             changedFilePaths,
-            homePath: workspaceHomePath,
             suppressWebRemoteCards: compactForRemoteControl === true,
           })
         : [],
@@ -64,7 +56,6 @@ export function useAssistantPreviewCardsForAssistantTextRow({
       compactForRemoteControl,
       fileReferences,
       turnText,
-      workspaceHomePath,
       workspacePath,
     ],
   );

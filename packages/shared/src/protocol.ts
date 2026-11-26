@@ -67,11 +67,6 @@ export interface WorkspaceFileEntry {
   type: "file" | "directory";
 }
 
-export interface SystemInfo {
-  homedir: string;
-  platform: string;
-}
-
 /**
  * 支持的界面语言（BCP-47）。顺序即设置页下拉的展示顺序。
  * 新增语言的步骤见 相邻实现。

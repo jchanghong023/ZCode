@@ -19,9 +19,7 @@ function createDisconnectedRemoteServices(): IServiceAccessor {
     call: () => Promise.reject(createDisconnectedError()),
     listen: () => Event.None,
   };
-  // 断连代理曾自行维护普通事件白名单，新增 onAgentRuntimeRestarted 后被误判成
-  // RPC 方法并返回 Promise，释放订阅时触发 Promise.dispose 崩溃。这里复用真实 RPC 代理的
-  // 事件分类契约：命令明确拒绝，普通/动态事件统一返回空订阅，避免两套规则再次漂移。
+  // 复用真实 RPC 代理的分类契约：命令明确拒绝，普通/动态事件返回空订阅。
   const serviceProxy = ProxyChannel.toService<object>(disconnectedChannel);
 
   return new Proxy(Object.create(null), {

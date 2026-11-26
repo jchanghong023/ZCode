@@ -394,28 +394,12 @@ export function createWorkspaceSlice(set: SetFn) {
       );
     },
 
-    clearDraftTaskGroup: (workspacePath: string, workspaceIdentity?: string) => {
-      // 关闭分组行只撤销组织意图；调用 startDraft 会重置预热、配置和焦点。
-      set((state) =>
-        updateWorkspaceState(
-          state,
-          workspacePath,
-          (current) =>
-            current.draftTaskGroupId === undefined
-              ? current
-              : { ...current, draftTaskGroupId: undefined },
-          workspaceIdentity,
-        ),
-      );
-    },
-
     startDraft: (
       workspacePath: string,
       provider?: ZCodeProvider,
       workspaceIdentity?: string,
       options?: {
         projectId?: string | null;
-        taskGroupId?: string | null;
         createSource?: SessionCreateSource;
       },
     ) => {
@@ -465,7 +449,6 @@ export function createWorkspaceSlice(set: SetFn) {
               activeTaskId: null,
               composerInitialization: undefined,
               draftProjectId: options?.projectId,
-              draftTaskGroupId: options?.taskGroupId,
               // 同 cwd 可属于多个项目；换项目不能复用前一个项目的预热 runtime 目录范围。
               draftRuntimeInvalidationVersion:
                 current.draftRuntimeInvalidationVersion +

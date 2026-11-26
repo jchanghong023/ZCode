@@ -6,7 +6,7 @@
 
 应用入口只填写工号。校验格式通过即可进入，工号用来标记消息发送人和实际操作者，应用登录无需本人认证。用户可查看所有项目和 Release 的共享内容，可使用业务页面，其他操作依项目角色开放。
 
-Web entry 持有连接生命周期，首次连接读取持久 `getV4ClientId()` 并固定；工号来自 `EmployeeEntry`。AIReq identity、WebSocket、v4 握手与命令共用同一 clientId，设备 stream 指纹不代替业务身份。浏览器每次页面加载生成独立的 `pageId`，重连沿用。服务端以工号、clientId 和 `pageId` 绑定页面云龙快照，最后一个连接断开后保留 30 分钟供重连。不传 `pageId` 时仅在当前连接内保留快照，不跨连接复用。
+Web entry 持有连接生命周期，首次连接读取持久 `getV4ClientId()` 并固定；工号来自 `EmployeeEntry`。AIReq identity、WebSocket、v4 握手与命令共用同一 clientId。浏览器每次页面加载生成独立的 `pageId`，重连沿用。服务端以工号、clientId 和 `pageId` 绑定页面云龙快照，最后一个连接断开后保留 30 分钟供重连。不传 `pageId` 时仅在当前连接内保留快照，不跨连接复用。
 
 `AIReqIdentity` 仅含 employeeId/clientId：
 

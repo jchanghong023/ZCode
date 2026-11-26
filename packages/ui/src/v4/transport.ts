@@ -74,22 +74,8 @@ export interface ConversationTransport {
       deliveryKind?: TopicFrameDeliveryKind;
     }) => void,
   ): () => void;
-  /** CLI runtime 或承载 proxy 换代；transport 已先清 ownership/barrier/assembler。 */
-  onRuntimeRestart?(
-    listener: (reason?: "runtimeRestart" | "transportReplaced") => void,
-  ): () => void;
-  /**
-   * CLI runtime 存活态。unavailable 在 workspace-dispose 当场到达（此时新 runtime 尚不存在，
-   * 不可重订阅）；available 在新进程 spawn 时到达，与 onRuntimeRestart 同刻同义。
-   *
-   * onRuntimeRestart 只在新进程 spawn 时才发，而 agent 是懒启动——CUA Helper 就绪
-   * 触发 dispose 后没人拉起 agent，换代通知因此永不到达，草稿预热会话不重建、附件卡在
-   * waitingSession，直到用户手动点一次发送才被踹活。dispose 当场可观测的只有本事件。
-   *
-   * 消费方二选一订阅 runtime 换代（有本方法就不订阅 onRuntimeRestart），
-   * 避免同一次换代被两条通道各处理一次。承载方未暴露 runtime lifecycle 时本方法不存在。
-   */
-  onRuntimeLifecycle?(listener: (state: "available" | "unavailable") => void): () => void;
+  /** 承载连接已替换；旧订阅已解绑，可在新连接上重订阅。 */
+  onConnectionReplaced?(listener: () => void): () => void;
 }
 
 export interface ConversationAttachmentReadParams {

@@ -10,12 +10,7 @@ import { createWebPlatform } from "#src/platform/index.js";
 import { deploymentToken } from "#src/deploymentAccess.js";
 import { createRoot } from "react-dom/client";
 import type { ReactNode } from "react";
-import {
-  generateMobileDeviceFingerprint,
-  getV4ClientId,
-  logger,
-  setStreamClientId,
-} from "@zcode/ui";
+import { getV4ClientId, logger } from "@zcode/ui";
 import "./styles.css";
 import { connectViaWebSocket } from "@zcode/client";
 import { createUuid } from "@zcode/shared";
@@ -59,9 +54,7 @@ function renderEntry(): void {
     </div>,
   );
 }
-// 设备标识仅供既有设备级消费者使用，不作为业务连接或原生命令身份。
-setStreamClientId(generateMobileDeviceFingerprint());
-// 连接与原生命令共用同一稳定 ID；设备指纹会使合法发送被可信连接校验拒绝。
+// 连接与原生命令共用同一稳定 ID。
 const webClientId = getV4ClientId();
 // 页面加载才生成新标识，同一页面的重连保留云龙快照。
 const pageId = createUuid();
@@ -287,13 +280,6 @@ async function bootstrapWebApp(generation: number, employeeNumber: string) {
   await connect();
 }
 
-// 旧 remote/授权回调不再是产品入口，不读取其中的 Host 或账号参数。
-if (
-  window.location.pathname.startsWith("/remote") ||
-  new URLSearchParams(window.location.search).has("remote")
-) {
-  window.history.replaceState(null, "", "/");
-}
 function handleEntryChange() {
   entryGeneration += 1;
   stopConnection?.();

@@ -1,10 +1,8 @@
 import { createContext, useContext, type ReactNode } from "react";
 import type { WebFileMediaPreview } from "@zcode/services";
-import type { AgentColor } from "@zcode/shared";
 
 export interface ToolPresentationCapabilities {
   readMediaPreview?: (path: string) => Promise<WebFileMediaPreview>;
-  agentColor?: (name: string) => AgentColor | undefined;
   modelProviderName?: (providerId: string) => string | undefined;
   normalizeOutputText?: (text: string) => string;
   resourceUrl?: (ref: string) => string | undefined;

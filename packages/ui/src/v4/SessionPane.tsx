@@ -1,6 +1,4 @@
 import { completeNewModelSelection } from "@zcode/provider";
-import { useSubagents } from "@/hooks/useSubagents.js";
-import { ToolPresentationCapabilitiesProvider } from "@/ToolCallBlocks/presentationCapabilities.js";
 import { isRequestVerificationConfigNetworkError } from "@/request-security-edition/errors.js";
 import { useShallow } from "zustand/react/shallow";
 import { useRemoteConversationAvailable } from "@/v4/RemoteConversationAvailability.js";
@@ -23,7 +21,7 @@ import {
   type ReactNode,
 } from "react";
 import { Hand } from "lucide-react";
-import { isRemoteWorkspaceIdentity, ZCODE_AGENT_PROVIDER } from "@zcode/shared";
+import { isRemoteWorkspaceIdentity } from "@zcode/shared";
 import { TID_CHAT_EMPTY, TID_V4_SESSION_PANE, testId } from "@zcode/shared/test-ids";
 import type {
   GitChangeSourceId,
@@ -56,7 +54,6 @@ import { useServices } from "@/hooks/useServices.js";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import type { SessionOpenTrigger } from "@/lib/sessionOpenArmsTelemetry.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
-import { useWorkspaceHomePath } from "@/hooks/useWorkspaceHomePath.js";
 import { prepareComposerRecentReceipt } from "@/lib/composerRecent.js";
 import { useComposerClientNamespace } from "@/hooks/useServices.js";
 import {
@@ -80,7 +77,7 @@ import {
 } from "@/v4/composer/composerSubmissionConfig.js";
 import { useDraftSessionPrewarm } from "@/v4/composer/useDraftSessionPrewarm.js";
 import { projectSessionConfigToTaskConfigOptions } from "@/v4/composer/sessionConfigTaskCache.js";
-import { useDraftRuntimeRebuildGate } from "@/v4/composer/useDraftRuntimeRebuildGate.js";
+import { useDraftConnectionRebuildGate } from "@/v4/composer/useDraftConnectionRebuildGate.js";
 import { useDraftModelReadinessGate } from "@/v4/composer/useDraftModelReadinessGate.js";
 import { useSettings } from "@/hooks/useSettingService.js";
 import { useZCodeStoreWithDefault } from "@/store/StoreProvider.js";
@@ -193,7 +190,6 @@ import type {
   OpenBackgroundBashSideTabRequest,
   OpenSubagentSideTabRequest,
 } from "@/lib/workspaceSidePane.js";
-import type { AppSlashCommand } from "@/slashCommandHelpers.js";
 import {
   dispatchConversationSelectionAdd,
   type ConversationSelectionReference,
@@ -448,18 +444,6 @@ function createDraftConfigReader(
   };
 }
 
-// Bug 原因：缓存的 agentColor 曾连带持有 SessionPane 的旧 lease；工厂只捕获展示数据。
-function createAgentPresentationCapabilities(agents: ReturnType<typeof useSubagents>["agents"]) {
-  return {
-    agentColor: (name: string) => {
-      const key = name.trim().toLowerCase();
-      return agents.find(
-        (agent) => agent.name.trim().toLowerCase() === key || agent.id.trim().toLowerCase() === key,
-      )?.color;
-    },
-  };
-}
-
 /**
  * 单 pane 竖切：订阅 → 渲染 rows → composer 发送 / stop（06-ui §SessionPane）。
  *
@@ -549,8 +533,7 @@ export function SessionPane({
     attachmentPut,
     attachmentRead,
     attachmentReadRange,
-    onRuntimeRestart,
-    onRuntimeLifecycle,
+    onConnectionReplaced,
   } = useV4Conversation();
   const platform = useOptionalPlatform();
   const { modelSelectionService, zcodeAgentService } = useServices();
@@ -612,11 +595,6 @@ export function SessionPane({
   const [resolvedDraftCommand, setResolvedDraftCommand] = useState<string | null>(null);
   const recoveringDraft =
     pendingAtEntry?.commandId !== resolvedDraftCommand ? pendingAtEntry : null;
-  const workspaceHomePath = useWorkspaceHomePath({
-    workspacePath,
-    workspaceIdentity,
-    remoteSessionId,
-  });
   const [lease, setLease] = useSessionPaneLease(sessionId, layer);
   const state = useConversationProjection(lease);
   const snapshot = state.snapshot;
@@ -1444,19 +1422,6 @@ export function SessionPane({
     },
     [sessionId, workspaceKey],
   );
-  // Plan 选中即开启 Composer 开关，不能等发送时再解析文本。
-  const appSlashCommands = useMemo<AppSlashCommand[] | undefined>(() => {
-    if (readOnly || sessionBoundInput) return undefined;
-    return [
-      {
-        value: "plan",
-        description: intl.formatMessage({ id: "chat.slash.app.plan.description" }),
-        keywords: ["plan", "计划", "计划模式"],
-        run: () => handleDraftSwitchMode("plan"),
-      },
-    ];
-  }, [handleDraftSwitchMode, intl, readOnly, sessionBoundInput]);
-
   const chatLoadingBlockedByInteraction =
     !sessionBoundInput && hasChatLoadingBlockingInteraction(snapshot?.pendingInteractions ?? []);
   const chatLoadingBlockedByActiveWork = hasChatLoadingBlockingActiveWork(
@@ -1542,7 +1507,6 @@ export function SessionPane({
   const rowContext = useMemo<ConversationRowRenderContext>(
     () => ({
       workspacePath,
-      workspaceHomePath,
       workspaceIdentity,
       workspaceRemoteSessionId: remoteSessionId ?? undefined,
       modelSelectionView: modelSelectionDisplayView,
@@ -1593,7 +1557,6 @@ export function SessionPane({
     }),
     [
       workspacePath,
-      workspaceHomePath,
       workspaceIdentity,
       remoteSessionId,
       modelSelectionDisplayView,
@@ -1663,12 +1626,10 @@ export function SessionPane({
   });
   prewarmBindingRef.current = prewarmBinding;
   const prewarmSessionId = prewarmBinding?.sessionId ?? null;
-  // runtime 换代（CUA Helper 就绪、liveness 恢复等触发 workspace-dispose）会冲掉草稿态尚未
-  // 持久化的预热会话。重建期间禁止发送，否则附件会挂在已消失的会话上（sessionNotFound）。
-  const { rebuilding: draftRuntimeRebuilding } = useDraftRuntimeRebuildGate({
+  // 连接替换后重新确认未持久化的预热会话；重建期间不能向旧会话发送。
+  const { rebuilding: draftRuntimeRebuilding } = useDraftConnectionRebuildGate({
     enabled: sessionId === null && !sessionBoundInput,
-    onRuntimeRestart: sessionBoundInput ? undefined : onRuntimeRestart,
-    onRuntimeLifecycle: sessionBoundInput ? undefined : onRuntimeLifecycle,
+    onConnectionReplaced: sessionBoundInput ? undefined : onConnectionReplaced,
     prewarmSessionId,
     workspaceIdentity,
     workspacePath,
@@ -3630,8 +3591,7 @@ export function SessionPane({
       modelSelectionRefresh={modelSelectionRead.refresh}
       attachmentSessionId={effectiveSessionId}
       attachmentPut={attachmentPut}
-      onRuntimeRestart={sessionBoundInput ? undefined : onRuntimeRestart}
-      onRuntimeLifecycle={sessionBoundInput ? undefined : onRuntimeLifecycle}
+      onConnectionReplaced={sessionBoundInput ? undefined : onConnectionReplaced}
       provider={provider}
       onSendText={handleSendText}
       onDraftStateChange={handleComposerDraftStateChange}
@@ -3674,8 +3634,6 @@ export function SessionPane({
       onOpenModelSettings={onOpenModelSettings}
       modelConfigTarget={modelConfigTarget}
       onOpenCodeViewer={onOpenCodeViewer}
-      suppressGoalCommands={sessionBoundInput}
-      appSlashCommands={appSlashCommands}
       onDropTargetControllerChange={handleDropTargetControllerChange}
     />
   );
@@ -3793,17 +3751,7 @@ export function SessionPane({
     </ConversationBottomDockTransition>
   ) : null;
 
-  const { agents: presentationAgents } = useSubagents(
-    workspacePath,
-    ZCODE_AGENT_PROVIDER,
-    workspaceIdentity,
-  );
-  const agentPresentationCapabilities = useMemo(
-    () => createAgentPresentationCapabilities(presentationAgents),
-    [presentationAgents],
-  );
-
-  const paneContent = (
+  return (
     <div
       ref={paneRef}
       data-testid={testId(TID_V4_SESSION_PANE, paneId)}
@@ -4003,10 +3951,5 @@ export function SessionPane({
         ) : null}
       </div>
     </div>
-  );
-  return (
-    <ToolPresentationCapabilitiesProvider value={agentPresentationCapabilities}>
-      {paneContent}
-    </ToolPresentationCapabilitiesProvider>
   );
 }

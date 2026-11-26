@@ -26,9 +26,6 @@ import type { ConversationTransport } from "@/v4/transport.js";
 import { ConversationRowPool } from "@/v4/conversationRowSharing.js";
 import { uiMemoryDiagnosticsRegistry } from "@/lib/memoryDiagnostics.js";
 
-// runtime 换代打断 subscribe 后有界退避，避免懒启动时一直等不到重启通知。
-const RUNTIME_RECYCLE_RETRY_DELAYS_MS = [250, 1_000, 3_000] as const;
-
 /**
  * accepted ACK 后等待权威输入投影的宽限期。
  *
@@ -42,9 +39,6 @@ const ACCEPTED_INPUT_COMMAND_TYPES = new Set(["sendText", "editUserQuery"]);
 export function requiresAcceptedInputProjection(type: string): boolean {
   return ACCEPTED_INPUT_COMMAND_TYPES.has(type);
 }
-
-/** 退避耗尽时展示给用户的 lastError（无底层 error 对象可引用的换代路径）。 */
-const RUNTIME_RECYCLED_ERROR = "ZCode agent runtime 已被回收，重连未成功";
 
 /** recovery flight 的起因。只由调用点显式给出，不从状态反推，否则日志会把两种原因混成一个。 */
 type RecoveryReason =
@@ -61,19 +55,6 @@ function monotonicNow(): number {
 
 function roundedDuration(startedAt: number, endedAt: number): number {
   return Math.max(0, Math.round(endedAt - startedAt));
-}
-
-/** 识别 runtime 换代或连接关闭导致的瞬态订阅失败。 */
-function isRuntimeRecycleError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return (
-    // 冷订阅可能亲自拉起新 runtime；restart 令在途 ACK 失效后仍须有界重订，不能停在 error。
-    message.includes("fault.subscription.runtimeRestarted") ||
-    message.includes("ZCode agent transport closed") ||
-    message.includes("ZCode Protocol client disposed") ||
-    message.includes("ZCode Protocol client is disposed") ||
-    message.includes("ZCode Agent runtime is not running")
-  );
 }
 
 function hasAcceptedInputProjection(
@@ -382,9 +363,6 @@ export class ConversationProjectionStore {
   private observedModelTransitionEventId: string | null = null;
   // 订阅代际：并发 connect 只认最新一代，过期结果立即退订防服务端悬挂。
   private generation = 0;
-  // 首次订阅尚未拿到 ACK 时，runtime available 只是当前启动流程的正常完成信号；
-  // 记录在途数量，避免生命周期通知再次启动 connect，制造同 topic 的订阅替换竞态。
-  private connectInFlight = 0;
   /**
    * subscribe ACK mode 持久到该代首个 logical frame；不能只依赖同步 activate 栈，
    * 因为 notification 可在 ACK Promise resolve 后异步到达。
@@ -406,10 +384,7 @@ export class ConversationProjectionStore {
     contentFault: boolean;
   } | null = null;
   private readonly offAssemblyFault: () => void;
-  private readonly offRuntimeRestart: (() => void) | null = null;
-  private readonly offRuntimeLifecycle: (() => void) | null = null;
-  private runtimeRecycleRetryTimer: ReturnType<typeof setTimeout> | null = null;
-  private runtimeRecycleRetryAttempt = 0;
+  private readonly offConnectionReplaced: (() => void) | undefined;
   private sessionOpenRendererTiming: SessionOpenRendererTiming = {};
   private initialSubscribeAckAt: number | null = null;
   /** accepted input 的 projection confirmation watchdog；不承载命令，也不生成本地事实。 */
@@ -438,28 +413,9 @@ export class ConversationProjectionStore {
         this.handleAssemblyFault(fault.subscriptionId, fault.deliveryKind, fault.reasonCode);
       }
     });
-    // 优先监听 runtime lifecycle：unavailable 可立即观测，restart 要等新进程启动。
-    if (transport.onRuntimeLifecycle) {
-      this.offRuntimeLifecycle = transport.onRuntimeLifecycle((state) => {
-        if (state === "available") this.handleRuntimeAvailable();
-        else this.handleRuntimeUnavailable();
-      });
-      // proxy handoff 不是 runtime 换代，只有 restart 通道携带该语义——
-      // ReplaceableConversationTransport.replace() 只广播 runtimeRestartListeners，不发任何
-      // lifecycle 事件。若这里因"二选一"完全放弃 restart 通道，远程 workspace 的 proxy 换代
-      // 就无人接收：replace() 已 best-effort 退订旧 proxy 的订阅，store 却停在 live + 旧
-      // subscriptionId，帧流静默中断且不自愈。
-      // 只认 transportReplaced 即可两不重叠：底层 runtime restart 经 bindRuntimeRestartListener
-      // 转发时调的是 listener()（reason 为 undefined），已由 lifecycle 的 available 接管。
-      this.offRuntimeRestart =
-        transport.onRuntimeRestart?.((reason) => {
-          if (reason !== "transportReplaced") return;
-          this.handleRuntimeRestart(reason);
-        }) ?? null;
-    } else {
-      this.offRuntimeRestart =
-        transport.onRuntimeRestart?.((reason) => this.handleRuntimeRestart(reason)) ?? null;
-    }
+    this.offConnectionReplaced = transport.onConnectionReplaced?.(() =>
+      this.handleConnectionReplaced(),
+    );
   }
 
   getState(): ConversationStoreState {
@@ -532,7 +488,6 @@ export class ConversationProjectionStore {
       rendererPrepareMs: roundedDuration(connectStartedAt, subscribeStartedAt),
     };
     this.initialSubscribeAckAt = null;
-    this.connectInFlight += 1;
     this.setState({
       status: "connecting",
       projectionReady: false,
@@ -566,7 +521,6 @@ export class ConversationProjectionStore {
       // 的在途 resync 注定被 notOwned 拒绝。换代成功即丢弃旧 recovery——新订阅的 initial
       // 会原子替换整个投影，旧恢复流已无意义；否则其迟到失败会把 live 的新订阅打成 error。
       this.discardRecovery();
-      this.runtimeRecycleRetryAttempt = 0;
       this.initialSubscribeAckAt = monotonicNow();
       this.setState({
         status: "live",
@@ -610,19 +564,6 @@ export class ConversationProjectionStore {
         await this.connect({ forceSnapshot: true, initialOverflowRetry: true });
         return;
       }
-      if (this.scheduleRuntimeRecycleRetry(error, generation)) {
-        logger.lifecycle.warn("v4 conversation store connect retry scheduled", {
-          durationMs: roundedDuration(subscribeStartedAt, monotonicNow()),
-          errorMessage: message,
-          event: "v4.conversation.store.connect.retry_scheduled",
-          generation,
-          module: "ui.v4.conversation_projection_store",
-          status: "retrying",
-          topic: this.topic,
-        });
-        logger.warn(`[v4-store] subscribe ${this.topic} 被 runtime 换代打断，退避重连: ${message}`);
-        return;
-      }
       logger.lifecycle.warn("v4 conversation store connect failed", {
         durationMs: roundedDuration(subscribeStartedAt, monotonicNow()),
         errorMessage: message,
@@ -634,88 +575,11 @@ export class ConversationProjectionStore {
       });
       logger.warn(`[v4-store] subscribe ${this.topic} 失败: ${message}`);
       this.setState({ status: "error", lastError: message });
-    } finally {
-      this.connectInFlight -= 1;
     }
-  }
-
-  private clearRuntimeRecycleRetry(): void {
-    if (this.runtimeRecycleRetryTimer === null) return;
-    clearTimeout(this.runtimeRecycleRetryTimer);
-    this.runtimeRecycleRetryTimer = null;
-  }
-
-  /**
-   * runtime 换代导致的 subscribe 失败：保持 connecting 并有界退避重连。
-   * 返回 true 表示已接管本次失败，调用方不应再落 error。
-   */
-  private scheduleRuntimeRecycleRetry(error: unknown, generation: number): boolean {
-    if (!isRuntimeRecycleError(error)) return false;
-    return this.scheduleRuntimeRecycleReconnect(generation);
-  }
-
-  /**
-   * 有界退避重连。重订阅走 start-if-needed（zcodeAgentService.subscribeConversationV4），
-   * 自身即可把懒启动的 runtime 拉起来——这是 available 永不到达时唯一的自愈路径。
-   * 返回 true 表示已接管，调用方不应再落 error。
-   */
-  private scheduleRuntimeRecycleReconnect(generation: number): boolean {
-    if (this.closed) return false;
-    const delayMs = RUNTIME_RECYCLE_RETRY_DELAYS_MS[this.runtimeRecycleRetryAttempt];
-    if (delayMs === undefined) return false;
-    this.runtimeRecycleRetryAttempt += 1;
-    this.clearRuntimeRecycleRetry();
-    // 保留旧 snapshot：换代期间投影未被污染，重连成功会原子替换。
-    this.setState({ status: "connecting" });
-    this.runtimeRecycleRetryTimer = setTimeout(() => {
-      this.runtimeRecycleRetryTimer = null;
-      if (this.closed || generation !== this.generation) return;
-      void this.connect();
-    }, delayMs);
-    return true;
-  }
-
-  /** 旧 runtime 已失效，清除订阅水位并安排重连。 */
-  private handleRuntimeUnavailable(): void {
-    if (this.closed) return;
-    this.clearRuntimeRecycleRetry();
-    this.discardRecovery();
-    this.awaitingInitial = null;
-    this.subscriptionHasAppliedBase = false;
-    this.generation += 1;
-    // 旧 subscriptionId 属于已死 runtime，不得再 unsubscribe（host 侧 owner 已失效）。
-    this.setState({
-      status: "connecting",
-      subscriptionId: null,
-      editPresentation: null,
-      projectionReady: false,
-    });
-    // 不只等待 available：退避重连可拉起懒启动的 runtime；available 先到则立即重连。
-    if (this.scheduleRuntimeRecycleReconnect(this.generation)) return;
-    // 退避额度耗尽（runtime 反复回收）：必须落 error 暴露「重新连接」入口，
-    // 否则 connecting 无 timer 就是永久转圈，连手动重试都没有。
-    this.setState({ status: "error", lastError: RUNTIME_RECYCLED_ERROR });
-  }
-
-  /** 新 runtime 就绪：与 onRuntimeRestart 同义，携原水位重订阅。 */
-  private handleRuntimeAvailable(): void {
-    if (this.closed) return;
-    this.clearRuntimeRecycleRetry();
-    this.runtimeRecycleRetryAttempt = 0;
-    if (this.connectInFlight > 0) {
-      // 冷启动 spawn 会在首次 subscribe ACK
-      // 返回前广播 available。若这里立即再 connect，服务端会按同一 connection/topic
-      // 替换旧订阅；旧 ACK 随即被本地代际防护退订，首帧交接存在竞态，面板可能永久无快照。
-      // 当前在途 connect 已经负责完成这次启动，不需要重复重订阅。
-      return;
-    }
-    this.handleRuntimeRestart("runtimeRestart");
   }
 
   /** 订阅失败后的手动重试入口（pane 层「重新连接」按钮落点）。 */
   retry(): Promise<void> {
-    this.clearRuntimeRecycleRetry();
-    this.runtimeRecycleRetryAttempt = 0;
     const initialization = this.state.snapshot?.runtimeInitialization;
     return this.connect(
       initialization?.status === "failed" ? { retryInitialization: initialization.attemptId } : {},
@@ -1154,10 +1018,9 @@ export class ConversationProjectionStore {
     this.setState({ status: "error", lastError: code });
   }
 
-  private handleRuntimeRestart(reason?: "runtimeRestart" | "transportReplaced"): void {
+  private handleConnectionReplaced(): void {
     if (this.closed) return;
-    // transport 已先失效旧 ownership/assembler；旧 transport/runtime subId 不得再 unsubscribe，
-    // 直接 fresh subscribe，保留旧 snapshot 直到新 snapshot 原子替换。
+    // transport 已清理旧连接的 ownership；保留一致投影直至新订阅接管。
     this.generation += 1;
     this.discardRecovery();
     this.awaitingInitial = null;
@@ -1167,11 +1030,8 @@ export class ConversationProjectionStore {
       subscriptionId: null,
       projectionReady: false,
     });
-    // proxy handoff 不等于 CLI runtime 重启；强制 snapshot 会把用户已加载的
-    // older rows 替换回 tail window。handoff 保留一致 projection 水位，由服务端按
-    // logEpoch/seq 裁决 resume 或 snapshot；真实 runtime restart 仍保持 full subscribe。
-    if (reason === "transportReplaced") void this.connect();
-    else void this.connect({ forceSnapshot: true });
+    // 连接换代不意味着 logEpoch 改变。保留水位及已加载历史，由服务端裁决 resume 或 snapshot。
+    void this.connect();
   }
 
   /**
@@ -1523,9 +1383,7 @@ export class ConversationProjectionStore {
     });
     this.closed = true;
     this.offAssemblyFault();
-    this.offRuntimeRestart?.();
-    this.offRuntimeLifecycle?.();
-    this.clearRuntimeRecycleRetry();
+    this.offConnectionReplaced?.();
     for (const timer of this.acceptedInputProjectionTimers.values()) clearTimeout(timer);
     this.acceptedInputProjectionTimers.clear();
     this.modelTransitionListeners.clear();

@@ -366,7 +366,6 @@ export type MessageResponseProps = {
   dir?: "auto" | "ltr" | "rtl";
   streaming?: boolean;
   workspacePath?: string;
-  workspaceHomePath?: string;
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
   sessionId?: string;
@@ -1373,7 +1372,6 @@ export function buildMessageStreamdownRenderKey(params: {
   renderZCodeFileCitations?: boolean;
   sessionId?: string;
   workspacePath?: string;
-  workspaceHomePath?: string;
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
   wrapLongLines: boolean;
@@ -1388,7 +1386,6 @@ export function buildMessageStreamdownRenderKey(params: {
     params.wrapLongLines ? "wrap" : "scroll",
     params.renderZCodeFileCitations ? "citations" : "plain",
     params.workspacePath ?? "",
-    params.workspaceHomePath ?? "",
     params.workspaceIdentity ?? "",
     params.workspaceRemoteSessionId ?? "",
   ].join(":");
@@ -1721,7 +1718,6 @@ export const messageResponsePropsAreEqual = (
   prevProps.showExportActions === nextProps.showExportActions &&
   nextProps.streaming === prevProps.streaming &&
   nextProps.workspacePath === prevProps.workspacePath &&
-  nextProps.workspaceHomePath === prevProps.workspaceHomePath &&
   nextProps.workspaceIdentity === prevProps.workspaceIdentity &&
   nextProps.workspaceRemoteSessionId === prevProps.workspaceRemoteSessionId &&
   nextProps.sessionId === prevProps.sessionId &&
@@ -1744,7 +1740,6 @@ export const MessageResponse = memo(
     onOpenExternalUrl,
     renderZCodeFileCitations = false,
     workspacePath,
-    workspaceHomePath,
     workspaceIdentity,
     workspaceRemoteSessionId,
     sessionId,
@@ -1804,10 +1799,10 @@ export const MessageResponse = memo(
         // rehype 阶段已经看不到原文。这条还原必须无条件生效，不能挂在 citation 开关下。
         windowsFileLinkEscapeRemarkPlugin,
         ...(renderZCodeFileCitations && workspacePath
-          ? [createZCodeFileCitationRemarkPlugin(workspacePath, workspaceHomePath)]
+          ? [createZCodeFileCitationRemarkPlugin(workspacePath)]
           : []),
       ],
-      [renderZCodeFileCitations, workspaceHomePath, workspacePath],
+      [renderZCodeFileCitations, workspacePath],
     );
     const responseClassName = cn(
       "size-full text-ui-base leading-[1.75] tracking-wide [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
@@ -1842,7 +1837,6 @@ export const MessageResponse = memo(
           renderZCodeFileCitations,
           sessionId,
           workspacePath,
-          workspaceHomePath,
           workspaceIdentity,
           workspaceRemoteSessionId,
           wrapLongLines,
@@ -1859,7 +1853,6 @@ export const MessageResponse = memo(
       renderZCodeFileCitations,
       readAttachment,
       sessionId,
-      workspaceHomePath,
       workspacePath,
       workspaceIdentity,
       workspaceRemoteSessionId,
@@ -1874,9 +1867,7 @@ export const MessageResponse = memo(
         }: ComponentProps<"a"> & { node?: unknown }) => {
           const resolvedHref =
             typeof href === "string" ? stripBalancedAssistantPathQuotes(href) : "";
-          const fileLink = resolveMarkdownFileLink(workspacePath, resolvedHref, {
-            homePath: workspaceHomePath,
-          });
+          const fileLink = resolveMarkdownFileLink(workspacePath, resolvedHref);
 
           if (fileLink && (onOpenFileLink || onOpenCodeViewer)) {
             const descriptor = resolveFileDisplayDescriptor(fileLink.path);
@@ -1942,7 +1933,6 @@ export const MessageResponse = memo(
           <MarkdownImage
             {...imageProps}
             workspacePath={workspacePath}
-            workspaceHomePath={workspaceHomePath}
             sessionId={sessionId}
             readAttachment={readAttachment}
           />
@@ -2047,7 +2037,6 @@ export const MessageResponse = memo(
         renderStreaming,
         sessionId,
         theme,
-        workspaceHomePath,
         workspacePath,
         workspaceIdentity,
         workspaceRemoteSessionId,

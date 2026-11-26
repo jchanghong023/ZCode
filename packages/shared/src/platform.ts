@@ -5,13 +5,6 @@ import type {
   SSHConnectOptions,
   WSLConnectOptions,
 } from "./remoteTarget.js";
-import type { PluginSandboxPlatformPort } from "./mcp-apps/contract.js";
-import type { Locale } from "./protocol.js";
-import type {
-  ExtensionNotificationClick,
-  ExtensionNotificationPayload,
-  NotificationsShowResult,
-} from "#src/extension-host/notifications.js";
 import type { ArmsCustomEventPayload, RendererTelemetryEventPayload } from "./telemetry.js";
 import type { BrowserViewportSize } from "./browser-use/command-metadata.js";
 export interface AppNavigationTarget {
@@ -696,19 +689,11 @@ export type CuaOsSupport =
   | { kind: "not-applicable" };
 
 /**
- * 平台操作接口 —— 替代直接访问 window.zcode
- *
- * 定义浏览器下载、外链、通知等本机交互，由 Web 入口提供实现。
- * 工作区文件、MCP、Git 等业务能力通过 IServiceAccessor 的 RPC 通道访问，
- * 不在这里模拟桌面进程、原生对话框或窗口管理。
+ * 由 Web 入口实现的浏览器下载、复制、外链、缩放和遥测端口。
+ * 工作区文件、MCP、Git 等业务能力通过 IServiceAccessor 的 RPC 通道访问；
+ * 业务连接身份不由该平台端口发放。
  */
 export interface IPlatformService {
-  /**
-   * 插件 UI 沙箱平台端口。浏览器不具备隔离沙箱宿主，故 Web 端省略；
-   * plugin-ui 据此回退到普通 MCP 工具卡片。
-   */
-  pluginSandbox?: PluginSandboxPlatformPort;
-
   /** 浏览器下载端口：把字节或同源/HTTP(S)/data/blob URL 交给当前浏览器下载器。 */
   saveFile(payload: SaveFileRequest): Promise<SaveFileResult>;
 
@@ -721,38 +706,9 @@ export interface IPlatformService {
   /** 用系统浏览器新标签打开外部 URL；Web 端只允许 http/https。 */
   openExternal(url: string): void;
 
-  /** 打开反馈入口，由平台自行解析最终地址。 */
-  openFeedback(): Promise<void>;
-
-  /** 打开用户社群入口，由平台自行解析当前语言对应渠道。 */
-  openCommunity(): Promise<void>;
-
-  /** 查询当前语言下是否存在可用的用户社群入口。 */
-  canOpenCommunity(locale: Locale): Promise<boolean>;
-
-  /** 触发任务状态对应的浏览器通知；用户未授权时由平台自行忽略。 */
-  showTaskNotification(payload: TaskNotificationPayload): void;
-
-  /** 用户点击任务通知后回调要打开的任务；由浏览器通知实现绑定点击。 */
-  onTaskNotificationClick(handler: (taskId: string) => void): () => void;
-
-  /**
-   * 扩展系统通知：宿主判断窗口焦点与平台支持后弹出，
-   * 返回是否弹出与原因。Web 端由浏览器 Notification API 实现。
-   */
-  showExtensionNotification?(
-    payload: ExtensionNotificationPayload,
-  ): Promise<NotificationsShowResult>;
-
-  /** 用户点了扩展通知：浏览器聚焦窗口后回调，带要打开的视图。返回 disposer。 */
-  onExtensionNotificationClick?(handler: (click: ExtensionNotificationClick) => void): () => void;
-
   /** 上报 UI 遥测并等待接收端接纳；失败 reject，仅表示接收，不承诺外部送达或持久化。 */
   reportTelemetryEvent(payload: RendererTelemetryEventPayload): Promise<void>;
 
   /** 上报 ARMS 自定义事件并等待接收端接纳；失败 reject，不等同于第三方上传成功。 */
   reportArmsCustomEvent(payload: ArmsCustomEventPayload): Promise<void>;
-
-  /** 获取当前浏览器实例的稳定标识符（物理属性指纹，抗语言/时区变化）。 */
-  getDeviceId(): string;
 }

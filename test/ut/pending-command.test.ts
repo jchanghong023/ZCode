@@ -8,6 +8,7 @@ import {
   PENDING_COMMAND_TTL_MS,
 } from "../../packages/ui/src/v4/pendingCommandRegistry.js";
 import { pendingCommandReplayFor } from "../../packages/ui/src/v4/pendingCommandReplay.js";
+import { isPendingCommandForWorkspace } from "../../packages/ui/src/v4/pendingCommandWorkspace.js";
 import {
   ensurePendingTaskDraft,
   persistV4ComposerDraft,
@@ -55,6 +56,43 @@ function ack(envelope: CommandEnvelope, status: CommandAck["status"]): CommandAc
     ...(status === "rejected" ? { reasonCode: "guard.readOnly" } : {}),
   };
 }
+
+describe("pending message workspace ownership", () => {
+  const { workspacePath } = workspace;
+  const replay = { kind: "input" as const, type: "sendText", payload: { text: "需求说明" } };
+
+  it("trims identity and distinguishes workspaces sharing a path", () => {
+    const entry = {
+      replay,
+      clientContext: { workspace: { workspacePath, workspaceIdentity: "  workspace-a  " } },
+    };
+    expect(isPendingCommandForWorkspace(entry, workspacePath, "workspace-a")).toBe(true);
+    expect(isPendingCommandForWorkspace(entry, workspacePath, "  workspace-a  ")).toBe(true);
+    expect(isPendingCommandForWorkspace(entry, workspacePath, "workspace-b")).toBe(false);
+    expect(isPendingCommandForWorkspace(entry, workspacePath)).toBe(false);
+  });
+
+  it.each([undefined, "", "   "])("falls back to path for identity %j", (workspaceIdentity) => {
+    const entry = {
+      replay,
+      clientContext: {
+        workspace:
+          workspaceIdentity === undefined
+            ? { workspacePath }
+            : { workspacePath, workspaceIdentity },
+      },
+    };
+    expect(isPendingCommandForWorkspace(entry, workspacePath, workspaceIdentity)).toBe(true);
+    expect(isPendingCommandForWorkspace(entry, "/other")).toBe(false);
+  });
+
+  it("does not infer a message owner from arbitrary replay payload fields", () => {
+    const entry = {
+      replay: { ...replay, payload: { ...replay.payload, workspaceId: "workspace-a" } },
+    };
+    expect(isPendingCommandForWorkspace(entry, workspacePath, "workspace-a")).toBe(false);
+  });
+});
 
 // 规则依据：conversation.md 的回执不明保留输入、显式重试及迟到结果；
 // command.ts 的 queryUnavailable 契约；TTL 仅是客户端恢复线索的保留期。

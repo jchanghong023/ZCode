@@ -677,7 +677,6 @@ function ConversationTurnFlow({
     assistantTextRows: unit.assistantTextRows,
     latestAssistantTextRow: unit.latestAssistantTextRow,
     workspacePath: context.workspacePath,
-    workspaceHomePath: context.workspaceHomePath,
     compactForRemoteControl: context.compactForRemoteControl,
   });
 
@@ -852,7 +851,6 @@ function ConversationBackgroundResultWork({
     assistantTextRows: unit.assistantTextRows,
     latestAssistantTextRow,
     workspacePath: context.workspacePath,
-    workspaceHomePath: context.workspaceHomePath,
     compactForRemoteControl: context.compactForRemoteControl,
   });
 

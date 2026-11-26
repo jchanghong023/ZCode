@@ -97,7 +97,6 @@ import { ChatPromptEditor } from "@/prompt-editor/ChatPromptEditor.js";
 import { useAttachmentFileDragging } from "@/prompt-editor/useAttachmentFileDragging.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { advanceComposerDraftRevision } from "@/v4/composer/composerDraftRevision.js";
-import type { AppSlashCommand } from "@/slashCommandHelpers.js";
 import { useComposerClientNamespace, useOptionalServices } from "@/hooks/useServices.js";
 import { logger } from "@/logger.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
@@ -450,9 +449,7 @@ export interface ConversationComposerProps {
   /** 草稿态使用预热 session 作附件 transaction 载体。 */
   attachmentSessionId?: string | null;
   attachmentPut: AttachmentPutFn;
-  onRuntimeRestart?: (listener: () => void) => () => void;
-  /** 承载 transport 暴露 runtime 存活态时优先用它，替代 onRuntimeRestart。 */
-  onRuntimeLifecycle?: (listener: (state: "available" | "unavailable") => void) => () => void;
+  onConnectionReplaced?: (listener: () => void) => () => void;
   provider?: ZCodeProvider;
   onSendText: (
     text: string,
@@ -517,10 +514,6 @@ export interface ConversationComposerProps {
    * composer 编辑态据此退出：必须晚于附件 adopt，否则切回原 scope 会把新附件当未发送清理。
    */
   onSubmissionSettled?: (scopeId: string, commandId?: string | null) => void;
-  /** 由会话入口决定是否隐藏 Goal 命令。 */
-  suppressGoalCommands?: boolean;
-  /** App 层本地斜杠命令（如 `/plan`），由 SessionPane 按门禁组装后透传。 */
-  appSlashCommands?: readonly AppSlashCommand[];
   conversationCommands?: readonly ConversationCommandCatalogEntry[];
   /** 把 composer 的 drop 路由暴露给整个对话 pane / 桌面草稿标题栏。 */
   onDropTargetControllerChange?: RegisterConversationDropTarget;
@@ -578,8 +571,7 @@ function ConversationComposerImpl({
   modelSelectionRefresh,
   attachmentSessionId = null,
   attachmentPut,
-  onRuntimeRestart,
-  onRuntimeLifecycle,
+  onConnectionReplaced,
   provider,
   onSendText,
   onTextChange,
@@ -605,8 +597,6 @@ function ConversationComposerImpl({
   editFocusRequest = 0,
   editSubmitRequest = 0,
   onSubmissionSettled,
-  suppressGoalCommands = false,
-  appSlashCommands,
   conversationCommands,
   onDropTargetControllerChange,
 }: ConversationComposerProps) {
@@ -642,8 +632,6 @@ function ConversationComposerImpl({
     draftScopeId,
     composerClientNamespace,
   );
-  const [reloadText, setReloadText] = useState(false);
-  const reloadTextRef = useRef(false);
   const [textPresence, setTextPresence] = useState({ raw: false, trimmed: false });
   const textPresenceRef = useRef(textPresence);
   textPresenceRef.current = textPresence;
@@ -711,11 +699,6 @@ function ConversationComposerImpl({
   const updateText = useCallback(
     (next: string) => {
       textRef.current = next;
-      const reload = next.trim() === "/reload";
-      if (reloadTextRef.current !== reload) {
-        reloadTextRef.current = reload;
-        setReloadText(reload);
-      }
       contentRevisionRef.current += 1;
       advanceComposerDraftRevision(workspacePath, workspaceIdentity);
       const nextPresence = { raw: next.length > 0, trimmed: next.trim().length > 0 };
@@ -750,8 +733,7 @@ function ConversationComposerImpl({
     clientNamespace: composerClientNamespace,
     attachmentSessionId,
     attachmentPut,
-    onRuntimeRestart,
-    onRuntimeLifecycle,
+    onConnectionReplaced,
     disabled: disabled || runtimeBlocked,
     listenAddToChatEvents: listenAddToChatEvents && !disabled && !runtimeBlocked,
   });
@@ -1462,31 +1444,21 @@ function ConversationComposerImpl({
     draftMode ||
     (snapshot !== null && mode !== "reject" && (!sessionBoundInput || mode !== "choice"));
   const attachmentsReady = !attachmentsApi.hasUnreadyAttachments;
-  const recoveryCommand = appSlashCommands?.find(
-    (command) => command.recovery && command.value === "reload",
-  );
-  // 面板选择是 AppSlashCommand 操作，草稿不是参数；只有文本提交才要求独立命令。
-  const recoveryAvailable = !readOnly && Boolean(recoveryCommand) && remoteAvailable;
-  const recoveryAllowed =
-    recoveryAvailable &&
-    !hasAttachments &&
-    !hasCodeCommentContexts &&
-    !hasWebElementContexts &&
-    !hasPptxElementReferences &&
-    !hasConversationSelectionReferences;
   const connectionPendingRef = useRef(false);
   const [connectionPending, setConnectionPending] = useState(false);
   const handleConnectionPendingChange = useCallback((pending: boolean) => {
     connectionPendingRef.current = pending;
     setConnectionPending(pending);
   }, []);
-  const canReload = recoveryAllowed && reloadText && remoteAvailable;
   const canSend =
     !connectionPending &&
     !disabled &&
     !pending &&
     hasDraftToSubmit &&
-    (canReload || (routingAllowsSend && attachmentsReady && submissionReady && !runtimeBlocked));
+    routingAllowsSend &&
+    attachmentsReady &&
+    submissionReady &&
+    !runtimeBlocked;
   // 旧 UI 状态机：streaming + 空草稿 → Stop；有草稿 → 发送键（入队）。
   const showStopControl = canStop && (sessionBoundInput || !hasDraftToSubmit);
 
@@ -1528,37 +1500,6 @@ function ConversationComposerImpl({
       const hasPendingPptxElementReferences = currentPptxElementReferences.length > 0;
       const currentConversationSelections = conversationSelectionReferences;
       const hasPendingConversationSelections = currentConversationSelections.length > 0;
-      // /reload 是本地操作，在模型配置、队列和消息历史处理之前截获；参数和附件不发给模型。
-      if (!sessionBoundInput && /^\/reload(?:\s|$)/.test(trimmed)) {
-        if (
-          trimmed !== "/reload" ||
-          !recoveryCommand ||
-          !recoveryAllowed ||
-          !remoteAvailable ||
-          pendingRef.current
-        )
-          return;
-        const revision = contentRevisionRef.current;
-        const scope = draftScopeRef.current;
-        pendingRef.current = true;
-        setPending(true);
-        try {
-          const completed = await recoveryCommand.run();
-          if (
-            completed !== false &&
-            scope === draftScopeRef.current &&
-            revision === contentRevisionRef.current
-          ) {
-            inputApiRef.current?.clear();
-            updateText("");
-            persistDraftNow(scope);
-          }
-        } finally {
-          pendingRef.current = false;
-          setPending(false);
-        }
-        return;
-      }
       // 草稿首发 accepted 后同一 composer 会原地从 __draft__ promotion 到
       // session scope；若成功清理时再读可变 ref，会误清新 scope，并把首条输入残留在
       // __draft__，下次新建任务又恢复。发送开始时冻结真正提交的 scope。
@@ -1850,8 +1791,6 @@ function ConversationComposerImpl({
       }
     },
     [
-      recoveryCommand,
-      recoveryAllowed,
       sessionBoundInput,
       uiStore,
       attachmentsApi,
@@ -2029,10 +1968,7 @@ function ConversationComposerImpl({
     ready: "",
   };
   const interactionHint = showInteractionStatus ? interactionHints[interactionState] : "";
-  const inputUnavailable =
-    disabled ||
-    (mode === "reject" && !recoveryAvailable) ||
-    (showInteractionStatus && runtimeBlocked && !recoveryAvailable);
+  const inputUnavailable = disabled || mode === "reject" || (showInteractionStatus && runtimeBlocked);
 
   const sendTooltipTitle =
     showInteractionStatus && mode === "guide"
@@ -2863,8 +2799,10 @@ function ConversationComposerImpl({
               pending ||
               connectionPending ||
               offerFollowUp ||
-              (!canReload &&
-                (runtimeBlocked || !routingAllowsSend || !attachmentsReady || !submissionReady))
+              runtimeBlocked ||
+              !routingAllowsSend ||
+              !attachmentsReady ||
+              !submissionReady
             }
             allowSubmitWhenEmpty={
               // 发送按钮已把代码评论视为可发送上下文，但这里曾漏掉同一状态，
@@ -2896,12 +2834,6 @@ function ConversationComposerImpl({
             inputTestId={TID_V4_COMPOSER_INPUT}
             inputApiRef={inputApiRef}
             promptHistory={promptHistory.entries}
-            // Bugfix 原因：命令目录必须完整来自 CLI workspace slash catalog；UI 只在
-            // secondary pane 按产品能力隐藏 goal，不再追加任何内建命令或别名。
-            excludedSlashCommandNames={suppressGoalCommands ? ["goal"] : undefined}
-            appSlashCommands={appSlashCommands?.filter((command) =>
-              command.recovery ? recoveryAvailable : !runtimeBlocked,
-            )}
             conversationCommands={conversationCommands}
             enableMentionPanel
             leadingActions={

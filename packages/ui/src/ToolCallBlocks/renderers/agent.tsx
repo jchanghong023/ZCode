@@ -1,5 +1,4 @@
 import { XIcon, SquareIcon } from "lucide-react";
-import { useToolPresentationCapabilities } from "@/ToolCallBlocks/presentationCapabilities.js";
 import { SUBAGENT_WORKFLOW_COLOR } from "@/lib/subagentColors.js";
 import {
   agentColor as workflowAgentColor,
@@ -210,9 +209,8 @@ export function AgentToolCallBlock(context: ToolCallBlockRenderContext) {
   const fallbackLabel = formatAgentMessage(intl, "chat.toolCall.agent.fallback", "SubAgent");
   const primaryText = getAgentPrimaryText(toolCall, fallbackLabel);
   const agentName = getAgentKindLabel(toolCall, "", context.authoritativeAgentType);
-  // 显式配置仍是身份色来源；未配置时按原始名称取 workflow 颜色，不能让选择器失效。
-  const configuredColor =
-    useToolPresentationCapabilities().agentColor?.(agentName) ?? getAgentColor(toolCall);
+  // 保留工具记录提供的颜色；未提供时继续按原始名称取 workflow 颜色。
+  const configuredColor = getAgentColor(toolCall);
   const identityColor = configuredColor
     ? SUBAGENT_WORKFLOW_COLOR[configuredColor]
     : agentName
