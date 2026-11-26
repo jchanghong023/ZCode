@@ -30,11 +30,12 @@ export function AIReqProposalText({
           title={title}
           aria-label={`${title} · ${zh ? "查看需求详情" : "View requirement details"}`}
         >
-          {titleMatch ? (
-            <span className="wrap-anywhere">{titleMatch}</span>
-          ) : (
-            <span className="line-clamp-2 wrap-anywhere">{displayTitle}</span>
-          )}
+          <span
+            data-aireq-control-label=""
+            className={titleMatch ? "block wrap-anywhere" : "line-clamp-2 wrap-anywhere"}
+          >
+            {titleMatch ?? displayTitle}
+          </span>
         </button>
       </AIReqProposalDetails>
       {originalMatch && (

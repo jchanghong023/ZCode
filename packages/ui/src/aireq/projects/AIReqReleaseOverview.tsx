@@ -143,7 +143,10 @@ export function AIReqReleaseOverview({
                         type="button"
                         className={`w-full rounded-sm py-2.5 text-left hover:bg-hover focus-visible:outline-2 focus-visible:outline-input-border-focused ${stayColumns}`}
                       >
-                        <span className="min-w-0 wrap-anywhere font-medium">
+                        <span
+                          data-aireq-control-label=""
+                          className="min-w-0 wrap-anywhere font-medium"
+                        >
                           {rowTitle(ir.title)}
                         </span>
                         <span className="min-w-0 wrap-anywhere text-ui-caption">
@@ -219,7 +222,9 @@ export function AIReqReleaseOverview({
                         aria-hidden="true"
                       />
                       <span className="grid min-w-0 gap-0.5">
-                        <span className="wrap-anywhere font-medium">{rowTitle(ir.title)}</span>
+                        <span data-aireq-control-label="" className="wrap-anywhere font-medium">
+                          {rowTitle(ir.title)}
+                        </span>
                         <span className="text-ui-caption text-foreground-subtle">
                           {date(stamp)}
                           {doc.version && ` · V${doc.version} ${status}`}

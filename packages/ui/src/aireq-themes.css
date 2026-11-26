@@ -204,6 +204,78 @@
   }
 }
 
+/* 工号入口、工作台与挂在 body 上的菜单／弹窗共用同一个性能模式开关。 */
+.theme-aireq-cobalt
+  :where([data-slot="input"], textarea, [role="combobox"], [data-slot="select-trigger"]) {
+  transition-property: border-color, background-color;
+  transition-duration: var(--aireq-field-duration, 0s);
+  transition-timing-function: ease-out;
+
+  &:focus-visible:not(:disabled, [aria-invalid="true"]) {
+    border-color: var(--color-input-border-focused);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .theme-aireq-cobalt:has([data-aireq-color-motion]) {
+    --aireq-field-duration: 140ms;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .theme-aireq-cobalt:has([data-aireq-color-motion]) {
+    /* 位移只传给内容，点击范围、菜单定位、拖拽坐标和键盘焦点环留在原处。 */
+    & :where(button, a[href], [role="tab"], [role="option"], [role^="menuitem"]) {
+      --aireq-control-shift: none;
+
+      &:not(
+        :disabled,
+        [aria-disabled="true"],
+        [data-disabled],
+        [role="combobox"],
+        [role="switch"],
+        [role="checkbox"],
+        [role="radio"]
+      ) {
+        &:hover {
+          --aireq-control-shift: 1px 0;
+        }
+
+        &:active:is(:hover, :focus-visible) {
+          --aireq-control-shift: 0 1px;
+        }
+      }
+
+      /* 组件自带的旋转、位移和加载状态优先于通用反馈。 */
+      @layer components {
+        &
+          > svg.lucide:not(
+            .absolute,
+            [class*="animate-"],
+            [class*="transition"],
+            [class*="translate-"]
+          ) {
+          translate: var(--aireq-control-shift);
+          transition: translate 140ms ease-out;
+        }
+      }
+    }
+
+    & :where([data-aireq-control-label], [data-aireq-motion-label], [data-side-pane-tab-title]) {
+      translate: var(--aireq-control-shift, none);
+      transition: translate 140ms ease-out;
+    }
+
+    & .contents[data-aireq-control-label] {
+      display: inline-block;
+    }
+
+    & [data-aireq-motion-row]:hover [data-aireq-motion-cell] > button:not(:active, :disabled) {
+      --aireq-control-shift: 2px 0;
+    }
+  }
+}
+
 @keyframes aireq-filter-arrive {
   from {
     opacity: 0.6;

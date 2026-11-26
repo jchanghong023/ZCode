@@ -2,6 +2,7 @@ import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Slot } from "radix-ui";
 
+import { controlMotionLabel } from "../lib/controlMotionLabel.js";
 import { cn } from "../lib/utils.js";
 
 // 大会话窗口 resize trace 显示基础按钮的 transition-all 会批量启动
@@ -51,6 +52,7 @@ function Button({
   variant = "default",
   size = "default",
   asChild = false,
+  children,
   ...props
 }: React.ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & {
@@ -65,7 +67,9 @@ function Button({
       data-size={size}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
-    />
+    >
+      {asChild ? children : controlMotionLabel(children)}
+    </Comp>
   );
 }
 

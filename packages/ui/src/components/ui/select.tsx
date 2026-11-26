@@ -166,7 +166,7 @@ const SelectItem = React.forwardRef<React.ElementRef<typeof SelectPrimitive.Item
             <CheckIcon className="pointer-events-none size-4 text-foreground-subtle" />
           </SelectPrimitive.ItemIndicator>
         </span>
-        <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+        <SelectPrimitive.ItemText data-aireq-control-label="">{children}</SelectPrimitive.ItemText>
       </SelectPrimitive.Item>
     );
   },
@@ -208,7 +208,7 @@ const SelectRichItem = React.forwardRef<
       ) : null}
       <span className="flex min-w-0 flex-col gap-0.5">
         <span className="flex min-w-0 items-center gap-1.5">
-          <SelectPrimitive.ItemText>{title}</SelectPrimitive.ItemText>
+          <SelectPrimitive.ItemText data-aireq-control-label="">{title}</SelectPrimitive.ItemText>
           {titleAdornment}
         </span>
         {description ? (

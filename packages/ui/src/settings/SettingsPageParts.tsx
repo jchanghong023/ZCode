@@ -228,7 +228,10 @@ export function SettingsSidebarButton({
         <span className="flex size-4 shrink-0 items-center justify-center text-current">
           <Icon className="size-4 text-foreground" />
         </span>
-        <span className="min-w-0 flex-1 max-lg:sr-only compact-web:not-sr-only">
+        <span
+          data-aireq-control-label=""
+          className="min-w-0 flex-1 max-lg:sr-only compact-web:not-sr-only"
+        >
           {children ?? <span className="truncate text-ui-base text-foreground">{label}</span>}
         </span>
       </button>

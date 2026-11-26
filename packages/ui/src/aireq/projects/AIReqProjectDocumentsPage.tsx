@@ -100,7 +100,10 @@ export function AIReqProjectDocumentsPage({
                           onClick={() => selectRelease({ projectId: project.id, releaseId: r.id })}
                         >
                           <span className="flex items-baseline justify-between gap-2">
-                            <span className="min-w-0 wrap-anywhere font-medium group-aria-pressed/release:font-semibold">
+                            <span
+                              data-aireq-control-label=""
+                              className="min-w-0 wrap-anywhere font-medium group-aria-pressed/release:font-semibold"
+                            >
                               {r.title}
                             </span>
                             <span className="shrink-0 text-ui-caption tabular-nums text-foreground-subtle">
@@ -173,7 +176,7 @@ export function AIReqProjectDocumentsPage({
                       })
                     }
                   >
-                    {zh ? "未分配版本" : "Unassigned"}
+                    <span data-aireq-control-label="">{zh ? "未分配版本" : "Unassigned"}</span>
                     <span className="rounded bg-background px-1.5 text-ui-caption tabular-nums text-foreground-subtle">
                       {unassigned}
                     </span>

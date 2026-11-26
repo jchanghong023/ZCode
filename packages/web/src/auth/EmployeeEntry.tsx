@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { logger } from "@zcode/ui";
+import { loadPerformanceMode, logger } from "@zcode/ui";
 import { Button } from "@zcode/ui/button";
 import { Input } from "@zcode/ui/input";
 import { Label } from "@zcode/ui/label";
@@ -124,6 +124,7 @@ function EmployeeLoginScreen({
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const { theme } = useTheme(DEFAULT_AIREQ_THEME);
+  const [performanceMode] = useState(loadPerformanceMode);
   const inputRef = useRef<HTMLInputElement>(null);
   const submitRef = useRef<HTMLButtonElement>(null);
   const connectionStatus = connection?.status;
@@ -138,6 +139,7 @@ function EmployeeLoginScreen({
     <main
       className="relative h-full min-h-dvh overflow-hidden bg-background text-foreground"
       data-testid="aireq-entry"
+      data-aireq-color-motion={performanceMode ? undefined : ""}
     >
       <ThemeHeroVisual theme={theme} className="pointer-events-none absolute inset-0" />
       <div className="relative z-10 flex h-dvh flex-col items-center overflow-y-auto px-4 pb-6 pt-14 sm:px-6">

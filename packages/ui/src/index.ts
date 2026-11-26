@@ -5,6 +5,7 @@ export { ConfirmDialogHost } from "./ConfirmDialog.js";
 export { useTheme } from "./useTheme.js";
 export type { Theme } from "./useTheme.js";
 export { StoreProvider, useZCodeStore } from "./store/StoreProvider.js";
+export { loadPerformanceMode } from "./lib/performanceMode.js";
 export type { ZCodeState } from "./store/index.js";
 export {
   REMOTE_WORKSPACE_DISCONNECTED_ERROR_CODE,

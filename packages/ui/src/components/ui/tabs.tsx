@@ -2,6 +2,7 @@ import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Tabs as TabsPrimitive } from "radix-ui";
 
+import { controlMotionLabel } from "../lib/controlMotionLabel.js";
 import { cn } from "@/components/lib/utils.js";
 
 function Tabs({
@@ -49,7 +50,11 @@ function TabsList({
   );
 }
 
-function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
+function TabsTrigger({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
   return (
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
@@ -61,7 +66,9 @@ function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPr
         className,
       )}
       {...props}
-    />
+    >
+      {controlMotionLabel(children)}
+    </TabsPrimitive.Trigger>
   );
 }
 

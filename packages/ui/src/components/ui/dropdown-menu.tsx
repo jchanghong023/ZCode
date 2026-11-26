@@ -2,6 +2,7 @@ import * as React from "react";
 import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
 import { CheckIcon, ChevronRightIcon } from "lucide-react";
 
+import { controlMotionLabel } from "../lib/controlMotionLabel.js";
 import { cn } from "../lib/utils.js";
 
 function DropdownMenu({ ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
@@ -67,6 +68,7 @@ function DropdownMenuGroup({
 function DropdownMenuItem({
   className,
   inset,
+  children,
   variant = "default",
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Item> & {
@@ -83,7 +85,9 @@ function DropdownMenuItem({
         className,
       )}
       {...props}
-    />
+    >
+      {controlMotionLabel(children)}
+    </DropdownMenuPrimitive.Item>
   );
 }
 
@@ -115,7 +119,7 @@ function DropdownMenuCheckboxItem({
           <CheckIcon className="size-4 text-foreground-subtle" />
         </DropdownMenuPrimitive.ItemIndicator>
       </span>
-      {children}
+      {controlMotionLabel(children)}
     </DropdownMenuPrimitive.CheckboxItem>
   );
 }
@@ -159,7 +163,7 @@ function DropdownMenuRadioItem({
           <CheckIcon className="size-4 text-foreground-subtle" />
         </DropdownMenuPrimitive.ItemIndicator>
       </span>
-      {children}
+      {controlMotionLabel(children)}
     </DropdownMenuPrimitive.RadioItem>
   );
 }
@@ -234,7 +238,7 @@ function DropdownMenuSubTrigger({
       )}
       {...props}
     >
-      {children}
+      {controlMotionLabel(children)}
       {indicator ?? (
         <ChevronRightIcon className="ml-auto size-4 text-foreground-subtle group-data-[highlighted]/dropdown-menu-sub-trigger:text-foreground-subtle" />
       )}

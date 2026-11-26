@@ -2,6 +2,7 @@ import * as React from "react";
 import { ContextMenu as ContextMenuPrimitive } from "radix-ui";
 import { ChevronRightIcon } from "lucide-react";
 
+import { controlMotionLabel } from "../lib/controlMotionLabel.js";
 import { cn } from "../lib/utils.js";
 
 function ContextMenu({ ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Root>) {
@@ -37,6 +38,7 @@ function ContextMenuContent({
 function ContextMenuItem({
   className,
   inset,
+  children,
   variant = "default",
   ...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.Item> & {
@@ -53,7 +55,9 @@ function ContextMenuItem({
         className,
       )}
       {...props}
-    />
+    >
+      {controlMotionLabel(children)}
+    </ContextMenuPrimitive.Item>
   );
 }
 
@@ -92,7 +96,7 @@ function ContextMenuSubTrigger({
       )}
       {...props}
     >
-      {children}
+      {controlMotionLabel(children)}
       <ChevronRightIcon className="ml-auto size-4 text-foreground-subtle group-data-[highlighted]/context-menu-sub-trigger:text-foreground-subtle" />
     </ContextMenuPrimitive.SubTrigger>
   );

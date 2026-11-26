@@ -31,6 +31,7 @@ import {
   normalizeInterfaceMode,
   type InterfaceMode,
 } from "@/lib/interfaceMode.js";
+import { loadPerformanceMode, PERFORMANCE_MODE_STORAGE_KEY } from "@/lib/performanceMode.js";
 import { logger } from "@/logger.js";
 
 // v4 重构：类型与默认值下沉到 @/lib/codePreviewSettings.ts，
@@ -39,7 +40,6 @@ export type { CodePreviewSettings } from "@/lib/codePreviewSettings.js";
 export { DEFAULT_CODE_PREVIEW_SETTINGS } from "@/lib/codePreviewSettings.js";
 
 const CODE_PREVIEW_SETTINGS_KEY = "zcode-code-preview-settings";
-const PERFORMANCE_MODE_STORAGE_KEY = "zcode-performance-mode";
 
 function loadCodePreviewSettings(): CodePreviewSettings {
   try {
@@ -62,10 +62,6 @@ function loadCodePreviewSettings(): CodePreviewSettings {
   } catch {
     return DEFAULT_CODE_PREVIEW_SETTINGS;
   }
-}
-
-function loadPerformanceMode(): boolean {
-  return readSafeLocalStorage(PERFORMANCE_MODE_STORAGE_KEY) === "true";
 }
 
 // ============================================================================

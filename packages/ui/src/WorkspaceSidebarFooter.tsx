@@ -132,7 +132,10 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
       </Avatar>
       <div className={cn("min-w-0 flex-1 overflow-hidden text-left", compact && "sr-only")}>
         <div className="flex min-w-0 items-center gap-1.5">
-          <span className="min-w-0 truncate text-ui-base font-semibold text-foreground">
+          <span
+            data-aireq-control-label=""
+            className="min-w-0 truncate text-ui-base font-semibold text-foreground"
+          >
             {profileLabel}
           </span>
         </div>
