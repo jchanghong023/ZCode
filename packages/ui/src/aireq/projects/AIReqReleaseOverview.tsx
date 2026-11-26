@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ArrowRight, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Card } from "@/components/ui/card.js";
+import { useZCodeStore } from "@/store/StoreProvider.js";
 import { useAIReq } from "../AIReqContext.js";
 import type { AIReqReleaseSummary, AIReqRequirementGroup } from "../contract.js";
 import { AIReqProposalDetails } from "../proposals/AIReqProposalText.js";
@@ -33,6 +34,7 @@ export function AIReqReleaseOverview({
 }) {
   const ai = useAIReq()!;
   const pane = useAIReqSidePane();
+  const isCobalt = useZCodeStore((state) => state.theme === "aireq-cobalt");
   const [allUpdates, setAllUpdates] = useState(false);
   const stays = openReleaseStays(requirements, now);
   const extendedStayCount = stays.filter(({ band }) => band !== undefined).length;
@@ -49,24 +51,33 @@ export function AIReqReleaseOverview({
     (ir) => ir.irDocument?.lastConfirmedVersion !== undefined,
   ).length;
   const locale = zh ? "zh-CN" : "en-US";
-  const completion = release.requirementCount
-    ? (release.completedRequirementCount / release.requirementCount).toLocaleString(locale, {
+  const completedCount = release.completedRequirementCount;
+  const completionRate = release.requirementCount
+    ? (completedCount / release.requirementCount).toLocaleString(locale, {
         style: "percent",
         maximumFractionDigits: 1,
       })
     : "—";
+  const completedCountText = zh
+    ? `${completedCount} 条`
+    : `${completedCount} ${completedCount === 1 ? "IR" : "IRs"}`;
   const metrics = [
     { label: zh ? "IR 总数" : "Total IRs", value: release.requirementCount },
     {
       label: zh ? "已完成" : "Completed",
-      value: release.completedRequirementCount,
-      detail: completion,
+      value: isCobalt ? completionRate : completedCount,
+      detail: isCobalt ? completedCountText : `(${completionRate})`,
+      emphasis: "completion",
     },
     {
       label: zh ? "已有正式定版文档" : "With a confirmed IR document",
       value: known ? confirmed : "—",
     },
-    { label: zh ? "停留 ≥30 天" : "Time in status ≥30 days", value: extendedStayCount },
+    {
+      label: zh ? "停留 ≥30 天" : "Time in status ≥30 days",
+      value: extendedStayCount,
+      emphasis: extendedStayCount > 0 ? "stay-warning" : "stay",
+    },
   ];
   const date = (stamp: number | string) =>
     new Date(stamp).toLocaleDateString(locale, { timeZone: "Asia/Shanghai" });
@@ -100,10 +111,14 @@ export function AIReqReleaseOverview({
           <ArrowRight aria-hidden="true" />
         </Button>
       </header>
-      <dl className="grid grid-cols-2 gap-y-4 border-b border-border/65 bg-background/35 px-5 py-4 @min-[552px]/release:grid-cols-4 @min-[840px]/release:px-6">
-        {metrics.map(({ label, value, detail }) => (
+      <dl
+        data-aireq-release-summary=""
+        className="grid grid-cols-2 gap-y-4 border-b border-border/65 bg-background/35 px-5 py-4 @min-[552px]/release:grid-cols-4 @min-[840px]/release:px-6"
+      >
+        {metrics.map(({ label, value, detail, emphasis }) => (
           <div
             key={label}
+            data-aireq-release-metric={emphasis}
             className="flex min-w-0 flex-col gap-1 border-border even:border-l even:pl-4 @min-[552px]/release:not-first:border-l @min-[552px]/release:not-first:pl-4"
           >
             <dt className="text-ui-caption text-foreground-subtle">{label}</dt>
@@ -111,7 +126,7 @@ export function AIReqReleaseOverview({
               <span className="text-ui-settings-title-lg leading-none tracking-tight">{value}</span>
               {detail && (
                 <span className="text-ui-caption font-normal text-foreground-subtle">
-                  ({detail})
+                  {detail}
                 </span>
               )}
             </dd>

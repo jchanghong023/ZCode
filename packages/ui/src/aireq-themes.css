@@ -140,6 +140,33 @@
   border-color: #6685d2;
 }
 
+.theme-aireq-cobalt [data-aireq-release-summary] {
+  background-image: linear-gradient(
+    110deg,
+    color-mix(in srgb, var(--color-brand) 8%, var(--color-card)),
+    var(--color-card)
+  );
+  border-bottom-color: var(--color-card-border);
+
+  & > :not([data-aireq-release-metric]) dd > span {
+    font-size: var(--text-ui-settings-title);
+    line-height: var(--text-ui-settings-title-lg);
+  }
+
+  & > [data-aireq-release-metric] dt {
+    color: var(--color-foreground);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  & > [data-aireq-release-metric="completion"] dd {
+    color: var(--aireq-accent-ink);
+  }
+
+  & > [data-aireq-release-metric="stay-warning"] dd {
+    color: var(--color-warning-surface-foreground);
+  }
+}
+
 .theme-aireq-cobalt :is([data-settings-panel-frame], #aireq-document-workspace) {
   --color-background: var(--aireq-reading-surface);
 }
