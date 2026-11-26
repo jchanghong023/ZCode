@@ -4,7 +4,7 @@ import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { initialCatalogue } from "./catalogue.mjs";
+import { addReleaseProjects, initialCatalogue, nextIssueIdentity } from "./catalogue.mjs";
 
 const globalFlags = ["project", "timeout", "compact", "debug", "help", "version"];
 const commands = {
@@ -188,10 +188,8 @@ function execute(catalogue, { key, args, projectId, values }) {
     return { project: projectId, domains: selected.map((d) => listDomain(d, issues, values)) };
   const actor = process.env.ZCODE_CLOUDDRAGON_MOCK_ACTOR || "a00000001";
   if (key === "ir create") {
-    const sequence = catalogue.nextSequence++;
     const ir = {
-      id: String(9000000100 + sequence),
-      businessNo: "IR20990101" + String(sequence).padStart(6, "0"),
+      ...nextIssueIdentity(catalogue),
       domain: selected[0].id,
       description: "## 需求描述\n\n## 验收标准",
       priorityLevel: "中",
@@ -280,14 +278,15 @@ function run(command, timeout) {
     return db
       .transaction(() => {
         const stored = db.query("SELECT data FROM catalogue WHERE id = 1").get();
-        const state = stored ? JSON.parse(stored.data) : initialCatalogue();
-        const data = execute(state, command);
+        const catalogue = stored ? JSON.parse(stored.data) : initialCatalogue();
+        const seeded = !stored || addReleaseProjects(catalogue);
+        const data = execute(catalogue, command);
         if (
-          !stored ||
+          seeded ||
           ["ir create", "ir update", "comment add", "comment delete"].includes(command.key)
         ) {
           db.query("INSERT OR REPLACE INTO catalogue(id, data) VALUES (1, ?)").run(
-            JSON.stringify(state),
+            JSON.stringify(catalogue),
           );
         }
         return data;

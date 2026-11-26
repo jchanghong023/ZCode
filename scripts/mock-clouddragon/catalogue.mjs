@@ -201,5 +201,87 @@ export function initialCatalogue() {
     };
     return { projectId, record, comments: first ? comments : [] };
   });
-  return { projects, issues, nextSequence: issues.length + 1 };
+  const catalogue = { projects, issues, nextSequence: issues.length + 1 };
+  addReleaseProjects(catalogue);
+  return catalogue;
+}
+
+const releaseProjects = [
+  {
+    id: "gmocklander",
+    name: "Lander开发",
+    domain: { id: "900007", name: "Lander 版本交付" },
+    // PI、版本名称、需求总数、完成数。未分配 PI 的需求只计入项目。
+    groups: [
+      ["301", "20250630", 2, 2],
+      ["302", "2026release4", 18, 3],
+      ["303", "2026release3", 16, 12],
+      ["304", "2026release2", 76, 76],
+      ["305", "2026release1", 6, 6],
+      ["306", "2025release4", 16, 15],
+      ["307", "2025release3", 11, 11],
+      ["308", "2.0.0sp2", 14, 14],
+      [null, null, 157, 114],
+    ],
+  },
+  {
+    id: "gmocksailor",
+    name: "Sailor开发",
+    domain: { id: "900008", name: "Sailor 版本交付" },
+    groups: [
+      ["401", "2026.Q4", 7, 0],
+      ["402", "2026.Q3", 1, 1],
+      ["403", "2026.Q1", 8, 5],
+      ["404", "2025.Q3", 17, 16],
+      [null, null, 51, 2],
+    ],
+  },
+];
+
+export function nextIssueIdentity(catalogue) {
+  const sequence = catalogue.nextSequence++;
+  return {
+    id: String(9000000100 + sequence),
+    businessNo: "IR20990101" + String(sequence).padStart(6, "0"),
+  };
+}
+
+const openStages = ["初始", "分析", "开发", "测试"];
+const deliveryTasks = ["记录构建参数", "检查交付清单", "汇总回归结果", "归档验收报告"];
+
+export function addReleaseProjects(catalogue) {
+  const additions = releaseProjects.filter(
+    (project) => !catalogue.projects.some(({ id }) => id === project.id),
+  );
+  if (!additions.length) return false;
+  for (const project of additions) {
+    for (const [pi, piName, total, completed] of project.groups) {
+      for (let index = 0; index < total; index++) {
+        const task = deliveryTasks[index % deliveryTasks.length];
+        const name = `${piName ?? project.name} · ${task}（用例 ${index + 1}）`;
+        catalogue.issues.push({
+          projectId: project.id,
+          record: {
+            ...nextIssueIdentity(catalogue),
+            domain: project.domain.id,
+            name,
+            description: `为${project.name}的交付用例 ${index + 1} ${task}，供版本验收时核对。`,
+            process:
+              index < completed ? "完成" : openStages[(index - completed) % openStages.length],
+            pi,
+            piName,
+            creator: "a00000001",
+            submitter: "a00000001",
+            createDate: "2026-11-01 09:00:00",
+          },
+          comments: [],
+        });
+      }
+    }
+  }
+  catalogue.projects = [
+    ...additions.map(({ id, name, domain }) => ({ id, name, domains: [domain] })),
+    ...catalogue.projects,
+  ];
+  return true;
 }
