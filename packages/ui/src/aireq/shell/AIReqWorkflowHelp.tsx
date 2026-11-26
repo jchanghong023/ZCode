@@ -16,9 +16,9 @@ const steps = [
     title: "黄区澄清需求",
     titleEn: "Clarify requirements in the yellow zone",
     description:
-      "从「所有项目」打开项目或版本，选择 IR 进入「讨论需求」。用一次实际操作说明输入和预期结果，在右侧对照云龙原文与业务需求。",
+      "从「项目总览」打开项目或版本，选择 IR 进入「讨论需求」。用一次实际操作说明输入和预期结果，在右侧对照云龙原文与业务需求。",
     descriptionEn:
-      "Open a project or release in All projects, then discuss an IR. Describe an input and expected result and compare the draft with the original IR on the right.",
+      "Open a project or release in Project overview, then discuss an IR. Describe an input and expected result and compare the draft with the original IR on the right.",
   },
   {
     title: "将需求交接到红区",

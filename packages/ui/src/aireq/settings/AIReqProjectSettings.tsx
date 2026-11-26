@@ -21,23 +21,15 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { AIReqProjectField } from "./AIReqProjectField.js";
 import { validateRepository, type ProjectFieldErrors } from "./projectValidation.js";
 
-export type AIReqProjectSettingsRequest = { kind: "project"; projectId: string };
-
 type RepositoryFields = { repositoryUrl: string; defaultBranch: string; workDirectory: string };
 type ProjectDraft = RepositoryFields & { id: string; name: string; revision: number };
 
 export function AIReqProjectSettings({
   guard,
   onDraftActionsChange,
-  active,
-  request,
-  onRequestHandled,
 }: {
   guard: (navigate: () => void) => void;
   onDraftActionsChange: (actions: AIReqSettingsDraftActions | null) => void;
-  active: boolean;
-  request: AIReqProjectSettingsRequest | null;
-  onRequestHandled(request: AIReqProjectSettingsRequest): void;
 }) {
   const source = useAIReqDataSource();
   const ai = useAIReq();
@@ -52,15 +44,11 @@ export function AIReqProjectSettings({
   const [projectErrors, setProjectErrors] = useState<ProjectFieldErrors>({});
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
-  const [targetError, setTargetError] = useState("");
   const [query, setQuery] = useState("");
   const searchInput = useRef<HTMLInputElement>(null);
   const projectForm = useRef<HTMLFormElement>(null);
   const dialogTrigger = useRef<HTMLButtonElement>(null);
-  const projectElements = useRef(new Map<string, HTMLElement>());
   const projects = ai?.view?.projects;
-  const pending = ai?.pending;
-  const readError = ai?.error;
   const search = query.trim().toLocaleLowerCase();
   const filtered = projects?.filter((project) =>
     `${project.name} ${project.repositoryUrl ?? ""} ${project.workDirectory ?? ""}`
@@ -196,25 +184,6 @@ export function AIReqProjectSettings({
     event.preventDefault();
     target.focus({ preventScroll: true });
   }, []);
-  useEffect(() => {
-    if (!active || !request || pending || !projects || readError) return;
-    if (search) {
-      setQuery("");
-      return;
-    }
-    const element = projectElements.current.get(request.projectId);
-    if (element) {
-      setTargetError("");
-      element.scrollIntoView({ block: "start" });
-      element.focus({ preventScroll: true });
-    } else {
-      setTargetError(
-        zh ? "云龙目录中没有此项目。" : "This project is missing from the CloudDragon directory.",
-      );
-    }
-    onRequestHandled(request);
-  }, [active, request, pending, projects, readError, search, zh, onRequestHandled]);
-
   if (!ai) return null;
   const notConfigured = zh ? "尚未配置" : "Not configured";
   return (
@@ -242,11 +211,6 @@ export function AIReqProjectSettings({
       {ai.pending && !projects && (
         <p role="status">{zh ? "正在读取云龙项目…" : "Loading CloudDragon projects…"}</p>
       )}
-      {targetError && (
-        <p role="alert" className="text-destructive">
-          {targetError}
-        </p>
-      )}
       {ai.error && (
         <p role="alert" className="text-destructive">
           {ai.error}
@@ -256,14 +220,7 @@ export function AIReqProjectSettings({
       {filtered?.map((project) => {
         const releases = ai.view?.releases.filter((item) => item.projectId === project.id) ?? [];
         return (
-          <article
-            key={project.id}
-            ref={(element) => {
-              if (element) projectElements.current.set(project.id, element);
-              else projectElements.current.delete(project.id);
-            }}
-            tabIndex={-1}
-          >
+          <article key={project.id}>
             <SettingsGroupCard>
               <div className="flex flex-wrap items-center justify-between gap-3 p-4">
                 <div className="min-w-0">

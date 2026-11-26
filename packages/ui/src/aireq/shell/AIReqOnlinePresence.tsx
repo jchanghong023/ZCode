@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { ChevronRight, UsersRound } from "lucide-react";
+import { UsersRound } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import {
   Dialog,
@@ -23,18 +23,22 @@ export function AIReqOnlinePresence() {
     return ids.size;
   }, [snapshot]);
   const count =
-    employeeCount === undefined ? undefined : zh ? `${employeeCount} 人` : `${employeeCount} people`;
+    employeeCount === undefined
+      ? undefined
+      : zh
+        ? `${employeeCount} 人`
+        : `${employeeCount} people`;
   const unavailable = zh ? "在线状态暂不可用" : "Online status unavailable";
 
   return (
     <Dialog>
-      <div className="shrink-0 px-3 pt-1">
+      <div className="shrink-0">
         <DialogTrigger asChild>
           <Button
             variant="ghost"
             size="lg"
-            // 在线入口是可操作的辅助信息；复用侧栏对比度和焦点边框，避免弱文字看似禁用且键盘焦点不可见。
-            className="w-full min-w-0 justify-start gap-3 font-normal text-remote-foreground-muted hover:text-foreground focus-visible:border-remote-foreground-muted data-[state=open]:bg-hover data-[state=open]:text-foreground"
+            // 在线入口是可操作的辅助信息；复用顶栏对比度和焦点边框，避免弱文字看似禁用且键盘焦点不可见。
+            className="min-w-0 gap-1.5 font-normal text-remote-foreground-muted hover:text-foreground focus-visible:border-remote-foreground-muted data-[state=open]:bg-hover data-[state=open]:text-foreground"
           >
             <UsersRound aria-hidden="true" className="size-4 shrink-0" />
             <span className="min-w-0 flex-1 truncate text-left">
@@ -51,7 +55,6 @@ export function AIReqOnlinePresence() {
             {!error && count && (
               <span className="shrink-0 font-medium text-foreground tabular-nums">{count}</span>
             )}
-            <ChevronRight aria-hidden="true" className="size-3.5 text-remote-foreground-muted" />
           </Button>
         </DialogTrigger>
       </div>

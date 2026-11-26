@@ -1,5 +1,9 @@
 import { expect, it } from "vitest";
 import { recentReleases } from "../../packages/ui/src/aireq/projects/recentReleases.js";
+import {
+  openReleaseStays,
+  releaseIRTitle,
+} from "../../packages/ui/src/aireq/projects/releaseOverviewData.js";
 
 const release = (id: string, projectId = "lander") => ({
   id,
@@ -14,6 +18,16 @@ const ir = (releaseId: string, createdAt: string, projectId = "lander") => ({
   releaseId,
   createdAt,
   projectId,
+  id: createdAt,
+  title: "导出记录",
+  originalText: "",
+  submittedBy: "",
+  documentPath: "",
+  revision: 0,
+  srIds: [],
+  sessions: [],
+  documentHistory: [],
+  documentReviews: [],
 });
 
 it("orders by the latest IR created in each release and retains its complete counts", () => {
@@ -49,4 +63,44 @@ it("includes February 28 on a leap-day anniversary in the Beijing calendar", () 
     Date.parse("2024-02-28T16:01:00Z"),
   );
   expect(result.map(({ id }) => id)).toEqual(["included"]);
+});
+
+it("bands open IRs by the whole days shown, sorting missing stage starts last", () => {
+  const now = Date.parse("2026-11-26T00:00:00Z");
+  const day = 86_400_000;
+  const open = (age: number) => ({
+    ...ir("v1", new Date(now - age).toISOString()),
+    id: String(age),
+    process: "初始",
+  });
+  const ages = [30 * day, 91 * day, 90 * day, 91 * day - 1, 30 * day - 1];
+  const stays = openReleaseStays(
+    [
+      ...ages.map(open),
+      { ...open(150 * day), process: "完成" },
+      { ...open(120 * day), process: "测试" },
+    ],
+    now,
+  );
+  expect(stays.map(({ elapsed, band }) => [elapsed, band])).toEqual([
+    [91 * day, "over-90"],
+    [91 * day - 1, "30-90"],
+    [90 * day, "30-90"],
+    [30 * day, "30-90"],
+    [30 * day - 1, undefined],
+    [undefined, undefined],
+  ]);
+});
+
+it("removes only the selected release prefix at the start of an overview title", () => {
+  const name = "2026release4";
+  expect(releaseIRTitle(name + " · 归档", name)).toBe("归档");
+  for (const title of [
+    "2026release40 · 归档",
+    "2026release3 · 归档",
+    "检查 " + name + " · 归档",
+    name + "：归档",
+  ]) {
+    expect(releaseIRTitle(title, name)).toBe(title);
+  }
 });

@@ -5,7 +5,7 @@ import {
   ResizablePanelGroup,
   WORKSPACE_VERTICAL_RESIZE_HANDLE_CLASS_NAME,
 } from "@/components/ui/resizable.js";
-import { useAnimatedResizablePanel } from "@/app-shell/useAnimatedResizablePanel.js";
+import type { PanelImperativeHandle } from "react-resizable-panels";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
 import { AIReqRequirementDetailsContent } from "../proposals/AIReqRequirementDetailsContent.js";
@@ -114,24 +114,37 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
     window.addEventListener("keydown", exit);
     return () => window.removeEventListener("keydown", exit);
   }, [fullView, ai.settingsOpen, toggleFullView]);
-  // 同步约束在子面板 effect 中更新；过早 collapse 会读取旧的不可折叠约束并被忽略。
-  // 复用原生同步 hook，收起必须归还实际宽度。页面切换不会清空标签。
-  const { panelRef: panel } = useAnimatedResizablePanel({
-    open: isOpen,
-    expandedSize: "45%",
-    rememberExpandedSize: true,
-  });
+  const panel = useRef<PanelImperativeHandle>(null);
+  const layout = mainView === "chat" ? "chat" : "list";
+  const widths = useRef({ list: (100 * 5) / 12, chat: 50 });
+  const openLayout = useRef<typeof layout>(undefined);
+  useEffect(() => {
+    // 下一帧才有最新的可折叠约束。先保存实际宽度再应用目标布局，
+    // 直接从列表进入会话也能分别记住拖动宽度，不重建会话和文档。
+    const frame = requestAnimationFrame(() => {
+      const current = panel.current;
+      if (!current) return;
+      if (openLayout.current) {
+        const width = current.getSize().asPercentage;
+        if (width > 0) widths.current[openLayout.current] = width;
+      }
+      if (isOpen) current.resize(`${widths.current[layout]}%`);
+      else current.collapse();
+      openLayout.current = isOpen ? layout : undefined;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [isOpen, layout]);
   const currentScope = ai.selection.projectId ?? "";
   const { locale } = useZCodeIntl();
   return (
     <ResizablePanelGroup
       orientation="horizontal"
-      layoutId="aireq-unified-side-pane-v1"
+      layoutId="aireq-unified-side-pane-v2"
       panelIds={["aireq-primary", "aireq-side-pane"]}
       className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
       data-testid="aireq-side-pane-workspace"
     >
-      <ResizablePanel id="aireq-primary" minSize="360px" defaultSize="55%">
+      <ResizablePanel id="aireq-primary" minSize="360px" defaultSize="58.3333%">
         <div
           ref={mainRef}
           tabIndex={-1}
@@ -145,14 +158,14 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
       <ResizableHandle
         className={
           isOpen && !fullView
-            ? WORKSPACE_VERTICAL_RESIZE_HANDLE_CLASS_NAME + " aria-[orientation=vertical]:w-[3px]"
+            ? WORKSPACE_VERTICAL_RESIZE_HANDLE_CLASS_NAME + " aria-[orientation=vertical]:w-4"
             : "hidden"
         }
       />
       <ResizablePanel
         id="aireq-side-pane"
         panelRef={panel}
-        defaultSize="45%"
+        defaultSize="41.6667%"
         minSize="400px"
         maxSize="80%"
         // 与原生宿主一致：只有显式收起时允许折叠，拖动不能绕过门禁。

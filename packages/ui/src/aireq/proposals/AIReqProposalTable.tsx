@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
 import { EMPTY_PROPOSAL_QUERY } from "../navigationState.js";
-import { AIREQ_WORKSPACE_GUTTER_CLASSNAME } from "../shell/pageLayout.js";
 import { ScopedPageTitle } from "../shell/ScopedPageTitle.js";
 import { AIReqProposalColumnFilter } from "./AIReqProposalColumnFilter.js";
 import { AIReqProposalColumnConfig } from "./AIReqProposalColumnConfig.js";
@@ -255,12 +254,10 @@ export function AIReqProposalTable() {
       aria-label={zh ? "需求共创" : "Co-creation"}
       className="@container/conversation h-full min-h-0 min-w-0 flex-1 overflow-hidden bg-background text-ui-base"
     >
-      {/* 工作台外壳已预留页头顶部空间，与「所有项目」共用同一标题基线。 */}
-      <div
-        className={`${AIREQ_WORKSPACE_GUTTER_CLASSNAME} flex h-full min-h-0 min-w-0 flex-col gap-4 pb-3`}
-      >
-        <header className="flex shrink-0 flex-wrap items-start justify-between gap-x-4 gap-y-2">
+      <div className="flex h-full min-h-0 min-w-0 flex-col gap-4">
+        <header className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <ScopedPageTitle
+            withRelease
             title={zh ? "需求共创" : "Co-creation"}
             count={
               projectId && !ai.view?.releaseReadFailures?.includes(projectId)
@@ -329,7 +326,7 @@ export function AIReqProposalTable() {
             tabIndex={0}
             data-scrolled-start={hasStart || undefined}
             data-scrolled-end={hasEnd || undefined}
-            className="min-h-0 overflow-auto scroll-pr-(--actions-width) outline-none [--actions-width:var(--wide-actions-width)] focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-input-border-focused data-[scrolled-end=true]:[&_[data-pinned=end]]:shadow-[-4px_0_8px_-5px_var(--color-foreground-subtle)] @max-[620px]/conversation:[--actions-width:48px] @min-[760px]/conversation:scroll-pl-(--identity-width) @min-[760px]/conversation:data-[scrolled-start=true]:[&_[data-pinned=start]]:shadow-[4px_0_8px_-5px_var(--color-foreground-subtle)]"
+            className="min-h-0 overflow-auto scroll-pr-(--actions-width) outline-none [--actions-width:var(--wide-actions-width)] focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-input-border-focused data-[scrolled-end=true]:[&_[data-pinned=end]]:shadow-[-4px_0_8px_-5px_var(--color-foreground-subtle)] @min-[520px]/conversation:@max-[620px]/conversation:[--actions-width:72px] @max-[520px]/conversation:[--actions-width:48px] @min-[760px]/conversation:scroll-pl-(--identity-width) @min-[760px]/conversation:data-[scrolled-start=true]:[&_[data-pinned=start]]:shadow-[4px_0_8px_-5px_var(--color-foreground-subtle)]"
             style={
               {
                 "--wide-actions-width": `${actionsWidth}px`,

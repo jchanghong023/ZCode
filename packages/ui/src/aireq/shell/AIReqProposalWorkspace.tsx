@@ -30,6 +30,15 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
     solution: zh ? "方案 Agent" : "Solution Agent",
   };
   const agentTitle = agentLabels[agent];
+  const projectName = ai.view?.projects.find((project) => project.id === projectId)?.name;
+  const releaseName = group?.releaseId
+    ? ai.view?.releases.find(
+        (release) => release.projectId === projectId && release.id === group.releaseId,
+      )?.title
+    : zh
+      ? "未分配版本"
+      : "Unassigned";
+  const contextTitle = [projectName, releaseName, group?.title].filter(Boolean).join(" / ");
   const alternateLabel = zh
     ? `切换到${agentLabels[alternateAgent]}`
     : `Switch to the ${agentLabels[alternateAgent]}`;
@@ -194,8 +203,8 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
         <div className="min-w-0 flex-1 basis-36">
           <h1 className="text-ui-lg font-semibold leading-tight">{agentTitle}</h1>
           {group && (
-            <p className="truncate text-ui-caption text-foreground-subtle" title={group.title}>
-              {group.title}
+            <p className="truncate text-ui-caption text-foreground-subtle" title={contextTitle}>
+              {contextTitle}
             </p>
           )}
         </div>

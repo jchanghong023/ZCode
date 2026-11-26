@@ -14,12 +14,13 @@ import type { AIReqSettingsDraftActions } from "../contract.js";
 import { AIReqProposalTable } from "../proposals/AIReqProposalTable.js";
 import { AIReqProjectDocumentsPage } from "../projects/AIReqProjectDocumentsPage.js";
 import { AIReqSettingsPage, type AIReqSettingsSection } from "../settings/AIReqSettingsPage.js";
-import type { AIReqProjectSettingsRequest } from "../settings/AIReqProjectSettings.js";
 import { AIReqSkillDesignPage } from "../tools/AIReqSkillDesignPage.js";
 import { AIREQ_PAGE_CONTENT_CLASSNAME, AIREQ_PAGE_TITLE_CLASSNAME } from "./pageLayout.js";
 import { AIReqWorkspaceFooter } from "./AIReqWorkspaceFooter.js";
 import { AIReqWorkflowHelp } from "./AIReqWorkflowHelp.js";
-import { AIReqSidebarNavigation } from "./AIReqSidebarNavigation.js";
+import { AIReqTopNavigation } from "./AIReqTopNavigation.js";
+import { useRecentReleaseOverview } from "../projects/useRecentReleaseOverview.js";
+import { ScopedPageTitle } from "./ScopedPageTitle.js";
 import { AIReqRolesPage } from "./AIReqRolesPage.js";
 import { AIReqMotion } from "./AIReqMotion.js";
 import { AIReqProposalWorkspace } from "./AIReqProposalWorkspace.js";
@@ -67,6 +68,7 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
   const { setNavigationGuard } = ai;
+  const overview = useRecentReleaseOverview();
   const settingsOpen = ai.settingsOpen;
   const proposalId = ai.mainView === "chat" ? ai.selection.irId : undefined;
   const focusAgent = proposalId ? ai.selection.discussionPhase : undefined;
@@ -139,8 +141,6 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
   }, [settingsOpen]);
   const [settingsMounted, setSettingsMounted] = useState(false);
   const [proposalsMounted, setProposalsMounted] = useState(false);
-  const [projectSettingsRequest, setProjectSettingsRequest] =
-    useState<AIReqProjectSettingsRequest | null>(null);
   const [skillMounted, setSkillMounted] = useState(false);
   const [skillActions, setSkillActions] = useState<AIReqSettingsDraftActions | null>(null);
   const [settingsSection, setSettingsSection] = useState<Section>(readSettingsSection);
@@ -172,7 +172,6 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
         document.activeElement instanceof HTMLElement ? document.activeElement : null;
       ai.navigate(() => {
         if (section) commitSettingsSection(section);
-        setProjectSettingsRequest(null);
         ai.openSettings();
         setSettingsMounted(true);
       });
@@ -180,19 +179,6 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
     [ai, commitSettingsSection],
   );
   const openModelSettings = useCallback(() => openSettings("models"), [openSettings]);
-  const openProjectSettings = (request: AIReqProjectSettingsRequest) => {
-    settingsReturnFocus.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    ai.navigate(() => {
-      commitSettingsSection("projects");
-      setProjectSettingsRequest(request);
-      ai.openSettings();
-      setSettingsMounted(true);
-    });
-  };
-  const projectSettingsRequestHandled = useCallback((request: AIReqProjectSettingsRequest) => {
-    setProjectSettingsRequest((current) => (current === request ? null : current));
-  }, []);
   const openHelp = (returnFocusTo?: HTMLButtonElement | null) =>
     ai.navigate(() => {
       helpReturnFocus.current = returnFocusTo ?? null;
@@ -221,11 +207,7 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
   );
   let content;
   if (ai.mainView === "projectProgress")
-    content = (
-      <AIReqProjectDocumentsPage
-        onConfigureProject={(projectId) => openProjectSettings({ kind: "project", projectId })}
-      />
-    );
+    content = <AIReqProjectDocumentsPage overview={overview} />;
   else if (ai.mainView === "roles") content = <AIReqRolesPage />;
   else if (!project && ai.view && ai.selectionReady)
     content = (
@@ -247,7 +229,7 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
       className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background-win-alt"
     >
       <AIReqMotion rootRef={motionRoot} />
-      {/* 键盘用户从侧栏到主内容要穿过全部导航与页脚；跳过链接只在聚焦时可见，不新增导航 owner。 */}
+      {/* 键盘用户可从顶栏直接到主内容；跳过链接只在聚焦时可见，不新增导航 owner。 */}
       <a
         href="#aireq-main"
         className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:border focus:border-border focus:bg-popover focus:px-3 focus:py-1.5 focus:text-ui-base focus:text-foreground focus:shadow-md"
@@ -265,15 +247,19 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
         hidden={settingsOpen}
         inert={settingsOpen}
         aria-hidden={settingsOpen}
-        className={settingsOpen ? "hidden" : "flex min-h-0 min-w-0 flex-1 overflow-hidden"}
+        className={
+          settingsOpen
+            ? "hidden"
+            : "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background"
+        }
       >
         <nav
           id="aireq-navigation"
           aria-label={zh ? "AIReq 工作台导航" : "AIReq workspace navigation"}
           data-testid="aireq-workflow-root"
-          className="flex w-64 min-h-0 shrink-0 flex-col overflow-hidden bg-background-win-alt text-ui-base"
+          className="relative z-10 flex min-h-12 shrink-0 flex-wrap items-center gap-1 border-b border-border bg-card px-4 py-1.5 text-ui-base xl:px-6"
         >
-          <AIReqSidebarNavigation />
+          <AIReqTopNavigation overviewReleaseId={overview.release?.id} />
           <AIReqWorkspaceFooter
             onOpenSettings={() => openSettings()}
             onLogout={() =>
@@ -286,97 +272,103 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
             onHelp={openHelp}
           />
         </nav>
-        <AIReqSidePaneHost>
-          <div
-            ref={mainContent}
-            id="aireq-main"
-            tabIndex={-1}
-            data-aireq-motion-main=""
-            className="@container/conversation flex min-h-0 min-w-0 flex-1 flex-col border border-transparent bg-background outline-none"
-          >
-            {ai.mainView !== "chat" && <div aria-hidden="true" className="h-12 shrink-0" />}
-            {ai.linkError && (
-              <div
-                role="alert"
-                className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2 text-ui-sm text-destructive"
-              >
-                {ai.linkError}
-                <Button variant="ghost" onClick={ai.clearLinkError}>
-                  {zh ? "关闭" : "Dismiss"}
-                </Button>
-              </div>
-            )}
-            {ai.error && (
-              <div
-                role="alert"
-                className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2 text-ui-sm text-destructive"
-              >
-                {ai.error}
-                <Button variant="ghost" onClick={() => void ai.refresh()}>
-                  {zh ? "重试" : "Retry"}
-                </Button>
-              </div>
-            )}
-            <ModelSettingsNavigationContext.Provider value={openModelSettings}>
-              <AIReqWorkspaceActiveContext.Provider value={!settingsOpen}>
-                <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                  {!ai.view && ai.pending ? (
-                    <div role="status" className="m-auto">
-                      {zh ? "正在读取项目…" : "Loading projects…"}
-                    </div>
-                  ) : ai.mainView !== "skillDesign" ? (
-                    content
-                  ) : null}
-                  {(proposalsMounted || ai.mainView === "proposals") && (
-                    <>
-                      {ai.mainView === "proposals" && listLoading && listFeedback}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col px-4 pt-4 pb-3 xl:px-6">
+          <AIReqSidePaneHost>
+            <div
+              ref={mainContent}
+              id="aireq-main"
+              tabIndex={-1}
+              data-aireq-motion-main=""
+              className="@container/conversation flex min-h-0 min-w-0 flex-1 flex-col bg-background outline-none"
+            >
+              {ai.linkError && (
+                <div
+                  role="alert"
+                  className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2 text-ui-sm text-destructive"
+                >
+                  {ai.linkError}
+                  <Button variant="ghost" onClick={ai.clearLinkError}>
+                    {zh ? "关闭" : "Dismiss"}
+                  </Button>
+                </div>
+              )}
+              {ai.error && (
+                <div
+                  role="alert"
+                  className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2 text-ui-sm text-destructive"
+                >
+                  {ai.error}
+                  <Button variant="ghost" onClick={() => void ai.refresh()}>
+                    {zh ? "重试" : "Retry"}
+                  </Button>
+                </div>
+              )}
+              <ModelSettingsNavigationContext.Provider value={openModelSettings}>
+                <AIReqWorkspaceActiveContext.Provider value={!settingsOpen}>
+                  <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                    {!ai.view && ai.pending ? (
+                      <div role="status" className="m-auto">
+                        {zh ? "正在读取项目…" : "Loading projects…"}
+                      </div>
+                    ) : ai.mainView !== "skillDesign" ? (
+                      content
+                    ) : null}
+                    {(proposalsMounted || ai.mainView === "proposals") && (
+                      <>
+                        {ai.mainView === "proposals" && listLoading && (
+                          <>
+                            <ScopedPageTitle title={zh ? "需求共创" : "Co-creation"} withRelease />
+                            {listFeedback}
+                          </>
+                        )}
+                        <div
+                          hidden={ai.mainView !== "proposals" || !project || listLoading}
+                          inert={
+                            ai.mainView !== "proposals" || !project || listLoading || settingsOpen
+                          }
+                          aria-hidden={ai.mainView !== "proposals" || !project || listLoading}
+                          className={
+                            ai.mainView === "proposals" && project && !listLoading
+                              ? "flex min-h-0 flex-1 flex-col"
+                              : "hidden"
+                          }
+                        >
+                          <AIReqProposalTable key={ai.selection.projectId} />
+                        </div>
+                      </>
+                    )}
+                    {skillMounted && (
                       <div
-                        hidden={ai.mainView !== "proposals" || !project || listLoading}
-                        inert={
-                          ai.mainView !== "proposals" || !project || listLoading || settingsOpen
-                        }
-                        aria-hidden={ai.mainView !== "proposals" || !project || listLoading}
+                        hidden={ai.mainView !== "skillDesign"}
+                        inert={ai.mainView !== "skillDesign" || settingsOpen}
+                        aria-hidden={ai.mainView !== "skillDesign"}
                         className={
-                          ai.mainView === "proposals" && project && !listLoading
-                            ? "flex min-h-0 flex-1 flex-col"
+                          ai.mainView === "skillDesign"
+                            ? "flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable_both-edges]"
                             : "hidden"
                         }
                       >
-                        <AIReqProposalTable key={ai.selection.projectId} />
+                        <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} shrink-0 pb-6 lg:pb-6`}>
+                          <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>
+                            {zh ? "Skill 设计" : "Skill design"}
+                          </h1>
+                        </div>
+                        <AIReqWorkspaceActiveContext.Provider
+                          value={ai.mainView === "skillDesign" && !settingsOpen}
+                        >
+                          <AIReqSkillDesignPage
+                            active={ai.mainView === "skillDesign" && !settingsOpen}
+                            onDraftActionsChange={setSkillActions}
+                          />
+                        </AIReqWorkspaceActiveContext.Provider>
                       </div>
-                    </>
-                  )}
-                  {skillMounted && (
-                    <div
-                      hidden={ai.mainView !== "skillDesign"}
-                      inert={ai.mainView !== "skillDesign" || settingsOpen}
-                      aria-hidden={ai.mainView !== "skillDesign"}
-                      className={
-                        ai.mainView === "skillDesign"
-                          ? "flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable_both-edges]"
-                          : "hidden"
-                      }
-                    >
-                      <div className={`${AIREQ_PAGE_CONTENT_CLASSNAME} shrink-0 pb-6 lg:pb-6`}>
-                        <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>
-                          {zh ? "Skill 设计" : "Skill design"}
-                        </h1>
-                      </div>
-                      <AIReqWorkspaceActiveContext.Provider
-                        value={ai.mainView === "skillDesign" && !settingsOpen}
-                      >
-                        <AIReqSkillDesignPage
-                          active={ai.mainView === "skillDesign" && !settingsOpen}
-                          onDraftActionsChange={setSkillActions}
-                        />
-                      </AIReqWorkspaceActiveContext.Provider>
-                    </div>
-                  )}
-                </div>
-              </AIReqWorkspaceActiveContext.Provider>
-            </ModelSettingsNavigationContext.Provider>
-          </div>
-        </AIReqSidePaneHost>
+                    )}
+                  </div>
+                </AIReqWorkspaceActiveContext.Provider>
+              </ModelSettingsNavigationContext.Provider>
+            </div>
+          </AIReqSidePaneHost>
+        </div>
       </div>
       {settingsMounted && (
         <div
@@ -389,8 +381,6 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
             <AIReqSettingsPage
               active={settingsOpen || ai.mainView === "skillDesign"}
               section={settingsSection}
-              projectSettingsRequest={projectSettingsRequest}
-              onProjectSettingsRequestHandled={projectSettingsRequestHandled}
               onSectionChange={commitSettingsSection}
               onClose={ai.closeSettings}
               onHelp={openHelp}

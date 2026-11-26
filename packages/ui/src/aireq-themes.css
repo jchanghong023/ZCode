@@ -137,35 +137,6 @@
   color: var(--aireq-accent-ink);
 }
 
-/* 版本标题与入口共用一个钴蓝表面；正文、进度及统计继续留在浅色阅读区。 */
-.theme-aireq-cobalt .aireq-release-heading {
-  margin: -1.25rem -1.25rem 0;
-  padding: 1rem 1.25rem;
-  align-items: center;
-  background: var(--aireq-accent-ink);
-  color: var(--aireq-accent-on);
-  --color-foreground-subtle: var(--aireq-selection);
-  --color-secondary: var(--aireq-panel);
-  --color-foreground: var(--aireq-accent-ink);
-  --color-remote-foreground-muted: var(--aireq-text);
-}
-
-.theme-aireq-cobalt .aireq-release-heading h2 {
-  font-size: var(--text-ui-settings-title);
-  line-height: var(--text-ui-settings-title--line-height);
-}
-
-.theme-aireq-cobalt .aireq-release-counts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(7rem, 100%), 1fr));
-  gap: 0.75rem 1rem;
-}
-
-.theme-aireq-cobalt .aireq-release-counts dd {
-  font-size: var(--text-ui-settings-title-lg);
-  font-weight: 700;
-}
-
 .theme-aireq-cobalt [data-longest-stay] {
   color: var(--aireq-accent-ink);
   font-weight: 700;

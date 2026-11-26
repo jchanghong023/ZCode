@@ -31,7 +31,7 @@ import { AIReqAgentModelSettings } from "./AIReqAgentModelSettings.js";
 import { materialName } from "../documents/materialName.js";
 import { AIReqDocumentFormatSettings } from "./AIReqDocumentFormatSettings.js";
 import { AIReqPersonalizationSettings } from "./AIReqPersonalizationSettings.js";
-import { AIReqProjectSettings, type AIReqProjectSettingsRequest } from "./AIReqProjectSettings.js";
+import { AIReqProjectSettings } from "./AIReqProjectSettings.js";
 import { AIREQ_DOCUMENT_PATHS, type AIReqSettingsDraftActions } from "../contract.js";
 
 export type AIReqSettingsSection =
@@ -92,8 +92,6 @@ export function AIReqSettingsPage({
   onHelp,
   onNavigationGuardChange,
   skillActions,
-  projectSettingsRequest,
-  onProjectSettingsRequestHandled,
 }: {
   active: boolean;
   onClose: () => void;
@@ -102,8 +100,6 @@ export function AIReqSettingsPage({
   onHelp: (returnFocusTo?: HTMLButtonElement | null) => void;
   onNavigationGuardChange?: (guard: AIReqNavigationGuard | null) => void;
   skillActions: AIReqSettingsDraftActions | null;
-  projectSettingsRequest: AIReqProjectSettingsRequest | null;
-  onProjectSettingsRequestHandled(request: AIReqProjectSettingsRequest): void;
 }) {
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
@@ -472,13 +468,7 @@ export function AIReqSettingsPage({
                     />
                   )
                 ) : (
-                  <AIReqProjectSettings
-                    guard={guard}
-                    onDraftActionsChange={onDraftActionsChange}
-                    active={active}
-                    request={projectSettingsRequest}
-                    onRequestHandled={onProjectSettingsRequestHandled}
-                  />
+                  <AIReqProjectSettings guard={guard} onDraftActionsChange={onDraftActionsChange} />
                 )}
               </div>
             )}

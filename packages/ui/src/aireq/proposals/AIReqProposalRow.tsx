@@ -228,7 +228,7 @@ export function AIReqProposalRow({
               aria-label={`${documentsLabel} · ${item.title}`}
               aria-controls="aireq-document-workspace"
               aria-expanded={documentsOpen}
-              className="@max-[620px]/conversation:hidden"
+              className="@max-[520px]/conversation:hidden"
               onClick={(event) => openDocuments(event.currentTarget)}
             >
               <FileText aria-hidden="true" />

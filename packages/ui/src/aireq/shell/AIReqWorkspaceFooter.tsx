@@ -32,6 +32,7 @@ export function AIReqWorkspaceFooter({
     <>
       <AIReqOnlinePresence />
       <WorkspaceSidebarFooter
+        className="border-l border-border py-0 pr-0 pl-3"
         theme={theme}
         onThemeChange={(value) => {
           if (isTheme(value)) setTheme(value);
