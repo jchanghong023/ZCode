@@ -647,6 +647,8 @@ export function ImagePreviewSurface({
         }}
       >
         <AlertDialogContent
+          overlayClassName="z-[90]"
+          className="z-[90]"
           onOpenAutoFocus={(event) => {
             event.preventDefault();
             keepEditingRef.current?.focus();

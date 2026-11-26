@@ -23,6 +23,9 @@ export {
   type ImagePreviewDialogItem,
 } from "@/lib/imagePreviewDownload.js";
 
+// IR 详情和全屏正文分别使用 65、70，预览和遮罩必须一起覆盖阅读层。
+const previewLayer = "z-[80]";
+
 export function ImagePreviewDialog({
   dialogTestId,
   imageTestId,
@@ -130,10 +133,13 @@ export function ImagePreviewDialog({
       }}
     >
       <DialogContent
-        overlayClassName="bg-background/95 backdrop-blur-md"
+        overlayClassName={cn(previewLayer, "bg-background/95 backdrop-blur-md")}
         aria-describedby={undefined}
         // Radix modal 会禁用 body 指针事件；预览层需显式恢复命中并退出 Electron 拖拽区。
-        className="pointer-events-auto h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-none place-items-center gap-0 overflow-hidden border-0 bg-transparent p-10 shadow-none [app-region:no-drag] sm:h-[calc(100dvh-2rem)] sm:w-[calc(100vw-2rem)] platform-linux-desktop:h-[calc(100dvh-4rem)]"
+        className={cn(
+          previewLayer,
+          "pointer-events-auto h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-none place-items-center gap-0 overflow-hidden border-0 bg-transparent p-10 shadow-none [app-region:no-drag] sm:h-[calc(100dvh-2rem)] sm:w-[calc(100vw-2rem)] platform-linux-desktop:h-[calc(100dvh-4rem)]",
+        )}
         onClick={(event) => {
           // 透明内容层覆盖遮罩；只把真实空白点击当关闭，图片与控件不冒充遮罩。
           if (event.target === event.currentTarget) requestClose();
