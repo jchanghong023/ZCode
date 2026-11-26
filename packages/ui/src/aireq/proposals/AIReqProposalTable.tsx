@@ -321,6 +321,7 @@ export function AIReqProposalTable() {
               </div>
             )}
           </div>
+          {/* 滚动区作为行内 sr-only 文本的定位容器，避免其撑高外层面板并将表头滚出视野。 */}
           <div
             ref={tableScroll}
             role="region"
@@ -328,7 +329,7 @@ export function AIReqProposalTable() {
             tabIndex={0}
             data-scrolled-start={hasStart || undefined}
             data-scrolled-end={hasEnd || undefined}
-            className="min-h-0 overflow-auto scroll-pr-(--actions-width) outline-none [--actions-width:var(--wide-actions-width)] focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-input-border-focused data-[scrolled-end=true]:[&_[data-pinned=end]]:shadow-[-4px_0_8px_-5px_var(--color-foreground-subtle)] @min-[520px]/conversation:@max-[620px]/conversation:[--actions-width:72px] @max-[520px]/conversation:[--actions-width:48px] @min-[760px]/conversation:scroll-pl-(--identity-width) @min-[760px]/conversation:data-[scrolled-start=true]:[&_[data-pinned=start]]:shadow-[4px_0_8px_-5px_var(--color-foreground-subtle)]"
+            className="relative min-h-0 overflow-auto scroll-pr-(--actions-width) outline-none [--actions-width:var(--wide-actions-width)] focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-input-border-focused data-[scrolled-end=true]:[&_[data-pinned=end]]:shadow-[-4px_0_8px_-5px_var(--color-foreground-subtle)] @min-[520px]/conversation:@max-[620px]/conversation:[--actions-width:72px] @max-[520px]/conversation:[--actions-width:48px] @min-[760px]/conversation:scroll-pl-(--identity-width) @min-[760px]/conversation:data-[scrolled-start=true]:[&_[data-pinned=start]]:shadow-[4px_0_8px_-5px_var(--color-foreground-subtle)]"
             style={
               {
                 "--wide-actions-width": `${actionsWidth}px`,

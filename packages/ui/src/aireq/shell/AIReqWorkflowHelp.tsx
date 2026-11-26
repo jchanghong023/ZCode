@@ -61,7 +61,7 @@ export function AIReqWorkflowHelp({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         onCloseAutoFocus={(event) => {
-          // 菜单项随关闭移出焦点序列；必须回到实际打开帮助的工作区或设置 footer 按钮。
+          // 顶栏和设置页共用帮助弹窗，关闭时焦点回到本次打开它的按钮。
           if (returnFocusRef?.current?.isConnected) {
             event.preventDefault();
             returnFocusRef.current.focus();

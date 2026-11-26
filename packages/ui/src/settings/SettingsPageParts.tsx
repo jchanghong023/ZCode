@@ -257,7 +257,7 @@ export function SettingsPageFrame({
   navigation: ReactNode;
   navigationRef?: Ref<HTMLElement>;
   navigationLabel: string;
-  footer: ReactNode;
+  footer?: ReactNode;
   help: ReactNode;
   header?: ReactNode;
   children: ReactNode;
@@ -292,7 +292,7 @@ export function SettingsPageFrame({
               {navigation}
             </nav>
 
-            <div>{footer}</div>
+            {footer && <div>{footer}</div>}
           </div>
         </aside>
 

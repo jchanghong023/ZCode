@@ -1,5 +1,5 @@
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import { memo, useState, type ReactNode, type Ref } from "react";
+import { memo, useState, type ReactNode } from "react";
 import { TID_LOGIN_TRIGGER, TID_TASK_SETTINGS_BUTTON } from "@zcode/shared/test-ids";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar.js";
 import { cn } from "@/components/lib/utils.js";
@@ -32,7 +32,6 @@ interface WorkspaceSidebarFooterProps {
   profileLabel: ReactNode;
   profileDescription?: ReactNode;
   profileAriaLabel: string;
-  profileTriggerRef?: Ref<HTMLButtonElement>;
   compact?: boolean;
 }
 
@@ -121,7 +120,6 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   profileLabel,
   profileDescription,
   profileAriaLabel,
-  profileTriggerRef,
   compact = false,
 }: WorkspaceSidebarFooterProps) {
   const { intl } = useZCodeIntl();
@@ -160,7 +158,6 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
           compact && "size-10 flex-none justify-center rounded-xl p-0",
         )}
         data-testid={TID_LOGIN_TRIGGER}
-        ref={profileTriggerRef}
         aria-label={profileAriaLabel}
       >
         {profileContent}

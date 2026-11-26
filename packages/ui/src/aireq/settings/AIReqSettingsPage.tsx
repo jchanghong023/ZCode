@@ -1,6 +1,6 @@
 import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Bot, FileText, Folders, Palette, HelpCircle, Settings } from "lucide-react";
+import { ArrowLeft, Bot, FileText, Folders, Palette, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
 import {
@@ -19,7 +19,6 @@ import {
   SettingsPageFrame,
   SettingsSidebarButton,
 } from "@/settings/SettingsPageParts.js";
-import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import {
   SettingsSearch,
   SettingsSearchTargetContext,
@@ -398,22 +397,6 @@ export function AIReqSettingsPage({
                 </SettingsSidebarButton>
               );
             })}
-          </div>
-        }
-        footer={
-          // 齿轮原先仅标识当前位置、没有点击动作；与顶部返回共用门禁，避免离开时丢失草稿。
-          <div className="flex shrink-0 justify-end px-4 pt-2 pb-4">
-            <ControlHintTooltip title={zh ? "返回工作区" : "Return to workspace"} side="right">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-lg"
-                aria-label={zh ? "返回工作区" : "Return to workspace"}
-                onClick={() => guard(onClose)}
-              >
-                <Settings className="size-4" aria-hidden="true" />
-              </Button>
-            </ControlHintTooltip>
           </div>
         }
         help={
