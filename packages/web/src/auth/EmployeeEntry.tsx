@@ -141,11 +141,14 @@ function EmployeeLoginScreen({
       data-testid="aireq-entry"
       data-aireq-color-motion={performanceMode ? undefined : ""}
     >
-      <ThemeHeroVisual theme={theme} className="pointer-events-none absolute inset-0" />
+      <ThemeHeroVisual
+        theme={theme}
+        className="aireq-entry-backdrop pointer-events-none absolute inset-0"
+      />
       <div className="relative z-10 flex h-dvh flex-col items-center overflow-y-auto px-4 pb-6 pt-14 sm:px-6">
         <div className="flex w-full flex-1 shrink-0 items-center justify-center py-6">
           <section
-            className="flex w-full max-w-md shrink-0 flex-col gap-7 rounded-2xl bg-background p-8 text-ui-base/relaxed shadow-md sm:p-10"
+            className="flex w-full max-w-md shrink-0 flex-col gap-7 rounded-2xl bg-card p-8 text-ui-base/relaxed shadow-md sm:p-10"
             aria-labelledby="aireq-entry-title"
           >
             <header className="flex flex-col items-center gap-4 text-center">

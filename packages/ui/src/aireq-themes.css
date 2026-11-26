@@ -1,14 +1,21 @@
 /* Prefer the same Zai light/dark base for unoverridden components and document rendering. */
 :root.theme-aireq-cobalt {
-  --aireq-canvas: #f2f6fd;
-  --aireq-sidebar: #e7effc;
+  --aireq-canvas: #f2f5fa;
+  --aireq-sidebar: #e8eef9;
+  --aireq-header: var(--aireq-sidebar);
   --aireq-panel: #ffffff;
+  --aireq-reading-surface: #f7f9fc;
   --aireq-text: #15233a;
   --aireq-muted: #45566c;
   --aireq-line: #ccd9ed;
+  --aireq-control-border: #70839d;
+  --aireq-control-border-hover: #526e9b;
   --aireq-accent: #1d4ed8;
   --aireq-accent-ink: #1e40af;
   --aireq-accent-on: #ffffff;
+  --aireq-accent-hover: #1d43b8;
+  --aireq-accent-pressed: #193892;
+  --aireq-control-disabled: #e1e8f5;
   --aireq-selection: color-mix(in srgb, var(--aireq-accent) 17%, var(--aireq-panel));
 }
 
@@ -61,7 +68,7 @@
   --color-card-selected: var(--aireq-selection);
   --color-border: var(--aireq-line);
   --color-border-hover: color-mix(in srgb, var(--aireq-accent) 40%, var(--aireq-line));
-  --color-header: var(--aireq-panel);
+  --color-header: var(--aireq-header, var(--aireq-panel));
   --color-panel: var(--aireq-panel);
   --color-surface: var(--aireq-canvas);
   --color-surface-hover: var(--aireq-selection);
@@ -76,8 +83,8 @@
   --color-brand: var(--aireq-accent);
   --color-input: var(--aireq-panel);
   --color-input-focused: var(--aireq-panel);
-  --color-input-border: var(--aireq-line);
-  --color-input-border-hover: var(--color-border-hover);
+  --color-input-border: var(--aireq-control-border, var(--aireq-line));
+  --color-input-border-hover: var(--aireq-control-border-hover, var(--color-border-hover));
   --color-input-border-focused: var(--aireq-accent);
   --color-ring: var(--aireq-accent);
   --color-foreground: var(--aireq-text);
@@ -105,6 +112,83 @@
   --aireq-table-heading: color-mix(in srgb, var(--color-background) 48%, var(--color-card));
 }
 
+.theme-aireq-cobalt [data-aireq-themed-page="proposals"] {
+  --aireq-table-heading: #edf2fa;
+
+  & thead {
+    /* 原悬停底色与加深后的表头接近，表头控件需要仍能辨认悬停反馈。 */
+    --color-hover: #dbe5f7;
+  }
+}
+
+.theme-aireq-cobalt #aireq-navigation {
+  background-color: var(--color-header);
+  --color-hover: #d4deef;
+}
+
+.theme-aireq-cobalt [data-settings-navigation] {
+  --color-surface-hover: #d4deef;
+}
+
+.theme-aireq-cobalt
+  :is([data-aireq-motion-nav], [data-settings-navigation] button)[aria-current="page"] {
+  background-color: #dbe6ff;
+  box-shadow: inset 0 0 0 1px var(--color-brand);
+}
+
+.theme-aireq-cobalt [data-aireq-release-choice][aria-pressed="true"] {
+  border-color: #6685d2;
+}
+
+.theme-aireq-cobalt :is([data-settings-panel-frame], #aireq-document-workspace) {
+  --color-background: var(--aireq-reading-surface);
+}
+
+.theme-aireq-cobalt .aireq-entry-backdrop {
+  opacity: 0.48;
+}
+
+.theme-aireq-cobalt [data-settings-search-trigger]:not(:focus-visible) {
+  border-color: var(--color-input-border);
+
+  @media (hover: hover) {
+    &:hover {
+      border-color: var(--color-input-border-hover);
+    }
+  }
+}
+
+.theme-aireq-cobalt [data-slot="switch"][data-state="unchecked"] {
+  background-color: var(--color-input-border);
+}
+
+/* 白字按钮用透明主色悬停时会受底色影响，白色卡片上的标签会跌破 4.5:1。 */
+.theme-aireq-cobalt
+  :is(
+    [data-slot="button"],
+    [data-slot="alert-dialog-action"],
+    [data-slot="alert-dialog-cancel"],
+    [data-slot="select-trigger"]
+  )[data-variant="default"] {
+  &:is(:disabled, [aria-disabled="true"]) {
+    background-color: var(--aireq-control-disabled);
+    color: var(--color-foreground-subtle);
+    opacity: 1;
+  }
+
+  &:not(:disabled, [aria-disabled="true"]) {
+    @media (hover: hover) {
+      &:hover {
+        background-color: var(--aireq-accent-hover);
+      }
+    }
+
+    &:active {
+      background-color: var(--aireq-accent-pressed);
+    }
+  }
+}
+
 .theme-aireq-color [data-aireq-theme-discuss] {
   transition: none;
   color: var(--aireq-accent-ink);
@@ -119,12 +203,23 @@
   font-weight: 700;
 }
 
-/* 首页和列表的原生按钮没有共享 Button 的焦点边框；在选中底色外标明键盘位置。 */
 @media (forced-colors: none) {
   .theme-aireq-cobalt
-    :is([data-aireq-themed-page="projects"], [data-aireq-themed-page="proposals"])
-    button:not([data-slot="button"]):focus-visible {
-    outline: 2px solid var(--color-input-border-focused);
+    :is(
+      [data-aireq-themed-page="projects"] button:not([data-slot="button"]),
+      [data-aireq-themed-page="proposals"] button:not([data-slot="button"]),
+      [data-aireq-motion-nav],
+      [data-settings-navigation] button,
+      [data-slot="checkbox"],
+      [data-slot="switch"],
+      :is(
+        [data-slot="button"],
+        [data-slot="alert-dialog-action"],
+        [data-slot="alert-dialog-cancel"],
+        [data-slot="select-trigger"]
+      )[data-variant="default"]
+    ):focus-visible {
+    outline: 2px solid var(--color-ring);
     outline-offset: 2px;
   }
 }

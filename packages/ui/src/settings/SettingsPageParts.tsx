@@ -289,6 +289,7 @@ export function SettingsPageFrame({
 
             <nav
               ref={navigationRef}
+              data-settings-navigation=""
               aria-label={navigationLabel}
               className="flex-1 overflow-y-auto px-2 pb-3 compact-web:min-w-0 compact-web:overflow-x-auto compact-web:overflow-y-hidden compact-web:py-1.5"
             >

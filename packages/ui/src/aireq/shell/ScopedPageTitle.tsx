@@ -41,7 +41,7 @@ export function ScopedPageTitle({
     [canCount, projectId, releaseId, requirements],
   );
   const trigger =
-    "h-8 min-w-0 max-w-full gap-2 rounded-md border-border bg-card px-2.5 font-medium [&_[data-slot=select-value]]:truncate";
+    "h-8 min-w-0 max-w-full gap-2 rounded-md px-2.5 font-medium [&_[data-slot=select-value]]:truncate";
   const placeholder = zh ? "未选择项目" : "Choose project";
   const projectPicker = (
     <Select

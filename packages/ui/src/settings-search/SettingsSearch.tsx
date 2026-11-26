@@ -97,6 +97,7 @@ export function SettingsSearch({
         type="button"
         variant="outline"
         aria-label={title}
+        data-settings-search-trigger=""
         data-testid="settings-search-open"
         className={
           compact
