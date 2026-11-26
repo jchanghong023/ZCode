@@ -19,6 +19,7 @@ AIReq 面向芯片团队，使用电脑浏览器。业务在黄区澄清 IR，�
 
 - [服务端与后端替换边界](architecture/mock-backend.md)。
 - [云龙 CLI 实现参考](architecture/clouddragon-cli.md)包含命令用法、返回示例、字段类型和门户字段目录。
+- [黄区向红区传送文件（GreeneTransClient）](architecture/greenetrans-client.md)。
 - [公开接口](specs/aireq/contract-design.md)、[连接身份与二进制协议](specs/aireq/connection-identity.md)。
 - [模块所有权](architecture/pure-web-module-ownership.md)、[构建与依赖](../README.md#依赖与清理)。
 - [前端 UT 与后端 ST](testing/unit-test-quality.md)。
