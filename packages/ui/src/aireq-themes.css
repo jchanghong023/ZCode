@@ -9,7 +9,7 @@
   --aireq-accent: #1d4ed8;
   --aireq-accent-ink: #1e40af;
   --aireq-accent-on: #ffffff;
-  --aireq-selection: #e1ebff;
+  --aireq-selection: color-mix(in srgb, var(--aireq-accent) 17%, var(--aireq-panel));
   --aireq-heading-wash: #e1ebfd;
   --aireq-heading-other: #eee6fc;
 }
@@ -135,6 +135,50 @@
 
 .theme-aireq-color [data-aireq-motion-nav][aria-current="page"] {
   color: var(--aireq-accent-ink);
+}
+
+/* 版本标题与入口共用一个钴蓝表面；正文、进度及统计继续留在浅色阅读区。 */
+.theme-aireq-cobalt .aireq-release-heading {
+  margin: -1.25rem -1.25rem 0;
+  padding: 1rem 1.25rem;
+  align-items: center;
+  background: var(--aireq-accent-ink);
+  color: var(--aireq-accent-on);
+  --color-foreground-subtle: var(--aireq-selection);
+  --color-secondary: var(--aireq-panel);
+  --color-foreground: var(--aireq-accent-ink);
+  --color-remote-foreground-muted: var(--aireq-text);
+}
+
+.theme-aireq-cobalt .aireq-release-heading h2 {
+  font-size: var(--text-ui-settings-title);
+  line-height: var(--text-ui-settings-title--line-height);
+}
+
+.theme-aireq-cobalt .aireq-release-counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(7rem, 100%), 1fr));
+  gap: 0.75rem 1rem;
+}
+
+.theme-aireq-cobalt .aireq-release-counts dd {
+  font-size: var(--text-ui-settings-title-lg);
+  font-weight: 700;
+}
+
+.theme-aireq-cobalt [data-longest-stay] {
+  color: var(--aireq-accent-ink);
+  font-weight: 700;
+}
+
+/* 原生版本、项目和需求按钮没有共享 Button 的焦点边框；在选中底色外标明键盘位置。 */
+@media (forced-colors: none) {
+  .theme-aireq-cobalt
+    [data-aireq-themed-page="projects"]
+    button:not([data-slot="button"]):focus-visible {
+    outline: 2px solid var(--color-input-border-focused);
+    outline-offset: 2px;
+  }
 }
 
 .theme-aireq-violet [data-testid="aireq-workflow-root"] {

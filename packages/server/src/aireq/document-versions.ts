@@ -4,6 +4,16 @@ import { production } from "./production-store.js";
 import { projectSystemRequirement } from "./workflow-queries.js";
 import type { NativeDocumentOutput, RequirementGroup, WorkflowState } from "./workflow-state.js";
 
+/** 导入正文与本地文件同名时只区分展示路径，保存位置仍归原所有者。 */
+export function projectImportedMaterial(imported: AIReqMaterialView, local: AIReqMaterialView[]) {
+  const collision = local.some(
+    (file) => file.irId === imported.irId && file.path === imported.path,
+  );
+  return collision
+    ? { ...imported, path: imported.path.replace(/[^/]+$/, "imports/requirements.md") }
+    : imported;
+}
+
 export function requirementMaterialsFor(state: WorkflowState, requirement: RequirementGroup) {
   const local = state.materials.filter(
     (file) => file.projectId === requirement.projectId && file.irId === requirement.id,
@@ -11,11 +21,7 @@ export function requirementMaterialsFor(state: WorkflowState, requirement: Requi
   const imported = state.importedRequirements?.find(
     (file) => file.projectId === requirement.projectId && file.irId === requirement.id,
   );
-  if (!imported) return local;
-  // 导入文档与红区自有文件可同名。投影区分路径，不移动、覆盖任一所有者的正文。
-  const collision = local.some((file) => file.path === imported.path);
-  const importedPath = imported.path.replace(/[^/]+$/, "imports/requirements.md");
-  return local.concat(collision ? { ...imported, path: importedPath } : imported);
+  return imported ? local.concat(projectImportedMaterial(imported, local)) : local;
 }
 
 export function confirmationMaterialsFor(state: WorkflowState, requirement: RequirementGroup) {
@@ -109,6 +115,16 @@ export function saveDocumentChanges(
   )
     return false;
 
+  const primary = filesByPath.get(requirement.documentPath);
+  const previous = previousMaterials.find((file) => file.path === requirement.documentPath);
+  if (
+    output.agent === "requirements" &&
+    primary?.kind === "ir" &&
+    !primary.srId &&
+    primary.sha256 !== previous?.sha256
+  )
+    requirement.irDocument = { updatedAt: new Date().toISOString() };
+  else if (previous && !primary) delete requirement.irDocument;
   state.materials = state.materials.filter((file) => !belongs(file)).concat(nextMaterials);
   if (output.srs) {
     const { srs } = output;

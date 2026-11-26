@@ -70,7 +70,12 @@ export function AIReqSidePaneProvider({ children }: { children: ReactNode }) {
       edit(key, (state) => {
         const existing = state.tabs.find((tab) => sidePaneTargetKey(tab) === identity);
         const tab = existing
-          ? { ...existing, ...request, openSequence: existing.openSequence + 1 }
+          ? {
+              ...existing,
+              ...request,
+              initialPath: request.initialPath,
+              openSequence: existing.openSequence + 1,
+            }
           : { ...request, id: createUuid(), openSequence: 0 };
         return {
           ...state,

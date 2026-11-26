@@ -17,6 +17,7 @@ import { useAIReqSidePane } from "../side-pane/AIReqSidePaneContext.js";
 import { AIReqCopyDocumentLinkButton } from "./AIReqCopyDocumentLinkButton.js";
 import { AIReqProposalDetails, AIReqProposalText } from "./AIReqProposalText.js";
 import {
+  formatProposalDwellTime,
   proposalColumns,
   proposalDate,
   proposalDwellTime,
@@ -344,19 +345,7 @@ function RequirementCell({
     case "dwellTime": {
       const elapsed = proposalDwellTime(item, now);
       if (elapsed === undefined) return "—";
-      const minutes = Math.floor(elapsed / 60_000);
-      const format = (value: number, unit: string, unitZh: string) =>
-        zh ? `${value} ${unitZh}` : `${value} ${unit}`;
-      const label =
-        minutes >= 1440
-          ? format(Math.floor(minutes / 1440), "d", "天")
-          : minutes >= 60
-            ? format(Math.floor(minutes / 60), "h", "小时")
-            : minutes > 0
-              ? format(minutes, "min", "分钟")
-              : zh
-                ? "少于 1 分钟"
-                : "<1 min";
+      const label = formatProposalDwellTime(elapsed, zh);
       return (
         <span
           className="tabular-nums"

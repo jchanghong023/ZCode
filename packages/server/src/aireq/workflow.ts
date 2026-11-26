@@ -6,6 +6,7 @@ import {
   type AIReqCommandTarget,
   type AIReqDiscussionAgent,
   type AIReqMaterialReadRequest,
+  type AIReqMaterialView,
   type AIReqObjectRef,
   type AIReqOperationReceipt,
   type AIReqRemoteWorkflow,
@@ -24,6 +25,7 @@ import { createPrototypeEvent } from "./events.js";
 import {
   projectNativeContext,
   projectDirectory,
+  irDocumentActivity,
   projectRequirementSummaries,
   projectRequirement,
   projectSummary,
@@ -57,6 +59,7 @@ import { applyProposalMutation } from "./proposal-mutations.js";
 import { stageNativeDocuments } from "./native-documents.js";
 import {
   confirmDocumentVersion,
+  projectImportedMaterial,
   requirementMaterialsFor,
   saveDocumentChanges,
 } from "./document-versions.js";
@@ -258,6 +261,7 @@ function mergeCatalogue(catalogue: PrototypeCatalogue): WorkflowState {
         ? {
             ...item,
             revision: live.revision,
+            irDocument: live.irDocument,
             documentVersion: live.documentVersion,
             documentHistory: live.documentHistory,
             documentReviews: live.documentReviews,
@@ -299,6 +303,9 @@ export function capturePrototypeRequirementList(
       .filter((file) => file.kind === "ir" && !file.srId)
       .map((file) => [keys(file.projectId, file.irId, file.path), file]),
   );
+  const liveRequirements = new Map(
+    state.requirements.map((ir) => [keys(ir.projectId, ir.id, ir.documentPath), ir]),
+  );
   const projects: RequirementListSnapshot["projects"] = catalogue.projects.map(({ id, name }) => ({
     projectId: id,
     projectName: name,
@@ -329,7 +336,14 @@ export function capturePrototypeRequirementList(
       submittedAt: item.createdAt,
       process: item.process,
       cloudFields: item.cloudFields,
-      ...(document?.content === undefined ? {} : { requirementsMarkdown: document.content }),
+      ...(document?.content === undefined
+        ? {}
+        : {
+            requirementsMarkdown: document.content,
+            irDocument: irDocumentActivity(
+              liveRequirements.get(keys(item.projectId, item.id, item.documentPath)) ?? item,
+            ),
+          }),
     });
   }
   return { projects };
@@ -543,6 +557,13 @@ export function readPrototypeWorkflow(
     ? source.requirements.filter((item) => item.projectId === projectId)
     : [];
   const requirementIds = new Set(requirements.map(({ id }) => id));
+  const visibleMaterial = (file: AIReqMaterialView) =>
+    file.projectId === projectId && requirementIds.has(file.irId);
+  const local = source.materials.filter(visibleMaterial);
+  const imported = (source.importedRequirements ?? [])
+    .filter(visibleMaterial)
+    .map((file) => projectImportedMaterial(file, local));
+  const importedPaths = new Map(imported.map((file) => [file.irId, file.path]));
   let summaries = requirementSummaries.get(source);
   if (!summaries) {
     summaries = projectRequirementSummaries(source);
@@ -556,17 +577,13 @@ export function readPrototypeWorkflow(
     projects: source.projects.map(projectSummary),
     ...summaries,
     ...(catalogue?.failures.length ? { releaseReadFailures: catalogue.failures } : {}),
-    requirements: requirements.map((item) => projectRequirement(item, solution)),
+    requirements: requirements.map((item) =>
+      projectRequirement(item, solution, importedPaths.get(item.id)),
+    ),
     srs: source.srs
       .filter((item) => item.projectId === projectId && requirementIds.has(item.irId))
       .map(projectSystemRequirement),
-    materials: source.importedRequirements?.length
-      ? requirements
-          .flatMap((row) => requirementMaterialsFor(source, row))
-          .map(readPrototypeMaterial)
-      : source.materials
-          .filter((item) => item.projectId === projectId && requirementIds.has(item.irId))
-          .map(readPrototypeMaterial),
+    materials: local.concat(imported).map(readPrototypeMaterial),
   };
   return {
     view,

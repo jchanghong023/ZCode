@@ -35,11 +35,12 @@ export function createRedZoneReceiver(owner: WorkflowOwner) {
     const packet = readNewTransfer(store, received);
     if (!packet) return projection;
     const source = catalogueFromTransfer(packet);
-    const { next, changedDocuments } = mergeRedSnapshot(owner.current(), packet);
+    const { next, changedDocuments, activityChanged } = mergeRedSnapshot(owner.current(), packet);
     // 同样的全量数据可能每五分钟抵达；只推进传输水位，保留无变化的工作流版本。
     if (
       received &&
       !changedDocuments.length &&
+      !activityChanged &&
       digestValue(source.projects) === digestValue(received.projects)
     ) {
       store.set("received-catalogue", source);

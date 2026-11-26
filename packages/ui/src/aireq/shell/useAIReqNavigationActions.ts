@@ -18,11 +18,9 @@ export function useAIReqNavigationActions({
   const setMainView = useCallback(
     (mainView: AIReqMainView) => {
       if (mainView === navigationRef.current.mainView) return;
-      const projectId =
-        mainView === "projectProgress" || mainView === "roles"
-          ? undefined
-          : selectionRef.current.projectId;
-      const releaseId = projectId ? selectionRef.current.releaseId : undefined;
+      const projectId = mainView === "roles" ? undefined : selectionRef.current.projectId;
+      const releaseId =
+        projectId && mainView !== "projectProgress" ? selectionRef.current.releaseId : undefined;
       select({ projectId, releaseId }, true, mainView);
     },
     [select, selectionRef, navigationRef],

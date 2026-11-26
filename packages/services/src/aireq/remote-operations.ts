@@ -24,7 +24,7 @@ import type {
   AIReqRequirementListSyncReceipt,
 } from "./types.js";
 /** Typed operations on the existing binary Channel RPC. */
-export const AIREQ_CONTRACT_VERSION = 39;
+export const AIREQ_CONTRACT_VERSION = 40;
 export type AIReqCommandTarget = Pick<AIReqWorkflowTarget, "projectId" | "irId">;
 export interface AIReqAgentModelInput {
   defaultModel: string;

@@ -20,7 +20,7 @@
 
 ## 调用与回执
 
-公开 `MockAIReqService` 由 `@zcode/services/aireq` 的接口与 descriptor 注册，bootstrap 契约版本为 `39`。普通调用绑定合法工号和 clientId，原生命令还要求原有 v4 握手及 HTTP 固定连接身份一致。业务写操作使用各自的校验与签名。普通 `command` 以第三参工作流 revision 做 CAS；`confirmDocumentVersion` 用预检快照而非该修订号，`reviewDocuments` 直接捕获接纳时最新已保存材料。命令按实际连接身份及 operationId 去重；同 ID 同内容显式重试返回原结果，复用 ID 但改内容则拒绝。原型回执保存在进程内。重连只恢复订阅和重读。
+公开 `MockAIReqService` 由 `@zcode/services/aireq` 的接口与 descriptor 注册，bootstrap 契约版本为 `40`。普通调用绑定合法工号和 clientId，原生命令还要求原有 v4 握手及 HTTP 固定连接身份一致。业务写操作使用各自的校验与签名。普通 `command` 以第三参工作流 revision 做 CAS；`confirmDocumentVersion` 用预检快照而非该修订号，`reviewDocuments` 直接捕获接纳时最新已保存材料。命令按实际连接身份及 operationId 去重；同 ID 同内容显式重试返回原结果，复用 ID 但改内容则拒绝。原型回执保存在进程内。重连只恢复订阅和重读。
 
 服务端为每条连接绑定云龙目录快照；可选的 WebSocket `pageId` 与工号、clientId 一起支持在最后一个连接断开后 30 分钟内恢复快照。普通读取复用该页已绑定目录，叠加当前本地状态。首次读取允许部分项目失败；刷新仅在完整目录成功后替换快照，普通读取在此之前仍取旧目录。`readWorkflow`、`retrySession` 使用同源的页面目录和当前本地工作流，按项目、IR 和 Agent 定位会话；恢复不得绕过该页目录。命令目标只接受项目和 IR；这些目标均不接受 SR。`readRequirementDetails` 按项目组和 IR 业务号读取页面快照中的云龙字段。项目目录允许包含多个需求域，`requirementComments.*` 按页面快照内的项目、该条 IR 的需求域和业务号调用云龙。
 

@@ -25,9 +25,16 @@ const requirement = z.strictObject({
   ),
   domainName: z.string().optional(),
   markdown: z.string().optional(),
+  irDocument: z
+    .strictObject({
+      version: z.number().int().positive().optional(),
+      lastConfirmedVersion: z.number().int().positive().optional(),
+      updatedAt: z.iso.datetime().optional(),
+    })
+    .optional(),
 });
 const payload = z.strictObject({
-  format: z.literal(1),
+  format: z.union([z.literal(1), z.literal(2)]),
   sequence: z.number().int().positive().safe(),
   projects: z.array(cloudProjectSchema.extend({ requirements: z.array(requirement) }).strict()),
 });
@@ -57,7 +64,7 @@ export function catalogueFromTransfer({ data, digest }: TransferPackage): Receiv
 
 function checkedPayload(snapshot: RequirementListSnapshot, sequence: number) {
   const data = payload.parse({
-    format: 1,
+    format: 2,
     sequence,
     projects: snapshot.projects.map((project) => ({
       id: project.projectId,
@@ -70,6 +77,7 @@ function checkedPayload(snapshot: RequirementListSnapshot, sequence: number) {
           source,
           domainName: item.cloudFields?.domain,
           markdown: item.requirementsMarkdown,
+          irDocument: item.irDocument,
         };
       }),
     })),

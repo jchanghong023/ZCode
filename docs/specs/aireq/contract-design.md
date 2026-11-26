@@ -108,7 +108,7 @@ readonly onDidChange: Event<AIReqRemoteEvent>;
 
 `bootstrap` 无业务创建副作用，返回 `contractVersion`、opaque `backend.id`、`capabilities.workflowCommands`、可选 `initialProjectId`、模型 `choices/settings/revision`、提示词 `saved/revision`、`projects.workspaces` 和可选 Skill 存储目标。`projects.workspaces` 以项目 ID 为键，与同项目的 `readWorkflow.workspace` 同源，包含 `identity`、`kind` 及可选 `path`、`error`。初始化和元数据失效只读一次 bootstrap；浏览器不拼接身份、不用旧值覆盖不可用结果，也不猜测省略的默认项目。显式分享链接优先。响应不返回导航、私人草稿、服务注册清单或后端配置；刷新不覆盖未保存的提示词草稿。
 
-AIReq bootstrap 业务契约版本为 `39`，预检返回签字范围及对应文件清单。bootstrap 能力中的 `canSendToRedZone` 和 `canAccessCloudComments` 分别决定全量交接和云龙评论入口。共享类型、浏览器调用与服务端 wire 校验同批切换，不接受历史参数作为兼容格式。该版本与原生 Agent 的 Protocol v4 独立。工作流修订号用于适用 CAS 的写入，文档版本号由该需求的材料与确认事实决定。
+AIReq bootstrap 业务契约版本为 `40`，预检返回签字范围及对应文件清单。bootstrap 能力中的 `canSendToRedZone` 和 `canAccessCloudComments` 分别决定全量交接和云龙评论入口。共享类型、浏览器调用与服务端 wire 校验同批切换，不接受历史参数作为兼容格式。该版本与原生 Agent 的 Protocol v4 独立。工作流修订号用于适用 CAS 的写入，文档版本号由该需求的材料与确认事实决定。
 
 `models.settings.agents` 是模型与追加指令页签的有序角色目录，包含 `requirements`、`requirements-review`、`solution` 和 `solution-review`。
 
@@ -132,7 +132,7 @@ AIReq 工作区 `kind` 仅为 `proposal`（已登记项目）或 `unavailable`�
 
 工作流读取失败通过 RPC 拒绝返回，`view` 不含通用 `error` 字段。工作区和单份材料的错误仍随各自的投影返回。
 
-项目和 IR 来自云龙；`view.releases` 按各项目快照内的 `pi` 分组，名称取 `piName`，不提供独立 Release 录入。每项提供 `id`、`projectId`、`title`、`createdAt` 和统计字段。`view.projectRequirementCounts` 按项目 ID 提供相同的统计字段，项目级别包含未分配 Release 的 IR。`requirementCount` 是总数，`completedRequirementCount` 统计云龙状态为「完成」的 IR，`confirmedRequirementCount` 统计当前文档版本已确认的需求。详情、材料与会话按查询项目返回。
+项目和 IR 来自云龙；`view.releases` 按各项目快照内的 `pi` 分组，名称取 `piName`，不提供独立 Release 录入。每项提供 `id`、`projectId`、`title`、`createdAt` 和统计字段。`view.projectRequirementCounts` 按项目 ID 提供相同的统计字段，项目级别包含未分配 Release 的 IR。`requirementCount` 是总数，`completedRequirementCount` 统计云龙状态为「完成」的 IR，`confirmedRequirementCount` 统计当前文档版本已确认的需求。详情、材料与会话按查询项目返回。项目 IR 的可选 `irDocument` 提供正式需求文档的正文保存时间、版本号和最近有正式 IR 正文的确认版本。接收区提供正文在当前材料清单中的路径，导入正文与本地文件同名时也可直接打开。正文内容变化才更新时间，同版草稿连续保存也可更新。黄区在已有正文交接时携带该元数据，红区保留来源事实，即使正文相同也接纳新的定版信息；旧包只有正文时不推断其定版状态或保存时间。
 
 项目摘要只含 `id`、`name`、`revision`、`defaultBranch` 和可选的 `repositoryUrl`、`workDirectory`。`workDirectory` 是共享文档链接的配置路径，和浏览器使用的逻辑工作区不同；内部存储元数据不下发。命令回执返回实际操作者工号 `actorEmployeeId`，不下发身份对象或 `clientId`；幂等记录不作为工作流历史下发。`readWorkflow.view.requirements` 返回当前项目的全部需求，包含可用的云龙进展 `process` 和人员字段 `delivererOwner`（当前责任人）、`owner`（需求提出人）、`seId`（设计责任人）、`de`（开发责任人）、`te`（测试责任人），不含录入来源或重复的文件清单，当前文件统一从 `view.materials` 读取。可选 `cloudFields` 携带当前快照中用于额外列表列的云龙字段，按共享白名单投影为字符串、数字、布尔值或字符串数组。数组保留各选项用于多选筛选，其他复合值转换为可读字符串。列配置继续使用原有列键，`release`、`date` 和 `process` 的页面文案为「PI」「创建时间」和「进展」。
 

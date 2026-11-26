@@ -133,7 +133,10 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       }
       const current = selectionRef.current;
       const savedQuery =
-        target.projectId && target.projectId === current.projectId
+        mainView !== "projectProgress" &&
+        previous.mainView !== "projectProgress" &&
+        target.projectId &&
+        target.projectId === current.projectId
           ? proposalQueries.current.get(previous.index)
           : undefined;
       if (savedQuery) proposalQueries.current.set(next.index, savedQuery);
@@ -219,14 +222,29 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
       const revision = ++requestRevision.current;
       setPending(true);
       try {
-        const next = await (refreshProjects
+        let next = await (refreshProjects
           ? source.refreshProjects(target)
           : source.readWorkflow(target));
         if (revision !== requestRevision.current) return;
         // 初次解析显式分享链接保留原目标及错误；普通范围则和新目录一起提交。
-        const fallback = pendingObjectLink.current
+        let fallback = pendingObjectLink.current
           ? undefined
           : requirementScopeFallback(target, next);
+        // 首页按项目读取 IR。默认项目写回当前历史槽，避免后退时重复经过无项目的首页。
+        if (
+          !pendingObjectLink.current &&
+          navigationRef.current.mainView === "projectProgress" &&
+          (!target.projectId || fallback?.mainView === "projectProgress") &&
+          next.projects[0]
+        ) {
+          const selection = { projectId: next.projects[0].id };
+          next = await source.readWorkflow(selection);
+          if (revision !== requestRevision.current) return;
+          fallback = requirementScopeFallback(selection, next) ?? {
+            selection,
+            mainView: "projectProgress",
+          };
+        }
         if (fallback) {
           const current = { ...navigationRef.current, mainView: fallback.mainView };
           navigationRef.current = current;
@@ -577,10 +595,13 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
           : undefined,
         clearLinkError: () => setLinkError(undefined),
         switchProject,
-        openProject: (projectId, releaseId, query) =>
+        openProject: (projectId, releaseId, query, onOpened) =>
           navigate(() => {
             // 筛选写入已接纳的目标历史槽，取消离开时不能改动原查询。
-            if (openProject(projectId, releaseId) && query) updateProposalQuery(() => query);
+            if (openProject(projectId, releaseId)) {
+              if (query) updateProposalQuery(() => query);
+              onOpened?.();
+            }
           }),
         select: (value) =>
           navigate(() => {

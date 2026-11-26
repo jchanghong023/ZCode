@@ -34,6 +34,7 @@ function TabContents({ tab, active }: { tab: AIReqSidePaneTab; active: boolean }
         <AIReqMaterialsPane
           {...detail}
           key={tab.openSequence}
+          initialPath={tab.initialPath}
           selection={tab.selection}
           releaseId={tab.releaseId}
           active={active}

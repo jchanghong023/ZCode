@@ -199,6 +199,9 @@ describe("co-creation document versions through the public API", () => {
             documentReviews: [],
           });
           expect(getProposal(v1, target).documentVersion?.confirmation).toBeUndefined();
+          const firstSave = getProposal(v1, target).irDocument;
+          expect(firstSave).toMatchObject({ version: 1, updatedAt: expect.any(String) });
+          expect(Number.isFinite(Date.parse(firstSave!.updatedAt!))).toBe(true);
           expect(await tester.call("validateDocumentVersion", [selection])).toMatchObject({
             version: 1,
             fileCount: 1,
@@ -208,6 +211,7 @@ describe("co-creation document versions through the public API", () => {
           const solutionGroup = getProposal(solution, target);
           expect(solutionGroup.documentVersion).toEqual({ number: 1 });
           expect(solutionGroup.documentReviews).toEqual([]);
+          expect(solutionGroup.irDocument).toEqual(firstSave);
           expect(getMaterials(solution, target).length).toBeGreaterThan(
             getMaterials(v1, target).length,
           );
@@ -258,6 +262,11 @@ describe("co-creation document versions through the public API", () => {
               confirmedAt: expect.any(String),
             },
           });
+          expect(confirmedGroup.irDocument).toEqual({
+            version: 1,
+            lastConfirmedVersion: 1,
+            updatedAt: getProposal(latest, target).irDocument?.updatedAt,
+          });
           const confirmation = confirmedGroup.documentVersion!.confirmation!;
           expect(Number.isFinite(Date.parse(confirmation.confirmedAt))).toBe(true);
           expect(confirmed.receipt.actorEmployeeId).toBe(confirmation.employeeId);
@@ -271,6 +280,10 @@ describe("co-creation document versions through the public API", () => {
           expect(release(latestV2)).toEqual(initialRelease);
           const v2 = getProposal(latestV2, target);
           expect(v2.documentVersion).toEqual({ number: 2 });
+          expect(v2.irDocument).toMatchObject({ version: 2, lastConfirmedVersion: 1 });
+          expect(Date.parse(v2.irDocument!.updatedAt!)).toBeGreaterThan(
+            Date.parse(confirmedGroup.irDocument!.updatedAt!),
+          );
           const originalSnapshot = {
             number: 1,
             confirmation,

@@ -36,6 +36,7 @@ import { AIReqSrDependencyGraph } from "./AIReqSrDependencyGraph.js";
 
 interface MaterialsPaneProps {
   view: AIReqWorkflowView;
+  initialPath?: string;
   selection: AIReqSelection;
   releaseId: string;
   active: boolean;
@@ -46,6 +47,7 @@ interface MaterialsPaneProps {
 
 export function AIReqMaterialsPane({
   view,
+  initialPath,
   selection,
   releaseId,
   active,
@@ -58,7 +60,7 @@ export function AIReqMaterialsPane({
   const ai = useAIReq()!;
   const { fullView, toggleFullView, open } = useAIReqSidePane();
   const [paneBoundary, setPaneBoundary] = useState<HTMLElement | null>(null);
-  const [path, setPath] = useState<string>();
+  const [path, setPath] = useState(initialPath);
   const [historyVersion, setHistoryVersion] = useState<number>();
   const versionToolbar = useRef<HTMLDivElement>(null);
   const reader = useRef<HTMLDivElement>(null);

@@ -197,6 +197,13 @@ export interface AIReqRequirementPersonnel {
   de?: string;
   te?: string;
 }
+export interface AIReqIRDocumentActivity {
+  /** 来源正文在本区材料列表中的路径；未指定时使用该 IR 的 documentPath。 */
+  path?: string;
+  updatedAt?: string;
+  version?: number;
+  lastConfirmedVersion?: number;
+}
 export interface AIReqRequirementGroup extends AIReqRequirementPersonnel {
   cloudFields?: AIReqCloudProposalFields;
   id: string;
@@ -212,6 +219,7 @@ export interface AIReqRequirementGroup extends AIReqRequirementPersonnel {
   srIds: string[];
   sessions: AIReqNativeSessionRef[];
   documentVersion?: AIReqDocumentVersion;
+  irDocument?: AIReqIRDocumentActivity;
   documentHistory: AIReqDocumentSnapshot[];
   documentReviews: AIReqDocumentReview[];
 }

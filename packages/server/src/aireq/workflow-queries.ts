@@ -8,6 +8,7 @@ import type {
   AIReqSystemRequirement,
   AIReqWorkspace,
 } from "@zcode/services/aireq";
+import { production } from "./production-store.js";
 import { PROTOTYPE_BACKEND } from "./backend.js";
 import { PROTOTYPE_WORKSPACE_IDENTITY } from "./fixture-builders.js";
 import { mapPrototypeProjectSettings, readPrototypeProjectSetting } from "./project-settings.js";
@@ -45,9 +46,34 @@ export function projectSessionRef(ref: NativeSessionRef): AIReqNativeSessionRef 
   return result;
 }
 
+/** 红区沿用来源需求文档的记录；本区方案定版不能推进黄区 IR 版本。 */
+export function irDocumentActivity(requirement: RequirementGroup) {
+  if (production?.zone === "red") return requirement.irDocument;
+  const current = requirement.documentVersion;
+  if (!current) return;
+  const snapshots =
+    "materials" in current
+      ? [...requirement.documentHistory, current]
+      : requirement.documentHistory;
+  const confirmed = [...snapshots]
+    .reverse()
+    .find((snapshot) =>
+      snapshot.materials.some(
+        (file) =>
+          file.kind === "ir" && !file.srId && file.path === requirement.documentPath && file.valid,
+      ),
+    );
+  return {
+    updatedAt: requirement.irDocument?.updatedAt,
+    version: current.number,
+    lastConfirmedVersion: confirmed?.number,
+  };
+}
+
 export function projectRequirement(
   group: RequirementGroup,
   canAccessSolution: boolean,
+  importedPath?: string,
 ): AIReqRequirementGroup {
   const {
     sourceDescription: _sourceDescription,
@@ -57,8 +83,10 @@ export function projectRequirement(
     sessions,
     ...facts
   } = group;
+  const activity = irDocumentActivity(group);
   return {
     ...facts,
+    irDocument: importedPath ? { ...activity, path: importedPath } : activity,
     sessions: sessions
       .filter((ref) => ref.phase !== "solution" || canAccessSolution)
       .map(projectSessionRef),

@@ -211,16 +211,16 @@ const releaseProjects = [
     id: "gmocklander",
     name: "Lander开发",
     domain: { id: "900007", name: "Lander 版本交付" },
-    // PI、版本名称、需求总数、完成数。未分配 PI 的需求只计入项目。
+    // PI、版本名称、需求总数、完成数、最后一条 IR 的创建日期。未分配 PI 的需求只计入项目。
     groups: [
-      ["301", "20250630", 2, 2],
-      ["302", "2026release4", 18, 3],
-      ["303", "2026release3", 16, 12],
-      ["304", "2026release2", 76, 76],
-      ["305", "2026release1", 6, 6],
-      ["306", "2025release4", 16, 15],
-      ["307", "2025release3", 11, 11],
-      ["308", "2.0.0sp2", 14, 14],
+      ["301", "20250630", 2, 2, "2025-06-30"],
+      ["302", "2026release4", 18, 3, "2026-11-20"],
+      ["303", "2026release3", 16, 12, "2026-09-12"],
+      ["304", "2026release2", 76, 76, "2026-06-08"],
+      ["305", "2026release1", 6, 6, "2026-02-14"],
+      ["306", "2025release4", 16, 15, "2025-10-18"],
+      ["307", "2025release3", 11, 11, "2025-08-12"],
+      ["308", "2.0.0sp2", 14, 14, "2025-03-14"],
       [null, null, 157, 114],
     ],
   },
@@ -229,10 +229,10 @@ const releaseProjects = [
     name: "Sailor开发",
     domain: { id: "900008", name: "Sailor 版本交付" },
     groups: [
-      ["401", "2026.Q4", 7, 0],
-      ["402", "2026.Q3", 1, 1],
-      ["403", "2026.Q1", 8, 5],
-      ["404", "2025.Q3", 17, 16],
+      ["401", "2026.Q4", 7, 0, "2026-11-16"],
+      ["402", "2026.Q3", 1, 1, "2026-08-21"],
+      ["403", "2026.Q1", 8, 5, "2026-03-03"],
+      ["404", "2025.Q3", 17, 16, "2025-09-18"],
       [null, null, 51, 2],
     ],
   },
@@ -253,7 +253,7 @@ export function addReleaseProjects(catalogue) {
   const additions = releaseProjects.filter(
     (project) => !catalogue.projects.some(({ id }) => id === project.id),
   );
-  if (!additions.length) return false;
+  if (!additions.length && catalogue.releaseDatesSeeded) return false;
   for (const project of additions) {
     for (const [pi, piName, total, completed] of project.groups) {
       for (let index = 0; index < total; index++) {
@@ -279,6 +279,31 @@ export function addReleaseProjects(catalogue) {
       }
     }
   }
+  // 升级旧目录时仅调整原样例的统一创建时间，用户保存的阶段变更时间优先。
+  for (const project of releaseProjects) {
+    for (const [pi, , total, completed, newest] of project.groups) {
+      if (!newest) continue;
+      const rows = catalogue.issues.filter((i) => i.projectId === project.id && i.record.pi === pi);
+      rows.slice(0, total).forEach(({ record }, index) => {
+        if (record.createDate !== "2026-11-01 09:00:00") return;
+        const daysEarlier = Math.round((150 * (total - 1 - index)) / Math.max(1, total - 1));
+        const date = new Date(Date.parse(newest) - daysEarlier * 86400000)
+          .toISOString()
+          .slice(0, 10);
+        record.createDate = date + " 09:00:00";
+        const stage =
+          index < completed ? "完成" : openStages[(index - completed) % openStages.length];
+        const field = {
+          分析: "turnAnalysisTime",
+          开发: "completedAnalysisTime",
+          测试: "turnTestTime",
+          完成: "completedDate",
+        }[stage];
+        if (field && record.process === stage) record[field] ??= date + " 15:00:00";
+      });
+    }
+  }
+  catalogue.releaseDatesSeeded = true;
   catalogue.projects = [
     ...additions.map(({ id, name, domain }) => ({ id, name, domains: [domain] })),
     ...catalogue.projects,

@@ -2,6 +2,7 @@ import type { AIReqSelection } from "../contract.js";
 
 export interface AIReqSidePaneRequest {
   kind?: "original";
+  initialPath?: string;
   selection: AIReqSelection;
   releaseId: string;
   title: string;

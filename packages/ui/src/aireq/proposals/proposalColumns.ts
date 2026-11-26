@@ -281,7 +281,13 @@ export function proposalProcessLabel(value: string, zh: boolean): string {
 export function proposalDate(value: unknown) {
   if (typeof value !== "string") return;
   // 云龙未带时区的日期时间按北京时间解释，避免浏览器时区影响排序和展示。
-  const text = value.trim();
+  const text = value
+    .trim()
+    .replace(
+      /^(\d{4})\/(\d{1,2})\/(\d{1,2})(?=$|[ T])/,
+      (_, year: string, month: string, day: string) =>
+        [year, month.padStart(2, "0"), day.padStart(2, "0")].join("-"),
+    );
   const local = /^\d{4}-\d{2}-\d{2}$/.test(text) ? text + "T00:00:00" : text;
   const source = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/.test(local)
     ? local.replace(" ", "T") + "+08:00"
@@ -304,6 +310,21 @@ export function proposalDwellTime(item: AIReqRequirementGroup, now: number): num
     status === "初始" ? item.createdAt : field && item.cloudFields?.[field],
   );
   return enteredAt === undefined || enteredAt > now ? undefined : now - enteredAt;
+}
+
+export function formatProposalDwellTime(elapsed: number, zh: boolean): string {
+  const minutes = Math.floor(elapsed / 60_000);
+  const format = (value: number, unit: string, unitZh: string) =>
+    zh ? `${value} ${unitZh}` : `${value} ${unit}`;
+  return minutes >= 1440
+    ? format(Math.floor(minutes / 1440), "d", "天")
+    : minutes >= 60
+      ? format(Math.floor(minutes / 60), "h", "小时")
+      : minutes > 0
+        ? format(minutes, "min", "分钟")
+        : zh
+          ? "少于 1 分钟"
+          : "<1 min";
 }
 
 export function proposalColumnValue(

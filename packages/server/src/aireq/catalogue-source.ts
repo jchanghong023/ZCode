@@ -133,6 +133,7 @@ export function projectionForRed(
 export function mergeRedSnapshot(state: WorkflowState, packet: TransferPackage) {
   const next = structuredClone(state);
   const changedDocuments: RequirementGroup[] = [];
+  let activityChanged = false;
   const byProject = new Map<string, Map<string, RequirementGroup>>();
   for (const known of next.requirements) {
     const rows = byProject.get(known.projectId) ?? new Map<string, RequirementGroup>();
@@ -142,9 +143,20 @@ export function mergeRedSnapshot(state: WorkflowState, packet: TransferPackage) 
   next.projects = packet.data.projects.map(projectSettingsForSource);
   for (const project of packet.data.projects) {
     const rows = byProject.get(project.id) ?? new Map<string, RequirementGroup>();
-    for (const { source: ir, domainName, markdown } of project.requirements) {
+    for (const { source: ir, domainName, markdown, irDocument } of project.requirements) {
       const record = mergeSourceRequirement(project.id, ir, domainName, rows.get(ir.businessNo));
       if (markdown !== undefined) {
+        const previous = record.irDocument;
+        const received = irDocument ?? {};
+        const changedActivity =
+          !previous ||
+          previous.version !== received.version ||
+          previous.lastConfirmedVersion !== received.lastConfirmedVersion ||
+          previous.updatedAt !== received.updatedAt;
+        if (changedActivity) {
+          record.irDocument = received;
+          activityChanged = true;
+        }
         if (
           updateImportedRequirement(next, record, {
             projectId: project.id,
@@ -157,11 +169,12 @@ export function mergeRedSnapshot(state: WorkflowState, packet: TransferPackage) 
           })
         )
           changedDocuments.push(record);
+        else if (changedActivity) record.revision++;
       }
       rows.set(ir.businessNo, record);
     }
     byProject.set(project.id, rows);
   }
   next.requirements = [...byProject.values()].flatMap((rows) => [...rows.values()]);
-  return { next, changedDocuments };
+  return { next, changedDocuments, activityChanged };
 }
