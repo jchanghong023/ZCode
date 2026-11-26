@@ -104,7 +104,7 @@ export function AIReqSidePaneTabs({
       className="min-w-0 shrink-0 gap-0"
       data-testid="aireq-side-pane-tabs"
     >
-      <div className="flex min-w-0 items-center border-b border-border/50 px-2">
+      <div className="flex min-h-[var(--aireq-pane-toolbar-height,0px)] min-w-0 items-center border-b border-border/50 px-2">
         {(tabCount > 1 || pane.recentClosed.length > 0) && (
           <AIReqTabOverview pane={pane} triggerRef={overview} />
         )}

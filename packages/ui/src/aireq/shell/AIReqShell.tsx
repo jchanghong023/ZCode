@@ -1,4 +1,4 @@
-import { AIReqSidePaneProvider } from "../side-pane/AIReqSidePaneContext.js";
+import { AIReqSidePaneProvider, useAIReqSidePane } from "../side-pane/AIReqSidePaneContext.js";
 import { AIReqSidePaneHost } from "../side-pane/AIReqSidePaneHost.js";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button.js";
@@ -11,6 +11,7 @@ import {
 } from "@/lib/settingsNavigation.js";
 import { clearAIReqObjectLink, useAIReq } from "../AIReqContext.js";
 import type { AIReqSettingsDraftActions } from "../contract.js";
+import { AIReqProposalListActions } from "../proposals/AIReqProposalListActions.js";
 import { AIReqProposalTable } from "../proposals/AIReqProposalTable.js";
 import { AIReqProjectDocumentsPage } from "../projects/AIReqProjectDocumentsPage.js";
 import { AIReqSettingsPage, type AIReqSettingsSection } from "../settings/AIReqSettingsPage.js";
@@ -70,6 +71,9 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
   const { setNavigationGuard } = ai;
   const overview = useRecentReleaseOverview();
   const settingsOpen = ai.settingsOpen;
+  const pane = useAIReqSidePane();
+  const fullView =
+    pane.isOpen && pane.fullView && (ai.mainView === "proposals" || ai.mainView === "chat");
   const proposalId = ai.mainView === "chat" ? ai.selection.irId : undefined;
   const focusAgent = proposalId ? ai.selection.discussionPhase : undefined;
   const focusRoute = JSON.stringify([
@@ -280,37 +284,50 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
             onHelp={openHelp}
           />
         </nav>
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col px-4 pt-4 pb-3 xl:px-6">
+        <div
+          ref={mainContent}
+          id="aireq-main"
+          tabIndex={-1}
+          data-aireq-themed-page={ai.mainView === "proposals" ? "proposals" : undefined}
+          className="flex min-h-0 min-w-0 flex-1 flex-col px-4 pt-4 pb-3 outline-none has-data-[aireq-split]:bg-border/50 has-data-[aireq-split=chat]:pt-2 has-data-[aireq-split]:pb-2 xl:px-6"
+        >
+          {ai.mainView === "proposals" && (project || listLoading) && !fullView && (
+            <header className="mb-5 flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+              <ScopedPageTitle
+                withRelease
+                title={zh ? "需求共创" : "Co-creation"}
+                showCount={!listLoading}
+              />
+              {!listLoading && <AIReqProposalListActions zh={zh} />}
+            </header>
+          )}
+          {!fullView && ai.linkError && (
+            <div
+              role="alert"
+              className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2 text-ui-sm text-destructive"
+            >
+              {ai.linkError}
+              <Button variant="ghost" onClick={ai.clearLinkError}>
+                {zh ? "关闭" : "Dismiss"}
+              </Button>
+            </div>
+          )}
+          {!fullView && ai.error && (
+            <div
+              role="alert"
+              className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2 text-ui-sm text-destructive"
+            >
+              {ai.error}
+              <Button variant="ghost" onClick={() => void ai.refresh()}>
+                {zh ? "重试" : "Retry"}
+              </Button>
+            </div>
+          )}
           <AIReqSidePaneHost>
             <div
-              ref={mainContent}
-              id="aireq-main"
-              tabIndex={-1}
               data-aireq-motion-main=""
               className="@container/conversation flex min-h-0 min-w-0 flex-1 flex-col bg-background outline-none"
             >
-              {ai.linkError && (
-                <div
-                  role="alert"
-                  className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2 text-ui-sm text-destructive"
-                >
-                  {ai.linkError}
-                  <Button variant="ghost" onClick={ai.clearLinkError}>
-                    {zh ? "关闭" : "Dismiss"}
-                  </Button>
-                </div>
-              )}
-              {ai.error && (
-                <div
-                  role="alert"
-                  className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2 text-ui-sm text-destructive"
-                >
-                  {ai.error}
-                  <Button variant="ghost" onClick={() => void ai.refresh()}>
-                    {zh ? "重试" : "Retry"}
-                  </Button>
-                </div>
-              )}
               <ModelSettingsNavigationContext.Provider value={openModelSettings}>
                 <AIReqWorkspaceActiveContext.Provider value={!settingsOpen}>
                   <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -323,12 +340,7 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
                     ) : null}
                     {(proposalsMounted || ai.mainView === "proposals") && (
                       <>
-                        {ai.mainView === "proposals" && listLoading && (
-                          <>
-                            <ScopedPageTitle title={zh ? "需求共创" : "Co-creation"} withRelease />
-                            {listFeedback}
-                          </>
-                        )}
+                        {ai.mainView === "proposals" && listLoading && listFeedback}
                         <div
                           hidden={ai.mainView !== "proposals" || !project || listLoading}
                           inert={

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { FolderGit2, Tag } from "lucide-react";
 import {
   Select,
@@ -12,17 +13,33 @@ import { AIREQ_PAGE_TITLE_CLASSNAME } from "./pageLayout.js";
 
 export function ScopedPageTitle({
   title,
-  count,
+  showCount = false,
   withRelease = false,
 }:
-  | { title: string; count?: number; withRelease: true }
-  | { title?: never; count?: never; withRelease?: false }) {
+  | { title: string; showCount?: boolean; withRelease: true }
+  | { title?: never; showCount?: never; withRelease?: false }) {
   const ai = useAIReq()!;
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
   const project = ai.view?.projects.find((item) => item.id === ai.selection.projectId);
   const releases = ai.view?.releases.filter((item) => item.projectId === project?.id) ?? [];
   const release = releases.find((item) => item.id === ai.selection.releaseId);
+  const requirements = ai.view?.requirements;
+  const { projectId, releaseId } = ai.selection;
+  const canCount = showCount && projectId && !ai.view?.releaseReadFailures?.includes(projectId);
+  const count = useMemo(
+    () =>
+      canCount
+        ? requirements?.reduce(
+            (total, item) =>
+              item.projectId === projectId && (!releaseId || item.releaseId === releaseId)
+                ? total + 1
+                : total,
+            0,
+          )
+        : undefined,
+    [canCount, projectId, releaseId, requirements],
+  );
   const trigger =
     "h-8 min-w-0 max-w-full gap-2 rounded-md border-border bg-card px-2.5 font-medium [&_[data-slot=select-value]]:truncate";
   const placeholder = zh ? "未选择项目" : "Choose project";

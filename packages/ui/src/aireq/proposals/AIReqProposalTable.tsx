@@ -4,12 +4,11 @@ import { Button } from "@/components/ui/button.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
 import { EMPTY_PROPOSAL_QUERY } from "../navigationState.js";
-import { ScopedPageTitle } from "../shell/ScopedPageTitle.js";
+import { useAIReqSplitToolbar } from "../side-pane/useAIReqSplitToolbar.js";
 import { AIReqProposalColumnFilter } from "./AIReqProposalColumnFilter.js";
 import { AIReqProposalColumnConfig } from "./AIReqProposalColumnConfig.js";
 import { AIReqProposalFilters } from "./AIReqProposalFilters.js";
 import { AIReqProposalRow } from "./AIReqProposalRow.js";
-import { AIReqProposalListActions } from "./AIReqProposalListActions.js";
 import { useProposalTablePreferences } from "./useProposalTablePreferences.js";
 
 import {
@@ -33,6 +32,7 @@ export function AIReqProposalTable() {
   const ai = useAIReq()!;
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
+  const toolbarRef = useAIReqSplitToolbar("proposals");
   const columnConfig = useProposalTablePreferences(zh);
   const { preferences } = columnConfig;
   const { columns: configuredColumns, sort } = preferences;
@@ -255,28 +255,18 @@ export function AIReqProposalTable() {
   }, [currentPage, projectId, releaseId, search, filters, sort]);
   return (
     <main
-      data-aireq-themed-page="proposals"
       aria-label={zh ? "需求共创" : "Co-creation"}
       className="@container/conversation h-full min-h-0 min-w-0 flex-1 overflow-hidden bg-background text-ui-base"
     >
-      <div className="flex h-full min-h-0 min-w-0 flex-col gap-5">
-        <header className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          <ScopedPageTitle
-            withRelease
-            title={zh ? "需求共创" : "Co-creation"}
-            count={
-              projectId && !ai.view?.releaseReadFailures?.includes(projectId)
-                ? scopedGroups.length
-                : undefined
-            }
-          />
-          <AIReqProposalListActions zh={zh} />
-        </header>
+      <div className="flex h-full min-h-0 min-w-0 flex-col">
         <section
           aria-label={zh ? "需求列表" : "Requirements list"}
-          className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-card-border bg-card text-foreground"
+          className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-card-border bg-card text-foreground group-data-[aireq-split]/panes:flex-1 group-data-[aireq-split]/panes:rounded-lg"
         >
-          <div className="shrink-0 border-b border-border/60 px-3 py-2.5 @min-[760px]/conversation:px-4">
+          <div
+            ref={toolbarRef}
+            className="shrink-0 border-b border-border/60 px-3 py-2.5 @min-[760px]/conversation:px-4"
+          >
             <AIReqProposalFilters
               query={query}
               applied={applied}
@@ -454,7 +444,7 @@ export function AIReqProposalTable() {
               )}
             </div>
           )}
-          <footer className="flex min-h-11 shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border/60 px-3 py-1.5 @min-[760px]/conversation:px-4">
+          <footer className="group-data-[aireq-split]/panes:mt-auto flex min-h-11 shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border/60 px-3 py-1.5 @min-[760px]/conversation:px-4">
             <span className="text-ui-sm tabular-nums text-foreground-subtle" role="status">
               {countText}
               {pageCount > 1 && (

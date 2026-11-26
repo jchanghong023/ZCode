@@ -8,6 +8,7 @@ import { useAIReq } from "../AIReqContext.js";
 import { releaseIRTitle } from "../projects/releaseOverviewData.js";
 import { AIReqSessionPane } from "../conversation/AIReqSessionPane.js";
 import { useAIReqDataSource } from "../data-source.js";
+import { useAIReqSplitToolbar } from "../side-pane/useAIReqSplitToolbar.js";
 import { useAIReqSidePane } from "../side-pane/AIReqSidePaneContext.js";
 import { AIReqRequirementReturnButton } from "./AIReqRequirementNavigation.js";
 import { AIREQ_CONTENT_WIDTH_CLASSNAME } from "./pageLayout.js";
@@ -47,6 +48,7 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
   const documentLayout = useRef<"initial" | "waiting" | "settled">("initial");
   const hasDocuments =
     ai.view?.materials.some((file) => file.projectId === projectId && file.irId === irId) ?? false;
+  const toolbarRef = useAIReqSplitToolbar("chat");
   const focusOpenedDocuments = useRef(false);
   const reviewInFlight = useRef(false);
   const [requestingReview, setRequestingReview] = useState(false);
@@ -219,6 +221,7 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
     >
       <header
         className="flex min-h-14 min-w-0 shrink-0 flex-wrap items-center gap-2 border-b border-border/50 px-3 py-2"
+        ref={toolbarRef}
         data-testid="aireq-agent-toolbar"
       >
         <AIReqRequirementReturnButton />

@@ -63,6 +63,7 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
   }, [collapse, mainView]);
   const isOpen = (mainView === "chat" || mainView === "proposals") && pane.isOpen;
   const fullView = isOpen && pane.fullView;
+  const split = isOpen && !fullView;
   const asideRef = useRef<HTMLElement>(null);
   const mainRef = useRef<HTMLDivElement>(null);
   const previousOpener = useRef<HTMLElement | null>(null);
@@ -145,14 +146,15 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
       orientation="horizontal"
       layoutId="aireq-unified-side-pane-v2"
       panelIds={["aireq-primary", "aireq-side-pane"]}
-      className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
+      className="group/panes relative min-h-0 min-w-0 flex-1 overflow-hidden"
+      data-aireq-split={split ? mainView : undefined}
       data-testid="aireq-side-pane-workspace"
     >
       <ResizablePanel id="aireq-primary" minSize="360px" defaultSize="58.3333%">
         <div
           ref={mainRef}
           tabIndex={-1}
-          className="relative flex h-full min-h-0 min-w-0 flex-col"
+          className="relative flex h-full min-h-0 min-w-0 flex-col group-data-[aireq-split]/panes:overflow-hidden group-data-[aireq-split]/panes:rounded-lg group-data-[aireq-split=chat]/panes:border group-data-[aireq-split=chat]/panes:border-border"
           inert={fullView}
           aria-hidden={fullView || undefined}
         >
@@ -161,8 +163,8 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
       </ResizablePanel>
       <ResizableHandle
         className={
-          isOpen && !fullView
-            ? WORKSPACE_VERTICAL_RESIZE_HANDLE_CLASS_NAME + " aria-[orientation=vertical]:w-4"
+          split
+            ? WORKSPACE_VERTICAL_RESIZE_HANDLE_CLASS_NAME + " aria-[orientation=vertical]:w-2"
             : "hidden"
         }
       />
@@ -193,7 +195,7 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
           className={
             fullView
               ? "absolute inset-0 z-30 flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-background"
-              : "flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-background"
+              : "flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-background group-data-[aireq-split]/panes:rounded-lg"
           }
           data-testid="aireq-side-pane"
           data-open={isOpen ? "true" : "false"}
