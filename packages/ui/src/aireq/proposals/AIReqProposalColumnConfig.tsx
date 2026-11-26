@@ -146,8 +146,8 @@ export function AIReqProposalColumnConfig({
             {autoFit && (
               <p className="shrink-0 text-ui-caption text-foreground-subtle">
                 {zh
-                  ? "空间足够时显示进展、停留时间、工作量及开发、测试责任人。"
-                  : "Status, time in status, workload, and owners appear when space allows."}
+                  ? "窄屏将进展与停留时间合并展示。空间足够时，停留时间、工作量及开发、测试责任人各占一列。"
+                  : "Narrow layouts group status and time together. Wider layouts show separate columns for time, workload, and owners."}
               </p>
             )}
             <Input

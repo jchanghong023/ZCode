@@ -37,6 +37,7 @@ import { AIReqSrDependencyGraph } from "./AIReqSrDependencyGraph.js";
 interface MaterialsPaneProps {
   view: AIReqWorkflowView;
   initialPath?: string;
+  initialVersion?: number;
   selection: AIReqSelection;
   releaseId: string;
   active: boolean;
@@ -48,6 +49,7 @@ interface MaterialsPaneProps {
 export function AIReqMaterialsPane({
   view,
   initialPath,
+  initialVersion,
   selection,
   releaseId,
   active,
@@ -61,7 +63,7 @@ export function AIReqMaterialsPane({
   const { fullView, toggleFullView, open } = useAIReqSidePane();
   const [paneBoundary, setPaneBoundary] = useState<HTMLElement | null>(null);
   const [path, setPath] = useState(initialPath);
-  const [historyVersion, setHistoryVersion] = useState<number>();
+  const [selectedVersion, setSelectedVersion] = useState(initialVersion);
   const versionToolbar = useRef<HTMLDivElement>(null);
   const reader = useRef<HTMLDivElement>(null);
   const group = view.requirements.find(
@@ -72,6 +74,8 @@ export function AIReqMaterialsPane({
   );
   if (!group) return null;
 
+  const historyVersion =
+    selectedVersion === group.documentVersion?.number ? undefined : selectedVersion;
   const currentRows = view.srs.filter(
     (item) => item.irId === group.id && item.projectId === group.projectId,
   );
@@ -107,7 +111,7 @@ export function AIReqMaterialsPane({
     hasProjectRole(roles, group.projectId, employee, "development") ||
     hasProjectRole(roles, group.projectId, employee, "testing");
   const confirmedLabel = zh ? "已定版" : "Confirmed";
-  const unconfirmedLabel = zh ? "未定版" : "Unconfirmed";
+  const unconfirmedLabel = zh ? "草稿" : "Draft";
   const formatVersion = ({ number, confirmation }: AIReqDocumentVersion) =>
     `V${number} · ${confirmation ? confirmedLabel : unconfirmedLabel}`;
   const versionLabel = version
@@ -176,7 +180,7 @@ export function AIReqMaterialsPane({
                   value={viewingHistory ? String(historyVersion) : "latest"}
                   onValueChange={(value) => {
                     setPath(displayedPath);
-                    setHistoryVersion(value === "latest" ? undefined : Number(value));
+                    setSelectedVersion(value === "latest" ? undefined : Number(value));
                   }}
                 >
                   <SelectTrigger

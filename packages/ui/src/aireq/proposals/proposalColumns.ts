@@ -452,7 +452,7 @@ export function proposalFilterLabel(
       return releaseTitles.get(value)?.trim() || (zh ? "未提供名称" : "Name not provided");
     case "version":
       if (!value) return zh ? "暂无文档" : "No documents";
-      return value === "confirmed" ? (zh ? "已定版" : "Confirmed") : zh ? "未定版" : "Unconfirmed";
+      return value === "confirmed" ? (zh ? "已定版" : "Confirmed") : zh ? "草稿" : "Draft";
     case "process":
       return proposalProcessLabel(value, zh);
     default:

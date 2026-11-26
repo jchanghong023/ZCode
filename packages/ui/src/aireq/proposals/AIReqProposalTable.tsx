@@ -21,6 +21,7 @@ import {
   proposalFilterValues,
   proposalColumns,
   proposalColumnValue,
+  proposalDwellTime,
   visibleProposalColumns,
   type ProposalColumn,
   type ProposalTablePreferences,
@@ -42,28 +43,44 @@ export function AIReqProposalTable() {
   const [page, setPage] = useState(0);
   const searchInput = useRef<HTMLInputElement>(null);
   const tableScroll = useRef<HTMLDivElement>(null);
-  const [{ width: tableViewportWidth, hasStart, hasEnd }, setTableViewport] = useState({
-    width: 0,
-    hasStart: false,
-    hasEnd: false,
-  });
+  const [{ width: tableViewportWidth, reservedActions, hasStart, hasEnd }, setTableViewport] =
+    useState({
+      width: 0,
+      reservedActions: 0,
+      hasStart: false,
+      hasEnd: false,
+    });
   const autoFit = preferences.autoFit === true;
   const actionsWidth = configuredColumns.includes("title") ? 152 : 184;
-  const fitted = visibleProposalColumns(preferences, tableViewportWidth, actionsWidth);
-  // 右栏展开后固定操作列会遮住半个工号。精简布局把身份字段放到标题下，自定义布局仍保留全部表头。
+  const availableActions = reservedActions || actionsWidth;
+  const fitted = visibleProposalColumns(preferences, tableViewportWidth, availableActions);
+  // 固定操作列随面板切换宽度；按实际占用折叠身份字段，避免遮住文档版本入口。
+  const neededWidth = fitted.reduce(
+    (width, column) => width + proposalColumns[column].width,
+    availableActions,
+  );
   const compactIdentity =
     autoFit &&
     fitted.includes("title") &&
     tableViewportWidth > 0 &&
-    tableViewportWidth < 620 &&
-    tableViewportWidth <
-      fitted.reduce((width, column) => width + proposalColumns[column].width, 48);
-  const columns = compactIdentity
-    ? fitted.filter((column) => column !== "owner" && column !== "id")
-    : fitted;
+    neededWidth > tableViewportWidth;
+  const showIdInTitle = compactIdentity && fitted.includes("id");
+  const showOwnerInTitle =
+    compactIdentity &&
+    fitted.includes("owner") &&
+    neededWidth - (showIdInTitle ? proposalColumns.id.width : 0) > tableViewportWidth;
+  const columns = fitted.filter(
+    (column) => !(showIdInTitle && column === "id") && !(showOwnerInTitle && column === "owner"),
+  );
   const firstColumn = columns[0];
   const pinnedIdentity = firstColumn === "title" || firstColumn === "id" ? firstColumn : undefined;
-  const showDwellTime = columns.includes("dwellTime") || sort.column === "dwellTime";
+  const dwellCandidates =
+    autoFit && configuredColumns.includes("dwellTime")
+      ? (["dwellTime", "process", "title"] as const)
+      : (["dwellTime"] as const);
+  const dwellPlacement = dwellCandidates.find((column) => columns.includes(column));
+  const showDwell = dwellPlacement !== undefined;
+  const showDwellTime = showDwell || sort.column === "dwellTime";
   const [now, setNow] = useState(Date.now);
   const projectId = ai.selection.projectId;
   const releaseTitles = useMemo(
@@ -112,6 +129,16 @@ export function AIReqProposalTable() {
           ) || b.createdAt.localeCompare(a.createdAt),
       );
   }, [applied, scopedGroups, search, sort, releaseTitles, sortClock, collator]);
+  const longestDwell = useMemo(() => {
+    if (!showDwell) return;
+    let longest: number | undefined;
+    for (const item of filtered) {
+      if (item.process === "完成") continue;
+      const elapsed = proposalDwellTime(item, now);
+      if (elapsed !== undefined && (longest === undefined || elapsed > longest)) longest = elapsed;
+    }
+    return longest;
+  }, [filtered, now, showDwell]);
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount - 1);
   const pageStart = currentPage * PAGE_SIZE;
@@ -183,18 +210,26 @@ export function AIReqProposalTable() {
     // 同时监听外部面板尺寸与表格列宽。横滚只在越过固定列边界时更新显示。
     const measure = () => {
       const width = viewport.clientWidth;
+      const reservedActions = parseFloat(
+        getComputedStyle(viewport).getPropertyValue("--actions-width"),
+      );
       const hasStart = viewport.scrollLeft > 1;
       const hasEnd = viewport.scrollWidth - width - viewport.scrollLeft > 1;
       setTableViewport((current) =>
-        current.width === width && current.hasStart === hasStart && current.hasEnd === hasEnd
+        current.width === width &&
+        current.reservedActions === reservedActions &&
+        current.hasStart === hasStart &&
+        current.hasEnd === hasEnd
           ? current
-          : { width, hasStart, hasEnd },
+          : { width, reservedActions, hasStart, hasEnd },
       );
     };
     const observer = new ResizeObserver(measure);
     measure();
     observer.observe(viewport);
     observer.observe(table);
+    const actionsHeader = table.querySelector("thead [data-pinned=end]");
+    if (actionsHeader) observer.observe(actionsHeader);
     viewport.addEventListener("scroll", measure, { passive: true });
     return () => {
       observer.disconnect();
@@ -216,7 +251,7 @@ export function AIReqProposalTable() {
   }, [currentPage, projectId, releaseId, search, filters, sort]);
   return (
     <main
-      data-aireq-themed-page
+      data-aireq-themed-page="proposals"
       aria-label={zh ? "需求共创" : "Co-creation"}
       className="@container/conversation h-full min-h-0 min-w-0 flex-1 overflow-hidden bg-background text-ui-base"
     >
@@ -225,7 +260,14 @@ export function AIReqProposalTable() {
         className={`${AIREQ_WORKSPACE_GUTTER_CLASSNAME} flex h-full min-h-0 min-w-0 flex-col gap-4 pb-3`}
       >
         <header className="flex shrink-0 flex-wrap items-start justify-between gap-x-4 gap-y-2">
-          <ScopedPageTitle title={zh ? "需求共创" : "Co-creation"} />
+          <ScopedPageTitle
+            title={zh ? "需求共创" : "Co-creation"}
+            count={
+              projectId && !ai.view?.releaseReadFailures?.includes(projectId)
+                ? scopedGroups.length
+                : undefined
+            }
+          />
           <AIReqProposalListActions zh={zh} />
         </header>
         <section
@@ -337,10 +379,7 @@ export function AIReqProposalTable() {
                         ) : (
                           <>
                             {sortButton(column)}
-                            {column === "title" &&
-                              compactIdentity &&
-                              fitted.includes("id") &&
-                              sortButton("id")}
+                            {column === "title" && showIdInTitle && sortButton("id")}
                           </>
                         )}
                       </th>
@@ -362,8 +401,13 @@ export function AIReqProposalTable() {
                     key={item.id}
                     item={item}
                     columns={columns}
-                    showIdInTitle={compactIdentity && fitted.includes("id")}
-                    showOwnerInTitle={compactIdentity && fitted.includes("owner")}
+                    dwellPlacement={dwellPlacement}
+                    longestDwell={longestDwell}
+                    showProcessInTitle={
+                      dwellPlacement === "title" && configuredColumns.includes("process")
+                    }
+                    showIdInTitle={showIdInTitle}
+                    showOwnerInTitle={showOwnerInTitle}
                     releaseTitle={
                       releaseTitles.get(item.releaseId) ?? (zh ? "未分配" : "Unassigned")
                     }

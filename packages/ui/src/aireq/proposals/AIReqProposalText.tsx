@@ -1,11 +1,5 @@
 import type { ReactElement } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog.js";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog.js";
 import type { AIReqRequirementGroup } from "../contract.js";
 import { AIReqRequirementDetailsContent } from "./AIReqRequirementDetailsContent.js";
 
@@ -55,25 +49,15 @@ export function AIReqProposalDetails({
   zh: boolean;
   children: ReactElement;
 }) {
-  const { title } = item;
   return (
     <Dialog>
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent
         aria-describedby={undefined}
         overlayClassName="z-[65]"
-        className="z-[65] flex h-[calc(100dvh-3rem)] w-[calc(100%-2rem)] max-w-[92rem] min-w-0 flex-col gap-0 overflow-hidden p-0"
+        className="z-[65] flex max-h-[calc(100dvh-3rem)] min-h-[min(31rem,calc(100dvh-3rem))] w-[calc(100%-2rem)] max-w-[78rem] min-w-0 flex-col gap-0 overflow-hidden p-0"
       >
-        <DialogHeader className="shrink-0 border-b border-border px-6 py-4 pr-16">
-          <DialogTitle
-            className="line-clamp-2 wrap-anywhere text-ui-lg font-semibold"
-            title={title}
-          >
-            {title}
-          </DialogTitle>
-          <p className="font-mono text-ui-caption text-foreground-subtle">{item.id}</p>
-        </DialogHeader>
-        <AIReqRequirementDetailsContent projectId={item.projectId} irId={item.id} zh={zh} />
+        <AIReqRequirementDetailsContent item={item} zh={zh} />
       </DialogContent>
     </Dialog>
   );

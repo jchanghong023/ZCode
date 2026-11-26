@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { Maximize2, Trash2 } from "lucide-react";
+import { Clock3, FileText, Maximize2, MessageSquareText, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Textarea } from "@/components/ui/textarea.js";
 import {
@@ -20,15 +20,20 @@ import {
 } from "@/components/ui/dialog.js";
 import { formatUserFacingError } from "@/lib/errorMessage.js";
 import {
-  AIREQ_CLOUD_PROPOSAL_COLUMNS,
   AIREQ_REQUIREMENT_COMMENT_MAX_LENGTH,
   type AIReqDataSource,
   type AIReqRequirementComment,
   type AIReqRequirementDetails,
+  type AIReqRequirementGroup,
 } from "../contract.js";
 import { useAIReqDataSource } from "../data-source.js";
 import { AIReqMarkdownDocument } from "./AIReqMarkdownDocument.js";
-import { proposalColumns } from "./proposalColumns.js";
+import {
+  formatProposalDwellTime,
+  proposalDwellTime,
+  proposalProcessLabel,
+} from "./proposalColumns.js";
+import { AIReqRequirementFields } from "./AIReqRequirementFields.js";
 import { documentCommentDelivery } from "./document-comment-delivery.js";
 
 type ReadResult = { source: AIReqDataSource; attempt: number } & (
@@ -39,75 +44,37 @@ type ReadResult = { source: AIReqDataSource; attempt: number } & (
 const scrollRegion =
   "min-h-0 min-w-0 overflow-auto overscroll-contain outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-input-border-focused";
 
-const fieldLabels: Record<string, readonly [zh: string, en: string]> = {
-  businessNo: ["需求编号", "Requirement ID"],
-  name: ["标题", "Title"],
-  delivererOwner: ["当前责任人", "Current owner"],
-  owner: ["需求提出人", "Requester"],
-  seId: ["设计责任人", "Design owner"],
-  de: ["开发责任人", "Development owner"],
-  te: ["测试责任人", "Test owner"],
-  submitter: ["提交人", "Submitter"],
-  createDate: ["创建时间", "Created at"],
-  pi: ["PI", "PI"],
-  piName: ["Release 名称", "Release name"],
-  process: ["进展", "Status"],
-  ...Object.fromEntries(
-    AIREQ_CLOUD_PROPOSAL_COLUMNS.map((key) => [
-      key,
-      [proposalColumns[key].zh, proposalColumns[key].en],
-    ]),
-  ),
-  estimatedWorkloadManday: ["预估工作量", "Estimated workload"],
-  sumWorkloadManday: ["卷积工作量", "Total workload"],
-  attachment: ["附件", "Attachments"],
-};
-
-// 业务栏按字段语义展示；原始字段仍保留云龙返回的完整值。
-function businessFieldValue(name: string, raw: string | undefined, zh: boolean): string {
-  if (!raw?.trim() || raw === "null") return "—";
-  if (
-    Object.hasOwn(proposalColumns, name) &&
-    proposalColumns[name as keyof typeof proposalColumns].group === "option"
-  ) {
-    if (raw === "true") return zh ? "是" : "Yes";
-    if (raw === "false") return zh ? "否" : "No";
-  }
-  if (name === "labels" && raw.trimStart().startsWith("[")) {
-    try {
-      const labels: unknown = JSON.parse(raw);
-      if (Array.isArray(labels)) {
-        if (!labels.length) return zh ? "无标签" : "No labels";
-        const names = labels.map((label: unknown) =>
-          typeof label === "string"
-            ? label
-            : label && typeof label === "object" && "name" in label
-              ? label.name
-              : undefined,
-        );
-        if (names.every((name) => typeof name === "string")) return names.join(zh ? "、" : ", ");
-      }
-    } catch {
-      // 非标准标签值按云龙返回内容显示，不能误报为空。
-    }
-  }
-  return raw;
-}
-
 type DetailsProps = {
   projectId: string;
   irId: string;
   zh: boolean;
-  originalOnly?: boolean;
+  item?: AIReqRequirementGroup;
   active?: boolean;
 };
 
-export function AIReqRequirementDetailsContent(props: DetailsProps) {
+export function AIReqRequirementDetailsContent(
+  props: (
+    | { originalOnly: true; projectId: string; irId: string }
+    | { originalOnly?: false; item: AIReqRequirementGroup }
+  ) & { zh: boolean; active?: boolean },
+) {
   // effect 清理前也不能展示上一条 IR；按请求目标整体重建描述和评论状态。
-  return <RequirementDetails key={JSON.stringify([props.projectId, props.irId])} {...props} />;
+  const { projectId, irId } = props.originalOnly
+    ? props
+    : { projectId: props.item.projectId, irId: props.item.id };
+  return (
+    <RequirementDetails
+      key={JSON.stringify([projectId, irId])}
+      projectId={projectId}
+      irId={irId}
+      item={props.originalOnly ? undefined : props.item}
+      zh={props.zh}
+      active={props.active}
+    />
+  );
 }
 
-function RequirementDetails({ projectId, irId, zh, originalOnly, active = true }: DetailsProps) {
+function RequirementDetails({ projectId, irId, zh, item, active = true }: DetailsProps) {
   const source = useAIReqDataSource();
   const description = useRef<HTMLElement>(null);
   const commentList = useRef<HTMLElement>(null);
@@ -119,7 +86,6 @@ function RequirementDetails({ projectId, irId, zh, originalOnly, active = true }
   const retryLabel = zh ? "重试" : "Retry";
   const descriptionLabel = zh ? "描述" : "Description";
   const commentsLabel = zh ? "评论" : "Comments";
-  const fieldsLabel = zh ? "其他字段" : "Other fields";
 
   useEffect(() => {
     if (!active) return;
@@ -137,29 +103,53 @@ function RequirementDetails({ projectId, irId, zh, originalOnly, active = true }
     };
   }, [source, projectId, irId, attempt, active]);
 
+  function jumpTo(element: HTMLElement | null) {
+    element?.scrollIntoView({ block: "start" });
+    element?.focus({ preventScroll: true });
+  }
+  const header = item && (
+    <DetailHeader item={item} zh={zh}>
+      {detail && source.capabilities.canAccessCloudComments && (
+        <nav aria-label={zh ? "详情导航" : "Details navigation"} className="flex shrink-0 gap-1">
+          <Button variant="ghost" onClick={() => jumpTo(description.current)}>
+            <FileText aria-hidden="true" />
+            {zh ? "跳至描述" : "Go to description"}
+          </Button>
+          <Button variant="ghost" onClick={() => jumpTo(commentList.current)}>
+            <MessageSquareText aria-hidden="true" />
+            {zh ? "跳至评论" : "Go to comments"}
+          </Button>
+        </nav>
+      )}
+    </DetailHeader>
+  );
+
   if (!detail) {
     return (
-      <div className="flex items-center gap-3 px-6 py-4">
-        {!result ? (
-          <p role="status">{zh ? "正在加载需求详情…" : "Loading requirement details…"}</p>
-        ) : (
-          <>
-            <p role="alert">
-              {formatUserFacingError(
-                result.error,
-                zh ? "需求详情加载失败。" : "Could not load requirement details.",
-              )}
-            </p>
-            <Button variant="outline" onClick={retry}>
-              {retryLabel}
-            </Button>
-          </>
-        )}
-      </div>
+      <>
+        {header}
+        <div className="flex items-center gap-3 px-6 py-4">
+          {!result ? (
+            <p role="status">{zh ? "正在加载需求详情…" : "Loading requirement details…"}</p>
+          ) : (
+            <>
+              <p role="alert">
+                {formatUserFacingError(
+                  result.error,
+                  zh ? "需求详情加载失败。" : "Could not load requirement details.",
+                )}
+              </p>
+              <Button variant="outline" onClick={retry}>
+                {retryLabel}
+              </Button>
+            </>
+          )}
+        </div>
+      </>
     );
   }
 
-  if (originalOnly)
+  if (!item)
     return (
       <article
         className="mx-auto h-full w-full max-w-4xl overflow-auto px-5 py-4"
@@ -175,76 +165,80 @@ function RequirementDetails({ projectId, irId, zh, originalOnly, active = true }
         )}
       </article>
     );
-  const values = new Map(detail.fields.map(({ name, value }) => [name, value]));
-  function jumpTo(element: HTMLElement | null) {
-    element?.scrollIntoView({ block: "start" });
-    element?.focus({ preventScroll: true });
-  }
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,5fr)_minmax(11rem,1fr)]">
-      <div
-        role="region"
-        aria-label={zh ? "描述和评论" : "Description and comments"}
-        tabIndex={0}
-        className={`${scrollRegion} scroll-pt-14 px-4 pb-5 sm:px-6`}
-      >
-        <nav
-          aria-label={zh ? "详情导航" : "Details navigation"}
-          className="sticky top-0 z-10 mb-4 flex gap-2 border-b border-border bg-card py-2"
+    <>
+      {header}
+      <div className="grid min-h-0 flex-auto grid-cols-[minmax(0,1fr)_clamp(16rem,27%,21rem)]">
+        <div
+          role="region"
+          aria-label={zh ? "描述和评论" : "Description and comments"}
+          tabIndex={0}
+          className={`${scrollRegion} scroll-pt-5 bg-card px-6 py-5 lg:px-8`}
         >
-          <Button type="button" variant="ghost" onClick={() => jumpTo(description.current)}>
-            {descriptionLabel}
-          </Button>
-          {source.capabilities.canAccessCloudComments && (
-            <Button type="button" variant="ghost" onClick={() => jumpTo(commentList.current)}>
-              {commentsLabel}
-            </Button>
-          )}
-        </nav>
-        <section ref={description} tabIndex={-1} aria-label={descriptionLabel} className="mb-6">
-          <TextSection label={descriptionLabel} body={detail.description} zh={zh} />
-        </section>
-        {source.capabilities.canAccessCloudComments && (
-          <section ref={commentList} tabIndex={-1} aria-label={commentsLabel} className="space-y-3">
-            <h2 className="text-ui-lg font-semibold">{commentsLabel}</h2>
-            <RequirementComments projectId={projectId} irId={irId} zh={zh} />
-          </section>
-        )}
+          <div className="max-w-[50rem] space-y-6">
+            <section ref={description} tabIndex={-1} aria-label={descriptionLabel}>
+              <TextSection label={descriptionLabel} body={detail.description} zh={zh} description />
+            </section>
+            {source.capabilities.canAccessCloudComments && (
+              <section
+                ref={commentList}
+                tabIndex={-1}
+                aria-label={commentsLabel}
+                className="space-y-3 border-t border-border pt-5"
+              >
+                <RequirementComments projectId={projectId} irId={irId} zh={zh} />
+              </section>
+            )}
+          </div>
+        </div>
+        <AIReqRequirementFields fields={detail.fields} zh={zh} />
       </div>
-      <aside
-        aria-label={fieldsLabel}
-        tabIndex={0}
-        className={`${scrollRegion} border-l border-border px-4 py-5`}
+    </>
+  );
+}
+
+function DetailHeader({
+  item,
+  zh,
+  children,
+}: {
+  item: AIReqRequirementGroup;
+  zh: boolean;
+  children: ReactNode;
+}) {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const elapsed = proposalDwellTime(item, now);
+  return (
+    <DialogHeader className="shrink-0 gap-3 border-b border-border bg-card px-6 py-4 pr-16 lg:px-8 lg:pr-16">
+      <DialogTitle
+        className="line-clamp-2 wrap-anywhere text-ui-settings-title! leading-tight font-semibold"
+        title={item.title}
       >
-        <h2 className="mb-2 text-ui-lg font-semibold">{fieldsLabel}</h2>
-        <dl className="divide-y divide-border">
-          {Object.entries(fieldLabels)
-            .filter(([name]) => values.has(name))
-            .map(([name, label]) => {
-              const value = values.get(name);
-              return (
-                <div key={name} className="space-y-0.5 py-2 wrap-anywhere">
-                  <dt className="text-ui-caption text-foreground-subtle">{label[zh ? 0 : 1]}</dt>
-                  <dd className="whitespace-pre-wrap">{businessFieldValue(name, value, zh)}</dd>
-                </div>
-              );
-            })}
-        </dl>
-        <details className="mt-3 border-t border-border pt-2">
-          <summary className="cursor-pointer rounded-sm py-1 text-ui-caption font-medium focus-visible:outline-2 focus-visible:outline-input-border-focused">
-            {zh ? "原始字段" : "Raw fields"}
-          </summary>
-          <dl className="divide-y divide-border">
-            {detail.fields.map(({ name, value }) => (
-              <div key={name} className="space-y-0.5 py-2 wrap-anywhere">
-                <dt className="font-mono text-ui-caption text-foreground-subtle">{name}</dt>
-                <dd className="whitespace-pre-wrap">{value === "" ? '""' : value}</dd>
-              </div>
-            ))}
-          </dl>
-        </details>
-      </aside>
-    </div>
+        {item.title}
+      </DialogTitle>
+      <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-ui-caption text-foreground-subtle">
+          <span className="font-mono">{item.id}</span>
+          {item.process && (
+            <span data-aireq-theme-stage={item.process}>
+              {proposalProcessLabel(item.process, zh)}
+            </span>
+          )}
+          <span className="inline-flex items-center gap-1.5">
+            <Clock3 aria-hidden="true" className="size-3.5" />
+            {zh ? "停留时间" : "Time in status"}{" "}
+            <strong className="font-semibold tabular-nums text-foreground">
+              {elapsed === undefined ? "—" : formatProposalDwellTime(elapsed, zh)}
+            </strong>
+          </span>
+        </div>
+        {children}
+      </div>
+    </DialogHeader>
   );
 }
 
@@ -383,6 +377,20 @@ function RequirementComments({
 
   return (
     <>
+      <header className="flex items-baseline gap-2">
+        <h2 className="text-ui-xl font-semibold">{zh ? "评论" : "Comments"}</h2>
+        {!read.pending && !needsReload && read.items && (
+          <span className="text-ui-caption tabular-nums text-foreground-subtle">
+            {read.items.length
+              ? zh
+                ? `${read.items.length} 条`
+                : String(read.items.length)
+              : zh
+                ? "暂无评论"
+                : "No comments"}
+          </span>
+        )}
+      </header>
       <form
         className="space-y-2"
         onSubmit={(event) => {
@@ -398,8 +406,8 @@ function RequirementComments({
           onChange={(event) => setBody(event.currentTarget.value)}
           maxLength={AIREQ_REQUIREMENT_COMMENT_MAX_LENGTH}
           readOnly={Boolean(writing)}
-          rows={3}
-          className="min-h-20 resize-y"
+          rows={2}
+          className="min-h-16 resize-y border-input-border bg-input px-3 hover:border-input-border-hover"
         />
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="min-w-0 text-ui-caption">
@@ -498,11 +506,11 @@ function RequirementComments({
         </p>
       )}
       {!!read.items?.length && (
-        <ol className="space-y-3">
+        <ol className="divide-y divide-border border-t border-border">
           {read.items.map(({ id, body: text, author, createdAt }, index) => {
             const label = commentLabel(index, zh);
             return (
-              <li key={id ?? `no-id-${index}`}>
+              <li key={id ?? `no-id-${index}`} className="py-4">
                 <TextSection
                   label={label}
                   body={text}
@@ -533,9 +541,6 @@ function RequirementComments({
             );
           })}
         </ol>
-      )}
-      {!read.pending && !needsReload && read.items?.length === 0 && (
-        <p className="text-foreground-subtle">{zh ? "暂无评论" : "No comments"}</p>
       )}
       <AlertDialog
         open={Boolean(deleting)}
@@ -594,7 +599,9 @@ function TextSection({
   meta,
   zh,
   action,
+  description = false,
 }: {
+  description?: boolean;
   label: string;
   body: string;
   meta?: string;
@@ -602,11 +609,15 @@ function TextSection({
   action?: ReactNode;
 }) {
   const hasBody = Boolean(body.trim());
+  const Heading = description ? "h2" : "h3";
+  const Container = description ? "div" : "section";
   return (
-    <section aria-label={label} className="min-w-0 rounded-lg border border-card-border bg-card">
-      <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
+    <Container aria-label={description ? undefined : label} className="min-w-0">
+      <header className="mb-3 flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="font-semibold">{label}</h3>
+          <Heading className={description ? "text-ui-xl font-semibold" : "font-semibold"}>
+            {label}
+          </Heading>
           {meta && <p className="wrap-anywhere text-ui-caption text-foreground-subtle">{meta}</p>}
         </div>
         <div className="flex shrink-0 items-center gap-1">
@@ -640,7 +651,7 @@ function TextSection({
                   tabIndex={0}
                   className={`${scrollRegion} flex-1 px-6 py-6`}
                 >
-                  <RequirementBody className="mx-auto max-w-4xl" body={body} />
+                  <RequirementBody className="mx-auto max-w-[48rem]" body={body} />
                 </div>
               </DialogContent>
             </Dialog>
@@ -649,13 +660,11 @@ function TextSection({
         </div>
       </header>
       {hasBody ? (
-        <div className="min-w-0 px-4 py-3">
-          <RequirementBody body={body} />
-        </div>
+        <RequirementBody body={body} />
       ) : (
-        <p className="px-4 py-3 text-foreground-subtle">{zh ? "暂无正文" : "No text"}</p>
+        <p className="text-foreground-subtle">{zh ? "暂无正文" : "No text"}</p>
       )}
-    </section>
+    </Container>
   );
 }
 

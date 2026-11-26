@@ -1,12 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import {
-  ChevronDown,
-  CircleCheck,
-  Ellipsis,
-  FileSearch,
-  FileText,
-  MessagesSquare,
-} from "lucide-react";
+import { CircleCheck, Ellipsis, FileSearch, FileText, MessagesSquare } from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Button } from "@/components/ui/button.js";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.js";
@@ -35,6 +28,9 @@ const pinnedIdentity =
 export function AIReqProposalRow({
   item,
   columns,
+  dwellPlacement,
+  longestDwell,
+  showProcessInTitle,
   showIdInTitle,
   showOwnerInTitle,
   releaseTitle,
@@ -44,6 +40,9 @@ export function AIReqProposalRow({
 }: {
   item: AIReqRequirementGroup;
   columns: ProposalColumn[];
+  dwellPlacement?: "dwellTime" | "process" | "title";
+  longestDwell?: number;
+  showProcessInTitle: boolean;
   showIdInTitle: boolean;
   showOwnerInTitle: boolean;
   releaseTitle: string;
@@ -81,13 +80,66 @@ export function AIReqProposalRow({
   const detailsLabel = zh ? "查看需求详情" : "View requirement details";
   const moreLabel = zh ? "更多操作" : "More actions";
   const locale = zh ? "zh-CN" : "en-US";
+  const elapsed = dwellPlacement && proposalDwellTime(item, now);
+  const longest = elapsed !== undefined && item.process !== "完成" && elapsed === longestDwell;
+  const dwell = (
+    <span
+      data-longest-stay={longest ? "" : undefined}
+      className={longest ? "font-bold tabular-nums text-primary" : "tabular-nums"}
+      title={
+        longest
+          ? zh
+            ? "当前结果中未完成需求的最长停留时间"
+            : "Longest in current status among matching open IRs"
+          : zh
+            ? "从进入当前进展起算"
+            : "Elapsed time in the current status"
+      }
+    >
+      <span className="sr-only">
+        {zh ? "停留时间 " : "Time in status "}
+        {longest && (zh ? "（最长）" : "(longest) ")}
+      </span>
+      {elapsed === undefined ? "—" : formatProposalDwellTime(elapsed, zh)}
+    </span>
+  );
+  const stage = item.process ? (
+    <span data-aireq-theme-stage={item.process}>{proposalProcessLabel(item.process, zh)}</span>
+  ) : (
+    "—"
+  );
   function discussPrimary() {
     if (primaryAgent) ai.select({ ...selection, discussionPhase: primaryAgent });
   }
-  function openDocuments(trigger: HTMLButtonElement) {
+  function openDocuments(trigger: HTMLButtonElement, initialVersion?: number) {
     trigger.focus({ preventScroll: true });
     focusDocuments.current = true;
-    open({ selection, releaseId: item.releaseId, title: item.title });
+    open({ selection, releaseId: item.releaseId, title: item.title, initialVersion });
+  }
+  function renderCell(column: Exclude<ProposalColumn, "title">) {
+    switch (column) {
+      case "process":
+        return (
+          <span className="flex flex-col items-start gap-0.5">
+            {stage}
+            {dwellPlacement === "process" && dwell}
+          </span>
+        );
+      case "dwellTime":
+        return dwell;
+      case "version":
+        return <DocumentVersion item={item} zh={zh} onOpen={openDocuments} />;
+      default:
+        return (
+          <RequirementCell
+            column={column}
+            item={item}
+            releaseTitle={releaseTitle}
+            zh={zh}
+            locale={locale}
+          />
+        );
+    }
   }
   return (
     <tr
@@ -107,6 +159,12 @@ export function AIReqProposalRow({
             className={`min-w-0 px-3 py-2.5 font-normal first:pl-4 ${pinnedIdentity}`}
           >
             <AIReqProposalText item={item} search={search} zh={zh} />
+            {dwellPlacement === "title" && (
+              <span className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-ui-caption text-foreground-subtle">
+                {showProcessInTitle && stage}
+                {dwell}
+              </span>
+            )}
             {showIdInTitle && (
               <p className="mt-1 wrap-anywhere font-mono text-ui-sm text-foreground-subtle">
                 {item.id}
@@ -124,14 +182,7 @@ export function AIReqProposalRow({
             data-pinned={column === "id" && columns[0] === column ? "start" : undefined}
             className={`min-w-0 px-3 py-2.5 text-ui-caption wrap-anywhere text-foreground-subtle first:pl-4 group-hover/row:text-foreground group-aria-[current=true]/row:text-foreground ${column === "id" ? pinnedIdentity : ""} ${proposalColumns[column].group === "number" ? "text-right tabular-nums" : ""}`}
           >
-            <RequirementCell
-              column={column}
-              item={item}
-              releaseTitle={releaseTitle}
-              now={now}
-              zh={zh}
-              locale={locale}
-            />
+            {renderCell(column)}
           </td>
         ),
       )}
@@ -283,14 +334,12 @@ function RequirementCell({
   column,
   item,
   releaseTitle,
-  now,
   zh,
   locale,
 }: {
-  column: Exclude<ProposalColumn, "title">;
+  column: Exclude<ProposalColumn, "title" | "version" | "process" | "dwellTime">;
   item: AIReqRequirementGroup;
   releaseTitle: string;
-  now: number;
   zh: boolean;
   locale: string;
 }) {
@@ -319,8 +368,6 @@ function RequirementCell({
         </span>
       );
     }
-    case "version":
-      return <DocumentVersion item={item} zh={zh} locale={locale} />;
     case "submitter":
       return <span className="font-mono">{item.submittedBy || "—"}</span>;
     case "date":
@@ -333,25 +380,6 @@ function RequirementCell({
         <span className="tabular-nums">
           {String(estimate ?? "—")} | {String(total ?? "—")}{" "}
           <span className="text-ui-sm">{zh ? "人天" : "person-days"}</span>
-        </span>
-      );
-    }
-    case "process":
-      return item.process ? (
-        <span data-aireq-theme-stage={item.process}>{proposalProcessLabel(item.process, zh)}</span>
-      ) : (
-        "—"
-      );
-    case "dwellTime": {
-      const elapsed = proposalDwellTime(item, now);
-      if (elapsed === undefined) return "—";
-      const label = formatProposalDwellTime(elapsed, zh);
-      return (
-        <span
-          className="tabular-nums"
-          title={zh ? "从进入当前进展起算" : "Elapsed time in the current status"}
-        >
-          {label}
         </span>
       );
     }
@@ -410,71 +438,49 @@ function ProposalDateCell({
 
 function DocumentVersion({
   item,
-  locale,
   zh,
+  onOpen,
 }: {
   item: AIReqRequirementGroup;
-  locale: string;
   zh: boolean;
+  onOpen(trigger: HTMLButtonElement, version: number): void;
 }) {
   const version = item.documentVersion;
   if (!version) return zh ? "暂无文档" : "No documents";
 
-  const confirmation = version.confirmation;
-  const previousConfirmed = !confirmation ? item.documentHistory.at(-1) : undefined;
-  const versionStatus = confirmation
-    ? zh
-      ? "已定版"
-      : "Confirmed"
-    : zh
-      ? "未定版"
-      : "Unconfirmed";
-  const label = `V${version.number} · ${versionStatus}`;
-  if (!confirmation && !previousConfirmed) return <span className="tabular-nums">{label}</span>;
-
-  const detailsLabel = zh ? "定版记录" : "Confirmation details";
+  const previous = !version.confirmation && item.documentHistory.at(-1);
+  const status = version.confirmation ? (zh ? "已定版" : "Confirmed") : zh ? "草稿" : "Draft";
+  const label = `V${version.number} · ${status}`;
+  const previousLabel =
+    previous && (zh ? `上次定版 V${previous.number}` : `Last confirmed V${previous.number}`);
+  const linkClass =
+    "h-auto min-h-6 max-w-full justify-start gap-1 px-0 text-left text-ui-caption whitespace-normal tabular-nums";
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-label={`${label} · ${detailsLabel} · ${item.title}`}
-          className="inline-flex max-w-full cursor-pointer items-center gap-1 rounded-sm text-left tabular-nums hover:underline hover:underline-offset-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-input-border-focused"
+    <div className="flex flex-col items-start">
+      <Button
+        variant="link"
+        size="sm"
+        className={`${linkClass} ${version.confirmation ? "font-semibold" : "text-foreground-subtle"}`}
+        aria-label={`${label} · ${item.title}`}
+        aria-controls="aireq-document-workspace"
+        onClick={(event) => onOpen(event.currentTarget, version.number)}
+      >
+        {version.confirmation && <CircleCheck className="size-3.5" aria-hidden="true" />}
+        {label}
+      </Button>
+      {previous && (
+        <Button
+          variant="link"
+          size="sm"
+          className={linkClass}
+          aria-label={`${previousLabel} · ${item.title}`}
+          aria-controls="aireq-document-workspace"
+          onClick={(event) => onOpen(event.currentTarget, previous.number)}
         >
-          {confirmation && (
-            <CircleCheck
-              className="size-3.5 shrink-0 text-success-surface-foreground"
-              aria-hidden="true"
-            />
-          )}
-          {label}
-          <ChevronDown className="size-3 shrink-0" aria-hidden="true" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="start" aria-label={detailsLabel} className="w-64 gap-2 p-3">
-        <p className="font-semibold tabular-nums">{label}</p>
-        {confirmation ? (
-          <div className="space-y-1 text-ui-caption text-foreground-subtle">
-            <p>
-              {zh ? "确认人" : "Confirmed by"} {confirmation.employeeId}
-            </p>
-            <p>
-              <time dateTime={confirmation.confirmedAt} className="tabular-nums">
-                {new Date(confirmation.confirmedAt).toLocaleString(locale, {
-                  timeZone: "Asia/Shanghai",
-                  hour12: false,
-                })}
-              </time>
-              {zh ? "（北京时间）" : " (Beijing time)"}
-            </p>
-          </div>
-        ) : (
-          <p className="text-ui-caption text-foreground-subtle">
-            {zh ? "上次定版" : "Last confirmed"} V{previousConfirmed?.number}
-          </p>
-        )}
-      </PopoverContent>
-    </Popover>
+          {previousLabel}
+        </Button>
+      )}
+    </div>
   );
 }
 

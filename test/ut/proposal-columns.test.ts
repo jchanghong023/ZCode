@@ -176,7 +176,7 @@ describe("proposal column filters", () => {
     expect(options).toEqual([[""], ["unconfirmed"], ["confirmed"]]);
     expect(
       options.flat().map((value) => proposalFilterLabel("version", value, releaseTitles, true)),
-    ).toEqual(["暂无文档", "未定版", "已定版"]);
+    ).toEqual(["暂无文档", "草稿", "已定版"]);
   });
 
   it("matches individual labels, preserves false, and does not substitute a missing current owner", () => {

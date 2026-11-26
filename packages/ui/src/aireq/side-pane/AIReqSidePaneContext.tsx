@@ -74,6 +74,7 @@ export function AIReqSidePaneProvider({ children }: { children: ReactNode }) {
               ...existing,
               ...request,
               initialPath: request.initialPath,
+              initialVersion: request.initialVersion,
               openSequence: existing.openSequence + 1,
             }
           : { ...request, id: createUuid(), openSequence: 0 };

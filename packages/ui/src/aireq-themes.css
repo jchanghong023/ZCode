@@ -171,10 +171,10 @@
   font-weight: 700;
 }
 
-/* 原生版本、项目和需求按钮没有共享 Button 的焦点边框；在选中底色外标明键盘位置。 */
+/* 首页和列表的原生按钮没有共享 Button 的焦点边框；在选中底色外标明键盘位置。 */
 @media (forced-colors: none) {
   .theme-aireq-cobalt
-    [data-aireq-themed-page="projects"]
+    :is([data-aireq-themed-page="projects"], [data-aireq-themed-page="proposals"])
     button:not([data-slot="button"]):focus-visible {
     outline: 2px solid var(--color-input-border-focused);
     outline-offset: 2px;
