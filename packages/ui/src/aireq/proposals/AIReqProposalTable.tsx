@@ -200,6 +200,11 @@ export function AIReqProposalTable() {
     ai.updateProposalQuery(() => EMPTY_PROPOSAL_QUERY);
   }
   const tableWidth = columns.reduce((width, column) => width + proposalColumns[column].width, 0);
+  // 保留所有可见字段与操作列的空间，余量优先供阅读需求标题。
+  const titleWidth = Math.min(
+    320,
+    proposalColumns.title.width + Math.max(0, tableViewportWidth - availableActions - tableWidth),
+  );
   const previousLabel = zh ? "上一页" : "Previous page";
   const nextLabel = zh ? "下一页" : "Next page";
   useLayoutEffect(() => {
@@ -254,7 +259,7 @@ export function AIReqProposalTable() {
       aria-label={zh ? "需求共创" : "Co-creation"}
       className="@container/conversation h-full min-h-0 min-w-0 flex-1 overflow-hidden bg-background text-ui-base"
     >
-      <div className="flex h-full min-h-0 min-w-0 flex-col gap-4">
+      <div className="flex h-full min-h-0 min-w-0 flex-col gap-5">
         <header className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <ScopedPageTitle
             withRelease
@@ -271,10 +276,7 @@ export function AIReqProposalTable() {
           aria-label={zh ? "需求列表" : "Requirements list"}
           className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-card-border bg-card text-foreground"
         >
-          <div
-            data-aireq-theme-filters
-            className="shrink-0 border-b border-border/60 px-3 py-3 @min-[760px]/conversation:px-4"
-          >
+          <div className="shrink-0 border-b border-border/60 px-3 py-2.5 @min-[760px]/conversation:px-4">
             <AIReqProposalFilters
               query={query}
               applied={applied}
@@ -330,7 +332,7 @@ export function AIReqProposalTable() {
             style={
               {
                 "--wide-actions-width": `${actionsWidth}px`,
-                "--identity-width": `${pinnedIdentity ? proposalColumns[pinnedIdentity].width : 0}px`,
+                "--identity-width": `${pinnedIdentity === "title" ? titleWidth : pinnedIdentity ? proposalColumns[pinnedIdentity].width : 0}px`,
               } as CSSProperties
             }
           >
@@ -341,15 +343,20 @@ export function AIReqProposalTable() {
             >
               <colgroup>
                 {columns.map((column) => (
-                  <col key={column} style={{ width: proposalColumns[column].width }} />
+                  <col
+                    key={column}
+                    style={{
+                      width: column === "title" ? titleWidth : proposalColumns[column].width,
+                    }}
+                  />
                 ))}
-                {/* 剩余宽度留在操作列前，避免固定宽度的标题和其他字段被拉伸。 */}
+                {/* 标题达到阅读宽度上限后，其余空间留在固定操作列前。 */}
                 <col />
                 <col className="w-(--actions-width)" />
               </colgroup>
               <thead
                 role="rowgroup"
-                className="sticky top-0 z-20 bg-card text-ui-caption text-foreground"
+                className="sticky top-0 z-20 bg-(--aireq-table-heading) text-ui-caption text-foreground-subtle"
               >
                 <tr role="row" className="border-b border-border/60">
                   {columns.map((column) => {
@@ -361,7 +368,7 @@ export function AIReqProposalTable() {
                         scope="col"
                         aria-sort={direction}
                         data-pinned={pinnedIdentity === column ? "start" : undefined}
-                        className={`px-3 py-1 first:pl-4 ${numeric ? "text-right" : "text-left"} ${pinnedIdentity === column ? "first:@min-[760px]/conversation:sticky first:@min-[760px]/conversation:left-0 first:@min-[760px]/conversation:z-10 first:@min-[760px]/conversation:bg-card" : ""}`}
+                        className={`px-3 py-1 first:pl-4 ${numeric ? "text-right" : "text-left"} ${pinnedIdentity === column ? "first:@min-[760px]/conversation:sticky first:@min-[760px]/conversation:left-0 first:@min-[760px]/conversation:z-10 first:@min-[760px]/conversation:bg-(--aireq-table-heading)" : ""}`}
                       >
                         {isFilterableProposalColumn(column) ? (
                           <AIReqProposalColumnFilter
@@ -386,7 +393,7 @@ export function AIReqProposalTable() {
                   <th
                     scope="col"
                     data-pinned="end"
-                    className="sticky right-0 z-10 border-l border-border bg-card py-2 pr-4 text-right font-medium @max-[620px]/conversation:pr-0 @max-[620px]/conversation:text-center"
+                    className="sticky right-0 z-10 border-l border-border/60 bg-(--aireq-table-heading) py-2 pr-4 text-right font-medium @max-[620px]/conversation:pr-0 @max-[620px]/conversation:text-center"
                   >
                     {zh ? "操作" : "Actions"}
                   </th>

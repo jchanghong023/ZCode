@@ -80,8 +80,8 @@ export function AIReqReleaseOverview({
       </Button>
     );
   return (
-    <Card className="@container/release min-w-0 gap-4 p-5 @min-[900px]/home:col-span-9">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+    <Card className="@container/release min-w-0 gap-0 p-0 @min-[900px]/home:col-span-9">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border/65 px-5 py-4 @min-[840px]/release:px-6">
         <div className="min-w-0">
           <h2 className="wrap-anywhere text-ui-settings-title font-semibold tracking-tight">
             {release.title}
@@ -97,15 +97,18 @@ export function AIReqReleaseOverview({
           <ArrowRight aria-hidden="true" />
         </Button>
       </header>
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-b border-border pb-4 @min-[552px]/release:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-y-4 border-b border-border/65 bg-background/35 px-5 py-4 @min-[552px]/release:grid-cols-4 @min-[840px]/release:px-6">
         {metrics.map(({ label, value, detail }) => (
-          <div key={label} className="flex min-w-0 flex-col gap-1">
+          <div
+            key={label}
+            className="flex min-w-0 flex-col gap-1 border-border even:border-l even:pl-4 @min-[552px]/release:not-first:border-l @min-[552px]/release:not-first:pl-4"
+          >
             <dt className="text-ui-caption text-foreground-subtle">{label}</dt>
-            <dd className="flex flex-wrap items-baseline gap-x-1 font-semibold leading-tight tabular-nums">
-              <span className="text-ui-settings-title">{value}</span>
+            <dd className="flex flex-wrap items-baseline gap-x-2 font-semibold leading-tight tabular-nums">
+              <span className="text-ui-settings-title-lg leading-none tracking-tight">{value}</span>
               {detail && (
-                <span className="text-ui-base font-medium text-foreground-subtle">
-                  {zh ? `（${detail}）` : `(${detail})`}
+                <span className="text-ui-caption font-normal text-foreground-subtle">
+                  ({detail})
                 </span>
               )}
             </dd>
@@ -113,7 +116,7 @@ export function AIReqReleaseOverview({
         ))}
       </dl>
       <div
-        className={`grid min-w-0 items-start gap-4 ${updates.length ? "@min-[840px]/release:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] @min-[840px]/release:gap-6" : ""}`}
+        className={`grid min-w-0 items-start gap-4 px-5 py-5 @min-[840px]/release:px-6 ${updates.length ? "@min-[840px]/release:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] @min-[840px]/release:gap-6" : ""}`}
       >
         <section className="min-w-0">
           <h3 className="text-ui-lg font-semibold">
@@ -123,7 +126,7 @@ export function AIReqReleaseOverview({
             <>
               <div
                 aria-hidden="true"
-                className={`mt-3 border-b border-border pb-1.5 text-ui-caption text-foreground-subtle ${stayColumns}`}
+                className={`mt-3 border-b border-border/65 pb-1.5 text-ui-caption text-foreground-subtle ${stayColumns}`}
               >
                 <span>{zh ? "需求" : "Requirement"}</span>
                 <span>{zh ? "阶段" : "Stage"}</span>
@@ -131,14 +134,14 @@ export function AIReqReleaseOverview({
                 <span className="text-right">{zh ? "停留时间" : "Time in status"}</span>
               </div>
               <ul
-                className={`divide-y divide-border ${allStays ? "" : "@max-[840px]/release:[&>li:nth-child(n+4)]:hidden"}`}
+                className={`divide-y divide-border/55 ${allStays ? "" : "@max-[840px]/release:[&>li:nth-child(n+4)]:hidden"}`}
               >
                 {(allStays ? stays : stays.slice(0, 5)).map(({ ir, elapsed, band }) => (
                   <li key={ir.id}>
                     <AIReqProposalDetails item={ir} zh={zh}>
                       <button
                         type="button"
-                        className={`w-full rounded-sm py-2 text-left hover:bg-hover focus-visible:outline-2 focus-visible:outline-input-border-focused ${stayColumns}`}
+                        className={`w-full rounded-sm py-2.5 text-left hover:bg-hover focus-visible:outline-2 focus-visible:outline-input-border-focused ${stayColumns}`}
                       >
                         <span className="min-w-0 wrap-anywhere font-medium">
                           {rowTitle(ir.title)}
@@ -178,12 +181,12 @@ export function AIReqReleaseOverview({
           {more(allStays, stays.length, setAllStays)}
         </section>
         {updates.length ? (
-          <section className="min-w-0">
+          <section className="min-w-0 border-t border-border/65 pt-4 @min-[840px]/release:border-t-0 @min-[840px]/release:border-l @min-[840px]/release:pt-0 @min-[840px]/release:pl-5">
             <h3 className="text-ui-lg font-semibold">
               {zh ? "最近文档更新" : "Recent IR document updates"}
             </h3>
             <ul
-              className={`mt-2 divide-y divide-border ${allUpdates ? "" : "@max-[840px]/release:[&>li:nth-child(n+4)]:hidden"}`}
+              className={`mt-2 divide-y divide-border/55 ${allUpdates ? "" : "@max-[840px]/release:[&>li:nth-child(n+4)]:hidden"}`}
             >
               {(allUpdates ? updates : updates.slice(0, 5)).map(({ ir, stamp }) => {
                 const doc = ir.irDocument!;

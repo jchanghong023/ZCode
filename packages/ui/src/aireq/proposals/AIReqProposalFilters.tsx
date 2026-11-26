@@ -244,7 +244,7 @@ function AddProposalFilter({
       {column && !applied.some(([field]) => field === column) && (
         <FilterChip label={name(column)} value="" zh={zh} onRemove={() => changeOpen(false)} />
       )}
-      <div className="relative min-w-40 flex-1">
+      <div className="relative mr-auto min-w-40 max-w-xl flex-1">
         <Search
           aria-hidden="true"
           className="pointer-events-none absolute top-2 left-2 size-4 text-foreground-subtle"
@@ -258,11 +258,7 @@ function AddProposalFilter({
             aria-description={
               zh ? "点击或按向下键添加筛选条件" : "Click or press Down Arrow to add a filter"
             }
-            placeholder={
-              zh
-                ? "点击添加筛选条件，或输入标题、编号搜索"
-                : "Click to add a filter or search titles and IDs"
-            }
+            placeholder={zh ? "搜索需求或添加筛选条件" : "Search requirements or add a filter"}
             value={editing ? query : ""}
             onChange={(event) => {
               onEditingChange(true);

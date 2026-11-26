@@ -1,18 +1,22 @@
 import type { ReactElement } from "react";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog.js";
 import type { AIReqRequirementGroup } from "../contract.js";
+import { releaseIRTitle } from "../projects/releaseOverviewData.js";
 import { AIReqRequirementDetailsContent } from "./AIReqRequirementDetailsContent.js";
 
 export function AIReqProposalText({
   item,
   search,
+  scopeTitle,
   zh,
 }: {
   item: AIReqRequirementGroup;
   search: string;
+  scopeTitle?: string;
   zh: boolean;
 }) {
   const { title, originalText } = item;
+  const displayTitle = scopeTitle ? releaseIRTitle(title, scopeTitle) || title : title;
   const separateOriginal = !!originalText && originalText !== title;
   const titleMatch = searchExcerpt(title, search);
   const originalMatch = separateOriginal ? searchExcerpt(originalText, search) : undefined;
@@ -29,7 +33,7 @@ export function AIReqProposalText({
           {titleMatch ? (
             <span className="wrap-anywhere">{titleMatch}</span>
           ) : (
-            <span className="line-clamp-2 wrap-anywhere">{title}</span>
+            <span className="line-clamp-2 wrap-anywhere">{displayTitle}</span>
           )}
         </button>
       </AIReqProposalDetails>

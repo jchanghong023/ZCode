@@ -1,4 +1,4 @@
-import { ArrowRight, Check, ChevronRight, RefreshCw } from "lucide-react";
+import { Check, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Progress } from "@/components/ui/progress.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
@@ -42,37 +42,32 @@ export function AIReqProjectDocumentsPage({
       data-testid="aireq-project-progress"
       className="@container/home h-full min-h-0 min-w-0 overflow-y-auto bg-background text-ui-base"
     >
-      <div className="space-y-4 pb-3">
+      <div className="space-y-5 pb-3">
         <header className="flex flex-wrap items-center justify-between gap-2">
           <ScopedPageTitle />
-          <div className="flex items-center gap-3">
-            <span className="text-ui-caption text-foreground-subtle">
-              {zh ? "最近 12 个月" : "Last 12 months"}
-            </span>
-            <Button
-              size="lg"
-              variant="outline"
-              disabled={ai.pending}
-              onClick={() => void ai.refreshProjects()}
-            >
-              <RefreshCw aria-hidden="true" />
-              {ai.pending ? (zh ? "刷新中…" : "Refreshing…") : zh ? "刷新项目" : "Refresh projects"}
-            </Button>
-          </div>
+          <Button
+            size="lg"
+            variant="outline"
+            disabled={ai.pending}
+            onClick={() => void ai.refreshProjects()}
+          >
+            <RefreshCw aria-hidden="true" />
+            {ai.pending ? (zh ? "刷新中…" : "Refreshing…") : zh ? "刷新项目" : "Refresh projects"}
+          </Button>
         </header>
         {project && (
-          <div className="grid items-start gap-4 @min-[900px]/home:grid-cols-12">
+          <div className="grid items-start gap-5 @min-[900px]/home:grid-cols-12">
             <section
               aria-label={zh ? "近期版本" : "Recent releases"}
-              className="min-w-0 space-y-3 @min-[900px]/home:col-span-3"
+              className="min-w-0 rounded-xl border border-card-border bg-card p-3 @min-[900px]/home:col-span-3"
             >
-              <div className="flex flex-wrap items-baseline justify-between gap-1">
+              <div className="mb-3 px-2 pt-1">
                 <h2 className="text-ui-lg font-semibold">
                   {zh ? "近期 Release" : "Recent releases"}
                 </h2>
-                <span className="text-ui-caption text-foreground-subtle">
-                  {zh ? "按最近新增 IR 排序" : "Latest IR first"}
-                </span>
+                <p className="mt-1 text-ui-caption text-foreground-subtle">
+                  {zh ? "最近 12 个月 · 按最近新增 IR 排序" : "Last 12 months · Latest IR first"}
+                </p>
               </div>
               {failed ? (
                 <p role="status" className="text-destructive">
@@ -91,7 +86,7 @@ export function AIReqProjectDocumentsPage({
                       : "Loading requirements…"}
                 </p>
               ) : recent.length ? (
-                <ul className="space-y-2">
+                <ul className="space-y-1">
                   {recent.map((r) => {
                     const complete =
                       r.requirementCount > 0 && r.completedRequirementCount === r.requirementCount;
@@ -100,26 +95,19 @@ export function AIReqProjectDocumentsPage({
                         <button
                           type="button"
                           aria-pressed={r.id === release?.id}
-                          className="grid w-full min-w-0 gap-1.5 rounded-lg border border-card-border bg-card px-3.5 py-2.5 text-left hover:bg-hover focus-visible:outline-2 focus-visible:outline-input-border-focused aria-pressed:border-brand aria-pressed:bg-selected"
+                          data-aireq-release-choice=""
+                          className="group/release grid w-full min-w-0 gap-1.5 rounded-lg border border-transparent px-2.5 py-2 text-left hover:bg-hover focus-visible:outline-2 focus-visible:outline-input-border-focused aria-pressed:border-brand/55 aria-pressed:bg-selected/55"
                           onClick={() => selectRelease({ projectId: project.id, releaseId: r.id })}
                         >
                           <span className="flex items-baseline justify-between gap-2">
-                            <span className="min-w-0 wrap-anywhere font-semibold">{r.title}</span>
+                            <span className="min-w-0 wrap-anywhere font-medium group-aria-pressed/release:font-semibold">
+                              {r.title}
+                            </span>
                             <span className="shrink-0 text-ui-caption tabular-nums text-foreground-subtle">
                               {date(r.updatedAt)}
                             </span>
                           </span>
-                          <Progress
-                            aria-hidden="true"
-                            className="bg-border"
-                            indicatorClassName={complete ? "bg-success" : "bg-brand"}
-                            value={
-                              r.requirementCount
-                                ? (100 * r.completedRequirementCount) / r.requirementCount
-                                : 0
-                            }
-                          />
-                          <span className="flex items-center justify-between gap-2 text-ui-caption text-foreground-subtle">
+                          <span className="flex items-center gap-1.5 text-ui-caption tabular-nums text-foreground-subtle">
                             <span>
                               {complete
                                 ? zh
@@ -130,14 +118,22 @@ export function AIReqProjectDocumentsPage({
                                   : "Completed"}{" "}
                               {r.completedRequirementCount} / {r.requirementCount}
                             </span>
-                            {complete ? (
+                            {complete && (
                               <Check
-                                className="size-4 text-success-surface-foreground"
+                                className="size-3.5 text-success-surface-foreground"
                                 aria-hidden="true"
                               />
-                            ) : (
-                              <ChevronRight className="size-3.5" aria-hidden="true" />
                             )}
+                            <Progress
+                              aria-hidden="true"
+                              className="ml-auto w-16 max-w-[34%] shrink-0 bg-border/60"
+                              indicatorClassName={complete ? "bg-success" : "bg-brand/75"}
+                              value={
+                                r.requirementCount
+                                  ? (100 * r.completedRequirementCount) / r.requirementCount
+                                  : 0
+                              }
+                            />
                           </span>
                         </button>
                       </li>
@@ -151,7 +147,7 @@ export function AIReqProjectDocumentsPage({
                     : "No releases with new IRs in the last 12 months."}
                 </p>
               )}
-              <div className="flex items-center justify-between gap-2 border-t border-border pt-2">
+              <div className="mt-3 -mx-1 flex flex-wrap items-center justify-between gap-x-0 border-t border-border/65 pt-2">
                 <Button
                   variant="link"
                   size="lg"
@@ -163,7 +159,7 @@ export function AIReqProjectDocumentsPage({
                   }
                   onClick={() => ai.openProject(project.id)}
                 >
-                  {zh ? "项目全部需求" : "All IRs"} <ArrowRight aria-hidden="true" />
+                  {zh ? "项目全部需求" : "All IRs"}
                 </Button>
                 {!failed && ai.selectionReady && unassigned > 0 && (
                   <Button
@@ -178,7 +174,7 @@ export function AIReqProjectDocumentsPage({
                     }
                   >
                     {zh ? "未分配版本" : "Unassigned"}
-                    <span className="rounded bg-secondary px-1.5 text-ui-caption font-semibold tabular-nums text-secondary-foreground">
+                    <span className="rounded bg-background px-1.5 text-ui-caption tabular-nums text-foreground-subtle">
                       {unassigned}
                     </span>
                   </Button>

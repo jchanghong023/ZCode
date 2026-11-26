@@ -10,8 +10,6 @@
   --aireq-accent-ink: #1e40af;
   --aireq-accent-on: #ffffff;
   --aireq-selection: color-mix(in srgb, var(--aireq-accent) 17%, var(--aireq-panel));
-  --aireq-heading-wash: #e1ebfd;
-  --aireq-heading-other: #eee6fc;
 }
 
 :root.theme-aireq-slate {
@@ -25,8 +23,6 @@
   --aireq-accent-ink: #174f64;
   --aireq-accent-on: #ffffff;
   --aireq-selection: #deedf3;
-  --aireq-heading-wash: #e7f1f4;
-  --aireq-heading-other: #f3f7f9;
 }
 
 :root.theme-aireq-violet {
@@ -40,8 +36,6 @@
   --aireq-accent-ink: #5324b0;
   --aireq-accent-on: #ffffff;
   --aireq-selection: #eee4ff;
-  --aireq-heading-wash: #e8dbff;
-  --aireq-heading-other: #f0dcfa;
 }
 
 :root.theme-aireq-aurora {
@@ -55,8 +49,6 @@
   --aireq-accent-ink: #a4f1ff;
   --aireq-accent-on: #092235;
   --aireq-selection: #183b55;
-  --aireq-heading-wash: #133b54;
-  --aireq-heading-other: #30244a;
 }
 
 :root.theme-aireq-color {
@@ -108,28 +100,13 @@
     Inter, system-ui, "Microsoft YaHei UI", "PingFang SC", "Noto Sans CJK SC", sans-serif;
 }
 
-.theme-aireq-color [data-aireq-themed-page] {
-  background:
-    linear-gradient(125deg, var(--aireq-heading-wash), transparent 20rem), var(--aireq-canvas);
-}
-
-.theme-aireq-violet [data-aireq-themed-page],
-.theme-aireq-aurora [data-aireq-themed-page] {
-  background:
-    radial-gradient(ellipse 34rem 12rem at 98% 0%, var(--aireq-heading-other), transparent),
-    linear-gradient(135deg, var(--aireq-heading-wash), transparent 21rem), var(--aireq-canvas);
-}
-
-.theme-aireq-color [data-aireq-theme-filters] {
-  background: linear-gradient(
-    105deg,
-    var(--aireq-heading-wash),
-    var(--aireq-panel) 52%,
-    var(--aireq-heading-other)
-  );
+/* 表头和两个固定表头单元格需要同一不透明底色，横滚时才能遮住下面的内容。 */
+[data-aireq-themed-page="proposals"] {
+  --aireq-table-heading: color-mix(in srgb, var(--color-background) 48%, var(--color-card));
 }
 
 .theme-aireq-color [data-aireq-theme-discuss] {
+  transition: none;
   color: var(--aireq-accent-ink);
 }
 
@@ -208,6 +185,12 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
+  .theme-aireq-color [data-aireq-color-motion] [data-aireq-release-choice] {
+    transition:
+      background-color 140ms ease-out,
+      border-color 140ms ease-out;
+  }
+
   .theme-aireq-color [data-aireq-color-motion] [data-aireq-theme-chip] {
     animation: aireq-filter-arrive 150ms ease-out both;
   }

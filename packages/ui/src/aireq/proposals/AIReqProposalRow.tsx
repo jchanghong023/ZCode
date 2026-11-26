@@ -147,7 +147,7 @@ export function AIReqProposalRow({
       role="row"
       aria-current={documentsOpen || undefined}
       data-aireq-motion-row=""
-      className="group/row border-b border-border/60 last:border-b-0 hover:bg-hover hover:[--pinned-tint:var(--color-hover)] aria-[current=true]:bg-selected aria-[current=true]:[--pinned-tint:var(--color-selected)]"
+      className="group/row border-b border-border/60 last:border-b-0 hover:bg-hover hover:[--pinned-tint:var(--color-hover)] focus-within:bg-hover focus-within:[--pinned-tint:var(--color-hover)] aria-[current=true]:bg-selected aria-[current=true]:[--pinned-tint:var(--color-selected)]"
     >
       {columns.map((column) =>
         column === "title" ? (
@@ -158,7 +158,12 @@ export function AIReqProposalRow({
             data-pinned={columns[0] === column ? "start" : undefined}
             className={`min-w-0 px-3 py-2.5 font-normal first:pl-4 ${pinnedIdentity}`}
           >
-            <AIReqProposalText item={item} search={search} zh={zh} />
+            <AIReqProposalText
+              item={item}
+              search={search}
+              scopeTitle={ai.selection.releaseId ? releaseTitle : undefined}
+              zh={zh}
+            />
             {dwellPlacement === "title" && (
               <span className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-ui-caption text-foreground-subtle">
                 {showProcessInTitle && stage}
@@ -189,7 +194,7 @@ export function AIReqProposalRow({
       <td role="presentation" aria-hidden="true" />
       <td
         data-pinned="end"
-        className={`sticky right-0 z-10 border-l border-border px-3 py-2 @max-[620px]/conversation:px-0 ${pinnedSurface}`}
+        className={`sticky right-0 z-10 border-l border-border/60 px-3 py-2 @max-[620px]/conversation:px-0 ${pinnedSurface}`}
       >
         <div className="flex items-center justify-end gap-1 @max-[620px]/conversation:justify-center">
           {!columns.includes("title") && (
@@ -209,12 +214,12 @@ export function AIReqProposalRow({
           {primaryAgent && (
             <Button
               type="button"
-              variant="secondary"
+              variant="ghost"
               data-aireq-proposal-entry={item.id}
               data-aireq-theme-discuss
               data-aireq-agent={primaryAgent}
               aria-label={`${primaryLabel} · ${item.title}`}
-              className="@max-[620px]/conversation:hidden"
+              className="font-medium group-hover/row:bg-secondary group-focus-within/row:bg-secondary @max-[620px]/conversation:hidden"
               onClick={discussPrimary}
             >
               {zh ? primaryLabel : "Discuss"}
