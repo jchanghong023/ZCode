@@ -19,17 +19,20 @@ const stayColumns =
 export function AIReqReleaseOverview({
   release,
   requirements,
+  allStays,
+  setAllStays,
   now,
   zh,
 }: {
   release: AIReqReleaseSummary & { updatedAt: number };
   requirements: AIReqRequirementGroup[];
+  allStays: boolean;
+  setAllStays: (expanded: boolean) => void;
   now: number;
   zh: boolean;
 }) {
   const ai = useAIReq()!;
   const pane = useAIReqSidePane();
-  const [allStays, setAllStays] = useState(false);
   const [allUpdates, setAllUpdates] = useState(false);
   const stays = openReleaseStays(requirements, now);
   const extendedStayCount = stays.filter(({ band }) => band !== undefined).length;
@@ -141,6 +144,7 @@ export function AIReqReleaseOverview({
                     <AIReqProposalDetails item={ir} zh={zh}>
                       <button
                         type="button"
+                        data-aireq-overview-entry={ir.id}
                         className={`w-full rounded-sm py-2.5 text-left hover:bg-hover focus-visible:outline-2 focus-visible:outline-input-border-focused ${stayColumns}`}
                       >
                         <span

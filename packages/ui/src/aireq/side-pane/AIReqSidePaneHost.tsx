@@ -53,8 +53,12 @@ export function AIReqSidePaneHost({ children }: { children: ReactNode }) {
   const { mainView } = ai;
   const previousView = useRef(mainView);
   useLayoutEffect(() => {
-    // 从会话返回列表时收起会话打开的文档，保留标签和阅读位置。
-    if (previousView.current === "chat" && mainView === "proposals") collapse();
+    // 离开会话返回总览或列表时收起讨论打开的文档，保留标签和阅读位置。
+    if (
+      previousView.current === "chat" &&
+      (mainView === "proposals" || mainView === "projectProgress")
+    )
+      collapse();
     previousView.current = mainView;
   }, [collapse, mainView]);
   const isOpen = (mainView === "chat" || mainView === "proposals") && pane.isOpen;

@@ -1,6 +1,13 @@
-import { LoaderCircle, RefreshCw, Send } from "lucide-react";
+import { useId } from "react";
+import { ChevronDown, LoaderCircle, RefreshCw, Send } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
-import { ControlHintTooltip } from "@/ControlHintTooltip.js";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu.js";
 import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { useAIReq, useAIReqProposalPageActions } from "../AIReqContext.js";
 import { useAIReqDataSource } from "../data-source.js";
@@ -12,6 +19,7 @@ export function AIReqProposalListActions({ zh }: { zh: boolean }) {
   const { projectRefresh, redSync, syncRequirementList } = useAIReqProposalPageActions()!;
   const refreshing = projectRefresh?.status === "pending";
   const syncing = redSync?.status === "pending";
+  const syncDescriptionId = useId();
   const syncLabel = zh ? "同步全部项目到红区" : "Sync to red zone (all projects)";
 
   const refreshError =
@@ -44,33 +52,35 @@ export function AIReqProposalListActions({ zh }: { zh: boolean }) {
           {refreshing ? (zh ? "刷新中…" : "Refreshing…") : zh ? "刷新项目" : "Refresh projects"}
         </Button>
         {capabilities.canSendToRedZone && (
-          <ControlHintTooltip
-            title={syncLabel}
-            description={
-              zh
-                ? `同步 IR、描述和需求文档。后台每 ${AIREQ_FULL_SYNC_INTERVAL_MINUTES} 分钟自动同步一次。`
-                : `Sync IRs, descriptions, and requirements documents. The server syncs automatically every ${AIREQ_FULL_SYNC_INTERVAL_MINUTES} minutes.`
-            }
-            side="bottom"
-            align="end"
-          >
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              aria-label={syncLabel}
-              aria-busy={syncing}
-              disabled={refreshing || syncing}
-              onClick={() => void syncRequirementList()}
-            >
-              {syncing ? (
-                <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />
-              ) : (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="ghost" size="lg" aria-busy={syncing}>
+                {syncing && (
+                  <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />
+                )}
+                {zh ? "项目交接" : "Project handoff"}
+                <ChevronDown aria-hidden="true" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuItem
+                aria-describedby={syncDescriptionId}
+                disabled={refreshing || syncing}
+                onSelect={() => void syncRequirementList()}
+              >
                 <Send aria-hidden="true" />
-              )}
-              {syncLabel}
-            </Button>
-          </ControlHintTooltip>
+                {syncLabel}
+              </DropdownMenuItem>
+              <DropdownMenuLabel
+                id={syncDescriptionId}
+                className="whitespace-normal text-ui-caption font-normal text-foreground-subtle"
+              >
+                {zh
+                  ? `交接全部项目的 IR、描述和需求文档，每 ${AIREQ_FULL_SYNC_INTERVAL_MINUTES} 分钟自动同步一次。`
+                  : `IRs, descriptions and requirements documents from all projects sync automatically every ${AIREQ_FULL_SYNC_INTERVAL_MINUTES} minutes.`}
+              </DropdownMenuLabel>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
       {refreshError ? (

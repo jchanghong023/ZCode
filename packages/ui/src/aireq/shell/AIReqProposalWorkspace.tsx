@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { V4PaneConversationProvider } from "@/v4/V4ConversationContext.js";
 import { useAIReq } from "../AIReqContext.js";
+import { releaseIRTitle } from "../projects/releaseOverviewData.js";
 import { AIReqSessionPane } from "../conversation/AIReqSessionPane.js";
 import { useAIReqDataSource } from "../data-source.js";
 import { useAIReqSidePane } from "../side-pane/AIReqSidePaneContext.js";
@@ -16,7 +17,7 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
   const source = useAIReqDataSource();
-  const { activeTab, tabs, isOpen, open, activate, expand } = useAIReqSidePane();
+  const { activeTab, tabs, isOpen, open, activate, expand, collapse } = useAIReqSidePane();
   const { projectId, irId, srId, discussionPhase: agent = "requirements" } = ai.selection;
   const group = ai.view?.requirements.find(
     (item) => item.projectId === projectId && item.id === irId,
@@ -38,11 +39,14 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
     : zh
       ? "未分配版本"
       : "Unassigned";
-  const contextTitle = [projectName, releaseName, group?.title].filter(Boolean).join(" / ");
+  const irTitle = group && (releaseIRTitle(group.title, releaseName ?? "") || group.title);
+  const contextTitle = [projectName, releaseName].filter(Boolean).join(" / ");
   const alternateLabel = zh
     ? `切换到${agentLabels[alternateAgent]}`
     : `Switch to the ${agentLabels[alternateAgent]}`;
-  const materialsOpened = useRef(false);
+  const documentLayout = useRef<"initial" | "waiting" | "settled">("initial");
+  const hasDocuments =
+    ai.view?.materials.some((file) => file.projectId === projectId && file.irId === irId) ?? false;
   const focusOpenedDocuments = useRef(false);
   const reviewInFlight = useRef(false);
   const [requestingReview, setRequestingReview] = useState(false);
@@ -56,17 +60,34 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
       !irId ||
       releaseId === undefined ||
       !title ||
-      materialsOpened.current
+      documentLayout.current === "settled"
     )
       return;
-    // Shell 按会话入口重建；读取投影更新或用户收起文档时不能再次打开。
-    materialsOpened.current = true;
+    // 首个文档随服务端投影出现；手动打开原文、文档或随后收起均优先于自动布局。
+    if (!hasDocuments) {
+      if (documentLayout.current === "initial") collapse();
+      documentLayout.current = "waiting";
+      return;
+    }
+    documentLayout.current = "settled";
     open({
       selection: { projectId, irId, srId, discussionPhase: agent },
       releaseId,
       title,
     });
-  }, [selectionReady, canEnter, projectId, irId, srId, releaseId, title, agent, open]);
+  }, [
+    selectionReady,
+    canEnter,
+    projectId,
+    irId,
+    srId,
+    releaseId,
+    title,
+    agent,
+    open,
+    collapse,
+    hasDocuments,
+  ]);
   const currentDocumentsSelected =
     !!activeTab &&
     activeTab.kind !== "original" &&
@@ -82,6 +103,7 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
   }, [activeTab, isOpen]);
   const openDocuments = (kind?: "original") => {
     if (!group) return;
+    documentLayout.current = "settled";
     focusOpenedDocuments.current = true;
     const existing = tabs.find(
       (tab) =>
@@ -201,7 +223,12 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
       >
         <AIReqRequirementReturnButton />
         <div className="min-w-0 flex-1 basis-36">
-          <h1 className="text-ui-lg font-semibold leading-tight">{agentTitle}</h1>
+          <h1
+            className="line-clamp-2 wrap-anywhere text-ui-lg font-semibold leading-tight"
+            title={group?.title}
+          >
+            {irTitle || irId || agentTitle}
+          </h1>
           {group && (
             <p className="truncate text-ui-caption text-foreground-subtle" title={contextTitle}>
               {contextTitle}
@@ -227,7 +254,15 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
                 data-aireq-open-agent-documents=""
               >
                 <PanelRightOpen className="size-4" aria-hidden="true" />
-                {zh ? "查看文档" : "View documents"}
+                {hasDocuments
+                  ? zh
+                    ? "查看文档"
+                    : "View documents"
+                  : zh
+                    ? agent === "solution"
+                      ? "方案文档 · 暂无"
+                      : "需求文档 · 暂无"
+                    : "Documents · none yet"}
               </Button>
             )}
           </div>

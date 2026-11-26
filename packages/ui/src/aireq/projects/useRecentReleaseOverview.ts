@@ -8,6 +8,7 @@ export function useRecentReleaseOverview() {
   const projectId = selection.projectId;
   const active = mainView === "projectProgress";
   const [choice, selectRelease] = useState<{ projectId: string; releaseId: string }>();
+  const [expandedStays, setExpandedStays] = useState<string>();
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     if (!active) return;
@@ -28,5 +29,13 @@ export function useRecentReleaseOverview() {
   );
   const release =
     recent.find((r) => r.projectId === choice?.projectId && r.id === choice.releaseId) ?? recent[0];
-  return { recent, release, selectRelease, now };
+  const releaseKey = JSON.stringify([projectId, release?.id]);
+  return {
+    recent,
+    release,
+    selectRelease,
+    now,
+    allStays: expandedStays === releaseKey,
+    setAllStays: (expanded: boolean) => setExpandedStays(expanded ? releaseKey : undefined),
+  };
 }

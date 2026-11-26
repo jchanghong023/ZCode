@@ -1,5 +1,6 @@
-import type { ReactElement } from "react";
+import { useRef, type ReactElement } from "react";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog.js";
+import { useAIReq } from "../AIReqContext.js";
 import type { AIReqRequirementGroup } from "../contract.js";
 import { releaseIRTitle } from "../projects/releaseOverviewData.js";
 import { AIReqRequirementDetailsContent } from "./AIReqRequirementDetailsContent.js";
@@ -54,15 +55,34 @@ export function AIReqProposalDetails({
   zh: boolean;
   children: ReactElement;
 }) {
+  const ai = useAIReq()!;
+  const leavingForDiscussion = useRef(false);
   return (
     <Dialog>
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent
         aria-describedby={undefined}
+        onCloseAutoFocus={(event) => {
+          // 进入讨论时由工作台聚焦 IR 标题，弹窗的延迟回焦不能抢走焦点。
+          if (leavingForDiscussion.current) event.preventDefault();
+          leavingForDiscussion.current = false;
+        }}
         overlayClassName="z-[65]"
         className="z-[65] flex max-h-[calc(100dvh-3rem)] min-h-[min(31rem,calc(100dvh-3rem))] w-[calc(100%-2rem)] max-w-[78rem] min-w-0 flex-col gap-0 overflow-hidden p-0"
       >
-        <AIReqRequirementDetailsContent item={item} zh={zh} />
+        <AIReqRequirementDetailsContent
+          item={item}
+          zh={zh}
+          onDiscuss={(discussionPhase) => {
+            leavingForDiscussion.current = true;
+            ai.select({
+              projectId: item.projectId,
+              releaseId: item.releaseId || undefined,
+              irId: item.id,
+              discussionPhase,
+            });
+          }}
+        />
       </DialogContent>
     </Dialog>
   );

@@ -99,13 +99,22 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     [],
   );
   const recordNavigation = useCallback(
-    (target: AIReqSelection, mainView: WorkspaceMainView, overlay: NavigationOverlay = null) => {
+    (
+      target: AIReqSelection,
+      mainView: WorkspaceMainView,
+      overlay: NavigationOverlay = null,
+      fromOverview = false,
+    ) => {
       const previous = navigationRef.current;
       const next = {
         index: previous.index + 1,
         extent: previous.index + 1,
         mainView,
         overlay,
+        discussionFromOverview:
+          mainView === "chat" &&
+          (fromOverview ||
+            (previous.mainView === "chat" && previous.discussionFromOverview === true)),
       };
       window.history.pushState(
         {
@@ -116,6 +125,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
           aiReqNavigationIndex: next.index,
           aiReqNavigationExtent: next.extent,
           aiReqMainView: mainView,
+          aiReqDiscussionFromOverview: next.discussionFromOverview,
           aiReqOverlay: overlay,
         },
         "",
@@ -330,7 +340,12 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     };
   }, [source, refresh]);
   const select = useCallback(
-    (value: AIReqSelection, addHistory = true, mainView: WorkspaceMainView = "chat") => {
+    (
+      value: AIReqSelection,
+      addHistory = true,
+      mainView: WorkspaceMainView = "chat",
+      fromOverview = false,
+    ) => {
       const current = selectionRef.current;
       const reuseProjectRequirements =
         mainView === "proposals" &&
@@ -349,7 +364,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         (JSON.stringify(value) !== JSON.stringify(current) ||
           navigationRef.current.mainView !== mainView)
       )
-        recordNavigation(value, mainView);
+        recordNavigation(value, mainView, null, fromOverview);
       selectionRef.current = value;
       setSelection(value);
       commandError.current = false;
@@ -399,6 +414,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
           aiReqNavigationIndex: navigationRef.current.index,
           aiReqNavigationExtent: navigationRef.current.extent,
           aiReqMainView: navigationRef.current.mainView,
+          aiReqDiscussionFromOverview: false,
           aiReqOverlay: navigationRef.current.overlay,
         },
         "",
@@ -434,6 +450,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
               aiReqNavigationIndex: 0,
               aiReqNavigationExtent: 0,
               aiReqMainView: current.mainView,
+              aiReqDiscussionFromOverview: current.discussionFromOverview,
               aiReqOverlay: current.overlay,
             },
             "",
@@ -488,6 +505,8 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         extent: previous.extent,
         mainView,
         overlay,
+        discussionFromOverview:
+          mainView === "chat" && event.state.aiReqDiscussionFromOverview === true,
       };
       navigationRef.current = next;
       setNavigation(next);
@@ -577,6 +596,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         pending,
         selectionReady: Boolean(view && loadedSelection === selection),
         mainView: navigation.mainView,
+        discussionFromOverview: navigation.discussionFromOverview === true,
         proposalQuery,
         updateProposalQuery,
         settingsOpen: navigation.overlay?.kind === "settings",
@@ -606,8 +626,14 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
         select: (value) =>
           navigate(() => {
             const current = selectionRef.current;
-            const releaseId = value.projectId === current.projectId ? current.releaseId : undefined;
-            select({ ...value, releaseId }, true, "chat");
+            // 总览选的是预览版本；列表入口则保留当前筛选范围（包括全部版本）。
+            const fromOverview = navigationRef.current.mainView === "projectProgress";
+            const releaseId = fromOverview
+              ? value.releaseId
+              : value.projectId === current.projectId
+                ? current.releaseId
+                : undefined;
+            select({ ...value, releaseId }, true, "chat", fromOverview);
           }),
         refresh,
         refreshProjects,

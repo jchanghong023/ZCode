@@ -24,9 +24,9 @@ const steps = [
     title: "将需求交接到红区",
     titleEn: "Hand requirements to the red zone",
     description:
-      "黄区定时单向交接全部项目的 IR 和最新已保存需求，也可点击「同步全部项目到红区」。交接可以包含草稿。IR 详情中的评论发送只在云龙该条需求下追加正文。",
+      "黄区定时单向交接全部项目的 IR 和最新已保存需求，也可在「项目交接」菜单中点击「同步全部项目到红区」。交接可以包含草稿。在 IR 详情中，可以将已保存的需求文档作为评论发布到云龙中对应的需求下。",
     descriptionEn:
-      "All projects’ IRs and saved requirements, including drafts, are handed off in one direction on a schedule or with Sync to red zone. Posting a document in IR details adds a comment to that IR in CloudDragon.",
+      "All projects’ IRs and saved requirements, including drafts, are handed off in one direction on a schedule or from the Project handoff menu. Posting a document in IR details adds a comment to that IR in CloudDragon.",
   },
   {
     title: "红区讨论方案",

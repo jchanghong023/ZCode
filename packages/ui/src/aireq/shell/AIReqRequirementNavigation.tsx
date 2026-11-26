@@ -7,7 +7,15 @@ import { useAIReq } from "../AIReqContext.js";
 export function AIReqRequirementReturnButton() {
   const ai = useAIReq()!;
   const { locale } = useZCodeIntl();
-  const label = locale === "zh-CN" ? "返回需求共创" : "Back to co-creation";
+  const overview = ai.discussionFromOverview;
+  const zh = locale === "zh-CN";
+  const label = overview
+    ? zh
+      ? "返回项目总览"
+      : "Back to project overview"
+    : zh
+      ? "返回需求共创"
+      : "Back to co-creation";
   return (
     <ControlHintTooltip title={label}>
       <Button
@@ -15,7 +23,9 @@ export function AIReqRequirementReturnButton() {
         size="icon-lg"
         data-aireq-agent-back=""
         aria-label={label}
-        onClick={() => ai.navigate(() => ai.setMainView("proposals"))}
+        onClick={() =>
+          ai.navigate(() => ai.setMainView(overview ? "projectProgress" : "proposals"))
+        }
       >
         <ArrowLeft className="size-4" aria-hidden="true" />
       </Button>

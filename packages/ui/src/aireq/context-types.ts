@@ -13,6 +13,7 @@ export interface AIReqContextValue {
   selection: AIReqSelection;
   session?: AIReqNativeSessionRef;
   mainView: AIReqMainView;
+  discussionFromOverview: boolean;
   proposalQuery: AIReqProposalQuery;
   updateProposalQuery(update: (current: AIReqProposalQuery) => AIReqProposalQuery): void;
   settingsOpen: boolean;

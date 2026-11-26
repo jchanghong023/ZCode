@@ -188,6 +188,8 @@ export function AIReqProjectDocumentsPage({
               <AIReqReleaseOverview
                 key={JSON.stringify([project.id, release.id])}
                 release={release}
+                allStays={overview.allStays}
+                setAllStays={overview.setAllStays}
                 requirements={view!.requirements.filter(
                   (ir) => ir.projectId === project.id && ir.releaseId === release.id,
                 )}

@@ -94,7 +94,10 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
     };
     if (previous?.route !== focusRoute) {
       pendingMainFocus.current = {
-        proposalId: ai.mainView === "proposals" ? previous?.proposalId : undefined,
+        proposalId:
+          ai.mainView === "proposals" || ai.mainView === "projectProgress"
+            ? previous?.proposalId
+            : undefined,
         agent: previous?.agent,
       };
     }
@@ -106,10 +109,15 @@ function AIReqShellContent({ onLogout }: { onLogout(): void }) {
     );
     const entrances = target.proposalId
       ? [
-          ...mainContent.current.querySelectorAll<HTMLButtonElement>("[data-aireq-proposal-entry]"),
+          ...mainContent.current.querySelectorAll<HTMLButtonElement>(
+            ai.mainView === "projectProgress"
+              ? "[data-aireq-overview-entry]"
+              : "[data-aireq-proposal-entry]",
+          ),
         ].filter(
           (element) =>
-            element.dataset.aireqProposalEntry === target.proposalId &&
+            (element.dataset.aireqProposalEntry ?? element.dataset.aireqOverviewEntry) ===
+              target.proposalId &&
             !element.disabled &&
             !element.closest("[hidden], [inert]") &&
             element.getClientRects().length > 0,

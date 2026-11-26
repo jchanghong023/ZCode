@@ -14,6 +14,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogClose,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -22,10 +23,12 @@ import { formatUserFacingError } from "@/lib/errorMessage.js";
 import {
   AIREQ_REQUIREMENT_COMMENT_MAX_LENGTH,
   type AIReqDataSource,
+  type AIReqDiscussionAgent,
   type AIReqRequirementComment,
   type AIReqRequirementDetails,
   type AIReqRequirementGroup,
 } from "../contract.js";
+import { primaryDiscussionAgent } from "../proposalRoutes.js";
 import { useAIReqDataSource } from "../data-source.js";
 import { AIReqMarkdownDocument } from "./AIReqMarkdownDocument.js";
 import {
@@ -50,12 +53,17 @@ type DetailsProps = {
   zh: boolean;
   item?: AIReqRequirementGroup;
   active?: boolean;
+  onDiscuss?: (agent: AIReqDiscussionAgent) => void;
 };
 
 export function AIReqRequirementDetailsContent(
   props: (
     | { originalOnly: true; projectId: string; irId: string }
-    | { originalOnly?: false; item: AIReqRequirementGroup }
+    | {
+        originalOnly?: false;
+        item: AIReqRequirementGroup;
+        onDiscuss: (agent: AIReqDiscussionAgent) => void;
+      }
   ) & { zh: boolean; active?: boolean },
 ) {
   // effect 清理前也不能展示上一条 IR；按请求目标整体重建描述和评论状态。
@@ -70,11 +78,12 @@ export function AIReqRequirementDetailsContent(
       item={props.originalOnly ? undefined : props.item}
       zh={props.zh}
       active={props.active}
+      onDiscuss={props.originalOnly ? undefined : props.onDiscuss}
     />
   );
 }
 
-function RequirementDetails({ projectId, irId, zh, item, active = true }: DetailsProps) {
+function RequirementDetails({ projectId, irId, zh, item, active = true, onDiscuss }: DetailsProps) {
   const source = useAIReqDataSource();
   const description = useRef<HTMLElement>(null);
   const commentList = useRef<HTMLElement>(null);
@@ -107,20 +116,36 @@ function RequirementDetails({ projectId, irId, zh, item, active = true }: Detail
     element?.scrollIntoView({ block: "start" });
     element?.focus({ preventScroll: true });
   }
+  const agent = item && primaryDiscussionAgent(item);
   const header = item && (
     <DetailHeader item={item} zh={zh}>
-      {detail && source.capabilities.canAccessCloudComments && (
-        <nav aria-label={zh ? "详情导航" : "Details navigation"} className="flex shrink-0 gap-1">
-          <Button variant="ghost" onClick={() => jumpTo(description.current)}>
-            <FileText aria-hidden="true" />
-            {zh ? "跳至描述" : "Go to description"}
-          </Button>
-          <Button variant="ghost" onClick={() => jumpTo(commentList.current)}>
-            <MessageSquareText aria-hidden="true" />
-            {zh ? "跳至评论" : "Go to comments"}
-          </Button>
-        </nav>
-      )}
+      <div className="flex flex-wrap items-center gap-2">
+        {detail && source.capabilities.canAccessCloudComments && (
+          <nav aria-label={zh ? "详情导航" : "Details navigation"} className="flex shrink-0 gap-1">
+            <Button variant="ghost" onClick={() => jumpTo(description.current)}>
+              <FileText aria-hidden="true" />
+              {zh ? "跳至描述" : "Go to description"}
+            </Button>
+            <Button variant="ghost" onClick={() => jumpTo(commentList.current)}>
+              <MessageSquareText aria-hidden="true" />
+              {zh ? "跳至评论" : "Go to comments"}
+            </Button>
+          </nav>
+        )}
+        {agent && onDiscuss && (
+          <DialogClose asChild>
+            <Button onClick={() => onDiscuss(agent)}>
+              {agent === "requirements"
+                ? zh
+                  ? "讨论此需求"
+                  : "Discuss this requirement"
+                : zh
+                  ? "讨论此方案"
+                  : "Discuss this solution"}
+            </Button>
+          </DialogClose>
+        )}
+      </div>
     </DetailHeader>
   );
 

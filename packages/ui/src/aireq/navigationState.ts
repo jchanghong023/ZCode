@@ -13,6 +13,7 @@ export interface AIReqNavigationState {
   index: number;
   extent: number;
   mainView: AIReqMainView;
+  discussionFromOverview?: boolean;
   overlay: NavigationOverlay;
 }
 

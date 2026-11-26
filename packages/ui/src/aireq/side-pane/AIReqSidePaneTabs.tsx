@@ -30,6 +30,8 @@ import {
   filterAndRankSearchItems,
   normalizeSearchQuery,
 } from "@/app-shell/sidePaneTabSearch.js";
+import { useAIReq } from "../AIReqContext.js";
+import { releaseIRTitle } from "../projects/releaseOverviewData.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { AIReqSidePaneController, AIReqSidePaneTab } from "./contract.js";
 
@@ -47,6 +49,20 @@ export function AIReqSidePaneTabs({
   const viewport = useRef<HTMLDivElement | null>(null);
   const overview = useRef<HTMLButtonElement>(null);
   const focusAfterClose = useRef(false);
+  const ai = useAIReq()!;
+  function visibleTitle(tab: AIReqSidePaneTab) {
+    // 当前讨论页头已展示版本；跨需求标签仍需要完整标题来区分对象。
+    if (
+      ai.mainView !== "chat" ||
+      tab.selection.projectId !== ai.selection.projectId ||
+      tab.selection.irId !== ai.selection.irId
+    )
+      return tab.title;
+    const release = ai.view?.releases.find(
+      (r) => r.projectId === tab.selection.projectId && r.id === tab.releaseId,
+    );
+    return releaseIRTitle(tab.title, release?.title ?? "") || tab.title;
+  }
   const activeId = pane.activeTab?.id ?? "";
   const tabCount = pane.tabs.length;
   const documentLabel = zh ? "需求文档" : "Requirement documents";
@@ -133,7 +149,7 @@ export function AIReqSidePaneTabs({
                         titlePrefix={
                           tab.kind === "original" ? (zh ? "原文" : "IR") : zh ? "文档" : "Docs"
                         }
-                        title={tab.title}
+                        title={visibleTitle(tab)}
                         accessibleTitle={accessibleTitle}
                         icon={<Files className="size-3.5" aria-hidden="true" />}
                         isActive={activeId === tab.id}
@@ -166,7 +182,7 @@ export function AIReqSidePaneTabs({
             <DragOverlay dropAnimation={null}>
               {draggingTab && (
                 <SidePaneTabPresentationDragOverlay
-                  title={draggingTab.title}
+                  title={visibleTitle(draggingTab)}
                   icon={<Files className="size-3.5" aria-hidden="true" />}
                 />
               )}
