@@ -291,6 +291,8 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
           >
             <AIReqSessionPane
               contentWidthClassName={AIREQ_CONTENT_WIDTH_CLASSNAME}
+              // 收起文档跨过宽屏断点时，进度摘要不能为右侧让位而把消息和输入器向左推。
+              summaryPanelPlacement="above-content"
               paneId="aireq-discussion"
               sessionId={session.sessionId}
               {...scope}

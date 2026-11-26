@@ -277,6 +277,8 @@ export interface SessionPaneProps {
   gitWorktreeReviewSourceId?: GitChangeSourceId | null;
   gitWorktreeChangeSummary?: { added: number; removed: number } | null;
   activeTaskChangeSummary?: ZCodeTaskChangeSummary | null;
+  /** 进度可在消息上方展开，保留正文与输入列的水平位置。 */
+  summaryPanelPlacement?: "adaptive" | "above-content";
   summaryPanelVariantOverride?: ChatViewSummaryPanelVariant | null;
   onSummaryPanelVariantOverrideChange?: (variant: ChatViewSummaryPanelVariant | null) => void;
   onRefreshGit?: () => void;
@@ -511,6 +513,7 @@ export function SessionPane({
   gitWorktreeReviewSourceId,
   gitWorktreeChangeSummary,
   activeTaskChangeSummary,
+  summaryPanelPlacement = "adaptive",
   summaryPanelVariantOverride,
   onSummaryPanelVariantOverrideChange,
   onRefreshGit,
@@ -764,9 +767,11 @@ export function SessionPane({
   >(null);
   const conversationLayoutContainerRef = useRef<HTMLDivElement>(null);
   const hasExternalSummaryPanelVariantControl = Boolean(onSummaryPanelVariantOverrideChange);
-  const effectiveSummaryPanelVariantOverride = hasExternalSummaryPanelVariantControl
-    ? (summaryPanelVariantOverride ?? null)
-    : paneLocalSummaryPanelVariantOverride;
+  const summaryAboveContent = summaryPanelPlacement === "above-content";
+  const effectiveSummaryPanelVariantOverride =
+    (hasExternalSummaryPanelVariantControl
+      ? summaryPanelVariantOverride
+      : paneLocalSummaryPanelVariantOverride) ?? (summaryAboveContent ? "mini" : null);
   const handleSummaryPanelVariantChange = useCallback(
     (variant: ChatViewSummaryPanelVariant | null) => {
       if (onSummaryPanelVariantOverrideChange) {
@@ -3357,6 +3362,7 @@ export function SessionPane({
   // 若只有 status panel 内部知道自动展开态，而 timeline/composer 未同步调整布局，
   // 宽屏下就会出现面板覆盖内容。因此外层布局也必须使用同一展开状态。
   const shouldUseStatusPanelInlineLayout =
+    !summaryAboveContent &&
     !isDraft &&
     shouldUseConversationStatusPanelInlineLayout({
       hasContent: statusPanelModel.hasContent,
@@ -3849,6 +3855,11 @@ export function SessionPane({
             parentSessionId={sessionId ?? undefined}
             layoutMode={statusPanelLayout}
             summaryPanelVariantOverride={effectiveSummaryPanelVariantOverride}
+            className={
+              summaryAboveContent && statusPanelVariant === "panel"
+                ? "static shrink-0 pb-2 [&>aside]:max-h-[40dvh]"
+                : undefined
+            }
             onVariantChange={handleSummaryPanelVariantChange}
             terminalSectionOpen={terminalSectionOpen}
             onTerminalSectionOpenChange={setTerminalSectionOpen}
