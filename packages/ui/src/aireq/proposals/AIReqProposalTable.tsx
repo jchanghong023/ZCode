@@ -49,7 +49,18 @@ export function AIReqProposalTable() {
   });
   const autoFit = preferences.autoFit === true;
   const actionsWidth = configuredColumns.includes("title") ? 152 : 184;
-  const columns = visibleProposalColumns(preferences, tableViewportWidth, actionsWidth);
+  const fitted = visibleProposalColumns(preferences, tableViewportWidth, actionsWidth);
+  // 右栏展开后固定操作列会遮住半个工号。精简布局把身份字段放到标题下，自定义布局仍保留全部表头。
+  const compactIdentity =
+    autoFit &&
+    fitted.includes("title") &&
+    tableViewportWidth > 0 &&
+    tableViewportWidth < 620 &&
+    tableViewportWidth <
+      fitted.reduce((width, column) => width + proposalColumns[column].width, 48);
+  const columns = compactIdentity
+    ? fitted.filter((column) => column !== "owner" && column !== "id")
+    : fitted;
   const firstColumn = columns[0];
   const pinnedIdentity = firstColumn === "title" || firstColumn === "id" ? firstColumn : undefined;
   const showDwellTime = columns.includes("dwellTime") || sort.column === "dwellTime";
@@ -126,6 +137,30 @@ export function AIReqProposalTable() {
           column === sort.column && sort.direction === "ascending" ? "descending" : "ascending",
       },
     });
+  }
+  function sortButton(column: ProposalColumn) {
+    const direction = sort.column === column ? sort.direction : undefined;
+    const Indicator =
+      direction === "ascending"
+        ? ChevronUp
+        : direction === "descending"
+          ? ChevronDown
+          : ChevronsUpDown;
+    return (
+      <button
+        type="button"
+        disabled={!columnConfig.ready}
+        onClick={() => sortBy(column)}
+        data-sorted={direction ? true : undefined}
+        className="-mx-1 inline-flex min-h-8 max-w-[calc(100%+0.5rem)] items-center gap-1 rounded-sm px-1 text-left font-medium hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-input-border-focused data-[sorted=true]:bg-selected"
+      >
+        {proposalColumns[column][zh ? "zh" : "en"]}
+        <Indicator
+          aria-hidden="true"
+          className={`size-3.5 shrink-0 ${direction ? "text-foreground" : "text-foreground-subtle"}`}
+        />
+      </button>
+    );
   }
   function setColumnFilter(column: ProposalColumn, values: string[]) {
     ai.updateProposalQuery((current) => {
@@ -281,12 +316,6 @@ export function AIReqProposalTable() {
                   {columns.map((column) => {
                     const numeric = proposalColumns[column].group === "number";
                     const direction = sort.column === column ? sort.direction : undefined;
-                    const Indicator =
-                      direction === "ascending"
-                        ? ChevronUp
-                        : direction === "descending"
-                          ? ChevronDown
-                          : ChevronsUpDown;
                     return (
                       <th
                         key={column}
@@ -306,19 +335,13 @@ export function AIReqProposalTable() {
                             onChange={(values) => setColumnFilter(column, values)}
                           />
                         ) : (
-                          <button
-                            type="button"
-                            disabled={!columnConfig.ready}
-                            onClick={() => sortBy(column)}
-                            data-sorted={direction ? true : undefined}
-                            className="-mx-1 inline-flex min-h-8 max-w-[calc(100%+0.5rem)] items-center gap-1 rounded-sm px-1 text-left font-medium hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-input-border-focused data-[sorted=true]:bg-selected"
-                          >
-                            {proposalColumns[column][zh ? "zh" : "en"]}
-                            <Indicator
-                              aria-hidden="true"
-                              className={`size-3.5 shrink-0 ${direction ? "text-foreground" : "text-foreground-subtle"}`}
-                            />
-                          </button>
+                          <>
+                            {sortButton(column)}
+                            {column === "title" &&
+                              compactIdentity &&
+                              fitted.includes("id") &&
+                              sortButton("id")}
+                          </>
                         )}
                       </th>
                     );
@@ -339,6 +362,8 @@ export function AIReqProposalTable() {
                     key={item.id}
                     item={item}
                     columns={columns}
+                    showIdInTitle={compactIdentity && fitted.includes("id")}
+                    showOwnerInTitle={compactIdentity && fitted.includes("owner")}
                     releaseTitle={
                       releaseTitles.get(item.releaseId) ?? (zh ? "未分配" : "Unassigned")
                     }

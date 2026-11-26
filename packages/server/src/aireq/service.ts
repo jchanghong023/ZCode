@@ -392,6 +392,8 @@ export class MockAIReqService extends AIReqNativeBusiness implements IAIReqServi
         backend: { id: PROTOTYPE_BACKEND.id },
         capabilities: {
           workflowCommands: [...commands],
+          canSendToRedZone: production?.zone !== "red",
+          canAccessCloudComments: production?.zone !== "red",
         },
         models: {
           choices: models.readAgentModelChoices().map(({ id, name, provider }) => ({

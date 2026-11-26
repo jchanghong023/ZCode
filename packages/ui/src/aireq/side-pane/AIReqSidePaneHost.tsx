@@ -8,6 +8,7 @@ import {
 import { useAnimatedResizablePanel } from "@/app-shell/useAnimatedResizablePanel.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
+import { AIReqRequirementDetailsContent } from "../proposals/AIReqRequirementDetailsContent.js";
 import { AIReqMaterialsPane } from "../documents/AIReqMaterialsPane.js";
 import { AIReqDetailScope } from "./AIReqDetailScope.js";
 import { AIReqSidePaneTabs } from "./AIReqSidePaneTabs.js";
@@ -15,6 +16,18 @@ import { AIReqSidePaneMemoryContext, useAIReqSidePane } from "./AIReqSidePaneCon
 import type { AIReqSidePaneTab } from "./contract.js";
 
 function TabContents({ tab, active }: { tab: AIReqSidePaneTab; active: boolean }) {
+  const { locale } = useZCodeIntl();
+  if (tab.kind === "original" && tab.selection.projectId && tab.selection.irId) {
+    return (
+      <AIReqRequirementDetailsContent
+        originalOnly
+        active={active}
+        projectId={tab.selection.projectId}
+        irId={tab.selection.irId}
+        zh={locale === "zh-CN"}
+      />
+    );
+  }
   return (
     <AIReqDetailScope target={tab.selection} releaseId={tab.releaseId} active={active}>
       {(detail) => (

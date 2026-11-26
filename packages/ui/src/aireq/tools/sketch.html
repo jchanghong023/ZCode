@@ -332,6 +332,7 @@ SOFTWARE.
       </div>
     </main>
     <footer class="footer">
+      <details><summary>快捷键</summary>
       <div class="hint">
         滚轮：缩放 · <span id="panHint">开启「平移」后，聚焦按钮可用方向键移动视野</span> ·
         <kbd>Ctrl+V</kbd> 粘贴 ·
@@ -341,6 +342,7 @@ SOFTWARE.
       <div class="hint" id="resizeHint">
         聚焦尺寸手柄后：左右键调整宽度，上下键调整高度，每次 10 像素；按住 Shift 每次 50 像素。
       </div>
+      </details>
       <div id="status" role="status" aria-live="polite" data-state="ready">
         可直接绘图或粘贴截图。添加附件不会自动发送消息。
       </div>
@@ -737,7 +739,7 @@ SOFTWARE.
           // 修复原因：工具按钮的 Enter／空格须走原生激活，不能冒泡为“添加附件”或平移。
           if (
             event.target instanceof Element &&
-            event.target.closest("button, [role='button']") &&
+            event.target.closest("button, summary, [role='button']") &&
             (key === "enter" || key === " ")
           )
             return;

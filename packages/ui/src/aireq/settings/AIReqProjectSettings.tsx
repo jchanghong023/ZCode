@@ -266,7 +266,14 @@ export function AIReqProjectSettings({
           >
             <SettingsGroupCard>
               <div className="flex flex-wrap items-center justify-between gap-3 p-4">
-                <h2 className="min-w-0 wrap-anywhere font-medium">{project.name}</h2>
+                <div className="min-w-0">
+                  <h2 className="wrap-anywhere font-medium">{project.name}</h2>
+                  {(!project.repositoryUrl || !project.workDirectory) && (
+                    <p className="text-ui-sm text-foreground-subtle">
+                      {zh ? "代码源待配置" : "Code source needs configuration"}
+                    </p>
+                  )}
+                </div>
                 <Button
                   variant="outline"
                   disabled={!canSaveRepository}

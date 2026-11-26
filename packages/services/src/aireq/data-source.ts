@@ -69,6 +69,8 @@ export interface AIReqDataSource {
   clientId: string;
   backend?: AIReqBackendView;
   capabilities: {
+    canSendToRedZone: boolean;
+    canAccessCloudComments: boolean;
     workflowCommands: readonly AIReqAction["type"][];
   };
   initialProjectId?: string;

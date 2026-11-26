@@ -3,14 +3,16 @@ import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { useAIReq, useAIReqProposalPageActions } from "../AIReqContext.js";
+import { useAIReqDataSource } from "../data-source.js";
 import { AIREQ_FULL_SYNC_INTERVAL_MINUTES } from "../contract.js";
 
 export function AIReqProposalListActions({ zh }: { zh: boolean }) {
   const ai = useAIReq()!;
+  const { capabilities } = useAIReqDataSource();
   const { projectRefresh, redSync, syncRequirementList } = useAIReqProposalPageActions()!;
   const refreshing = projectRefresh?.status === "pending";
   const syncing = redSync?.status === "pending";
-  const syncLabel = zh ? "同步到红区（所有项目）" : "Sync to red zone (all projects)";
+  const syncLabel = zh ? "同步全部项目到红区" : "Sync to red zone (all projects)";
 
   const refreshError =
     projectRefresh?.status === "failed"
@@ -41,32 +43,35 @@ export function AIReqProposalListActions({ zh }: { zh: boolean }) {
           <RefreshCw aria-hidden="true" />
           {refreshing ? (zh ? "刷新中…" : "Refreshing…") : zh ? "刷新项目" : "Refresh projects"}
         </Button>
-        <ControlHintTooltip
-          title={syncLabel}
-          description={
-            zh
-              ? `同步 IR、描述和需求文档。后台每 ${AIREQ_FULL_SYNC_INTERVAL_MINUTES} 分钟自动同步一次。`
-              : `Sync IRs, descriptions, and requirements documents. The server syncs automatically every ${AIREQ_FULL_SYNC_INTERVAL_MINUTES} minutes.`
-          }
-          side="bottom"
-          align="end"
-        >
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-lg"
-            aria-label={syncLabel}
-            aria-busy={syncing}
-            disabled={refreshing || syncing}
-            onClick={() => void syncRequirementList()}
+        {capabilities.canSendToRedZone && (
+          <ControlHintTooltip
+            title={syncLabel}
+            description={
+              zh
+                ? `同步 IR、描述和需求文档。后台每 ${AIREQ_FULL_SYNC_INTERVAL_MINUTES} 分钟自动同步一次。`
+                : `Sync IRs, descriptions, and requirements documents. The server syncs automatically every ${AIREQ_FULL_SYNC_INTERVAL_MINUTES} minutes.`
+            }
+            side="bottom"
+            align="end"
           >
-            {syncing ? (
-              <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />
-            ) : (
-              <Send aria-hidden="true" />
-            )}
-          </Button>
-        </ControlHintTooltip>
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              aria-label={syncLabel}
+              aria-busy={syncing}
+              disabled={refreshing || syncing}
+              onClick={() => void syncRequirementList()}
+            >
+              {syncing ? (
+                <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />
+              ) : (
+                <Send aria-hidden="true" />
+              )}
+              {syncLabel}
+            </Button>
+          </ControlHintTooltip>
+        )}
       </div>
       {refreshError ? (
         <p role="alert" className="text-ui-caption text-destructive">
@@ -77,6 +82,13 @@ export function AIReqProposalListActions({ zh }: { zh: boolean }) {
           {zh ? "已更新项目和需求。" : "Projects and requirements updated."}
         </p>
       ) : null}
+      {redSync?.status === "succeeded" && (
+        <p role="status" className="text-ui-caption text-foreground-subtle">
+          {zh
+            ? `已提交交接：${redSync.receipt.projectCount} 个项目，${redSync.receipt.count} 条需求，${redSync.receipt.documentCount} 份文档。`
+            : `Handoff submitted: ${redSync.receipt.projectCount} projects, ${redSync.receipt.count} requirements, ${redSync.receipt.documentCount} documents.`}
+        </p>
+      )}
       {syncError && (
         <p role="alert" className="text-ui-caption text-destructive">
           {syncError}

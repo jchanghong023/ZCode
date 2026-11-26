@@ -16,8 +16,6 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAIReq } from "../AIReqContext.js";
 import {
   hasProjectRole,
-  MATERIAL_KIND_LABELS,
-  requirementMaterialName,
   type AIReqDiscussionAgent,
   type AIReqDocumentValidation,
   type AIReqDocumentVersion,
@@ -32,6 +30,7 @@ import { AIReqMarkdownDocument } from "../proposals/AIReqMarkdownDocument.js";
 import { readMaterialSelection } from "../proposals/material-reader.js";
 import { AIREQ_CONTENT_WIDTH_CLASSNAME } from "../shell/pageLayout.js";
 import { useAIReqSidePane } from "../side-pane/AIReqSidePaneContext.js";
+import { materialName } from "./materialName.js";
 import { AIReqDocumentConfirmation } from "./AIReqDocumentConfirmation.js";
 import { AIReqSrDependencyGraph } from "./AIReqSrDependencyGraph.js";
 
@@ -57,11 +56,12 @@ export function AIReqMaterialsPane({
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
   const ai = useAIReq()!;
-  const { fullView, toggleFullView } = useAIReqSidePane();
+  const { fullView, toggleFullView, open } = useAIReqSidePane();
   const [paneBoundary, setPaneBoundary] = useState<HTMLElement | null>(null);
   const [path, setPath] = useState<string>();
   const [historyVersion, setHistoryVersion] = useState<number>();
   const versionToolbar = useRef<HTMLDivElement>(null);
+  const reader = useRef<HTMLDivElement>(null);
   const group = view.requirements.find(
     (item) =>
       item.id === selection.irId &&
@@ -87,7 +87,8 @@ export function AIReqMaterialsPane({
   // 路径移除后回到当前默认文档。后续同路径再出现时不跳回旧选择。
   if (path && !selected) setPath(undefined);
   const viewingHistory = historyVersion !== undefined;
-  const primaryAgent = primaryDiscussionAgent(group);
+  // 合并展示两个会话时，空态应指向当前会话，而不是一律回到需求讨论。
+  const primaryAgent = selection.discussionPhase ?? primaryDiscussionAgent(group);
   const discussingPrimary =
     ai.mainView === "chat" &&
     ai.selection.projectId === group.projectId &&
@@ -103,7 +104,6 @@ export function AIReqMaterialsPane({
   const canUseSolution =
     hasProjectRole(roles, group.projectId, employee, "development") ||
     hasProjectRole(roles, group.projectId, employee, "testing");
-  const canConfirm = !viewingHistory && version !== undefined && !confirmation && canUseSolution;
   const confirmedLabel = zh ? "已定版" : "Confirmed";
   const unconfirmedLabel = zh ? "未定版" : "Unconfirmed";
   const formatVersion = ({ number, confirmation }: AIReqDocumentVersion) =>
@@ -118,8 +118,7 @@ export function AIReqMaterialsPane({
   const dependency = materials.find(
     (item) => !item.srId && item.path.endsWith("/sr-dependencies.json"),
   );
-  const fileName = (item: AIReqMaterialView) =>
-    requirementMaterialName(item.path) ?? MATERIAL_KIND_LABELS[item.kind];
+  const fileName = (item: AIReqMaterialView) => materialName(item.path, zh);
   const srName = (srId: string | undefined) => {
     const title = rows.find((row) => row.id === srId)?.title;
     const prefix = `${group.title} · `;
@@ -216,31 +215,26 @@ export function AIReqMaterialsPane({
                   {versionLabel}
                 </span>
               )}
-              {active && (
-                <AIReqDocumentConfirmation
-                  canConfirm={canConfirm}
-                  sessions={group.sessions}
-                  requirementsPath={group.documentPath}
-                  validateVersion={validateVersion}
-                  confirmVersion={confirmVersion}
-                  openRepairAgent={openRepairAgent}
-                  focusVersion={() =>
-                    versionToolbar.current
-                      ?.querySelector<HTMLElement>("[data-aireq-version-status]")
-                      ?.focus({ preventScroll: true })
-                  }
-                />
-              )}
-              {materials.length > 1 && active && (
-                <Select value={displayedPath} onValueChange={setPath}>
+              {materials.length > 0 && active && (
+                <Select
+                  value={displayedPath}
+                  onValueChange={(value) => {
+                    if (value === "original")
+                      open({ kind: "original", selection, releaseId, title: group.title });
+                    else setPath(value);
+                  }}
+                >
                   <SelectTrigger
                     variant="outline"
-                    className="h-8 max-w-full gap-2 text-ui-caption"
+                    className="h-8 max-w-full min-w-0 gap-2 text-ui-caption"
+                    title={heading}
                     data-testid="material-menu"
                     aria-label={zh ? "文档目录" : "Document directory"}
                   >
                     <ListTree className="size-3.5 shrink-0" aria-hidden="true" />
-                    <SelectValue>{zh ? "文档目录" : "Document directory"}</SelectValue>
+                    <SelectValue>
+                      <span className="block max-w-56 truncate">{heading}</span>
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent
                     position="popper"
@@ -248,6 +242,9 @@ export function AIReqMaterialsPane({
                     collisionBoundary={paneBoundary}
                     className="w-72 max-w-(--radix-select-content-available-width)"
                   >
+                    <SelectItem value="original">
+                      {zh ? "云龙原文" : "Original CloudDragon request"}
+                    </SelectItem>
                     {[...documentGroups].map(([srId, files]) => (
                       <SelectGroup key={srId ?? "ir"}>
                         <SelectLabel className="max-w-full whitespace-normal wrap-anywhere font-medium text-foreground">
@@ -293,6 +290,10 @@ export function AIReqMaterialsPane({
         key={`${historyVersion ?? "latest"}:${displayedPath ?? ""}`}
         className="min-h-0 flex-1 overflow-auto py-4 [scrollbar-gutter:stable]"
         style={{ scrollbarWidth: "thin" }}
+        ref={reader}
+        tabIndex={-1}
+        role="region"
+        aria-label={heading || (zh ? "材料正文" : "Document body")}
         data-testid="material"
         data-material-path={displayedPath}
         data-material-valid={material?.valid}
@@ -370,6 +371,25 @@ export function AIReqMaterialsPane({
           )}
         </div>
       </div>
+      {active && !viewingHistory && canUseSolution && (
+        <AIReqDocumentConfirmation
+          group={group}
+          materials={materials}
+          srName={srName}
+          validateVersion={validateVersion}
+          confirmVersion={confirmVersion}
+          readFile={(target) => {
+            setPath(target);
+            requestAnimationFrame(() => reader.current?.focus({ preventScroll: true }));
+          }}
+          openRepairAgent={openRepairAgent}
+          focusVersion={() =>
+            versionToolbar.current
+              ?.querySelector<HTMLElement>("[data-aireq-version-status]")
+              ?.focus({ preventScroll: true })
+          }
+        />
+      )}
     </section>
   );
 }

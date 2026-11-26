@@ -28,6 +28,7 @@ import {
 import type { SettingsSectionId } from "@/lib/settingsNavigation.js";
 import { AIREQ_PAGE_TITLE_CLASSNAME } from "../shell/pageLayout.js";
 import { AIReqAgentModelSettings } from "./AIReqAgentModelSettings.js";
+import { materialName } from "../documents/materialName.js";
 import { AIReqDocumentFormatSettings } from "./AIReqDocumentFormatSettings.js";
 import { AIReqPersonalizationSettings } from "./AIReqPersonalizationSettings.js";
 import { AIReqProjectSettings, type AIReqProjectSettingsRequest } from "./AIReqProjectSettings.js";
@@ -184,8 +185,16 @@ export function AIReqSettingsPage({
           label: titles.documentFormats,
           items: Object.keys(AIREQ_DOCUMENT_PATHS).map((name) => ({
             id: `aireq.documentFormats.${name}` as const,
-            label: name,
-            keywords: ["文档格式", "必需章节", "Markdown", "required headings"],
+            label: `${materialName(name, zh)} · ${name}`,
+            keywords: [
+              name,
+              materialName(name, true),
+              materialName(name, false),
+              "文档格式",
+              "必需章节",
+              "Markdown",
+              "required headings",
+            ],
           })),
         },
       ] as const,

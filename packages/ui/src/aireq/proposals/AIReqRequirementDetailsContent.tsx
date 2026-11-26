@@ -63,14 +63,51 @@ const fieldLabels: Record<string, readonly [zh: string, en: string]> = {
   attachment: ["附件", "Attachments"],
 };
 
-type DetailsProps = { projectId: string; irId: string; zh: boolean };
+// 业务栏按字段语义展示；原始字段仍保留云龙返回的完整值。
+function businessFieldValue(name: string, raw: string | undefined, zh: boolean): string {
+  if (!raw?.trim() || raw === "null") return "—";
+  if (
+    Object.hasOwn(proposalColumns, name) &&
+    proposalColumns[name as keyof typeof proposalColumns].group === "option"
+  ) {
+    if (raw === "true") return zh ? "是" : "Yes";
+    if (raw === "false") return zh ? "否" : "No";
+  }
+  if (name === "labels" && raw.trimStart().startsWith("[")) {
+    try {
+      const labels: unknown = JSON.parse(raw);
+      if (Array.isArray(labels)) {
+        if (!labels.length) return zh ? "无标签" : "No labels";
+        const names = labels.map((label: unknown) =>
+          typeof label === "string"
+            ? label
+            : label && typeof label === "object" && "name" in label
+              ? label.name
+              : undefined,
+        );
+        if (names.every((name) => typeof name === "string")) return names.join(zh ? "、" : ", ");
+      }
+    } catch {
+      // 非标准标签值按云龙返回内容显示，不能误报为空。
+    }
+  }
+  return raw;
+}
+
+type DetailsProps = {
+  projectId: string;
+  irId: string;
+  zh: boolean;
+  originalOnly?: boolean;
+  active?: boolean;
+};
 
 export function AIReqRequirementDetailsContent(props: DetailsProps) {
   // effect 清理前也不能展示上一条 IR；按请求目标整体重建描述和评论状态。
   return <RequirementDetails key={JSON.stringify([props.projectId, props.irId])} {...props} />;
 }
 
-function RequirementDetails({ projectId, irId, zh }: DetailsProps) {
+function RequirementDetails({ projectId, irId, zh, originalOnly, active = true }: DetailsProps) {
   const source = useAIReqDataSource();
   const description = useRef<HTMLElement>(null);
   const commentList = useRef<HTMLElement>(null);
@@ -85,19 +122,20 @@ function RequirementDetails({ projectId, irId, zh }: DetailsProps) {
   const fieldsLabel = zh ? "其他字段" : "Other fields";
 
   useEffect(() => {
-    let active = true;
+    if (!active) return;
+    let live = true;
     void source.readRequirementDetails({ projectId, irId }).then(
       (detail) => {
-        if (active) setRead({ source, attempt, detail });
+        if (live) setRead({ source, attempt, detail });
       },
       (error: unknown) => {
-        if (active) setRead({ source, attempt, error });
+        if (live) setRead({ source, attempt, error });
       },
     );
     return () => {
-      active = false;
+      live = false;
     };
-  }, [source, projectId, irId, attempt]);
+  }, [source, projectId, irId, attempt, active]);
 
   if (!detail) {
     return (
@@ -121,6 +159,22 @@ function RequirementDetails({ projectId, irId, zh }: DetailsProps) {
     );
   }
 
+  if (originalOnly)
+    return (
+      <article
+        className="mx-auto h-full w-full max-w-4xl overflow-auto px-5 py-4"
+        aria-label={zh ? "云龙原文" : "Original CloudDragon request"}
+      >
+        <h2 className="mb-3 text-ui-lg font-semibold">
+          {zh ? "云龙原文" : "Original CloudDragon request"} · {irId}
+        </h2>
+        {detail.description.trim() ? (
+          <RequirementBody body={detail.description} />
+        ) : (
+          <p>{zh ? "云龙未提供描述。" : "No description in CloudDragon."}</p>
+        )}
+      </article>
+    );
   const values = new Map(detail.fields.map(({ name, value }) => [name, value]));
   function jumpTo(element: HTMLElement | null) {
     element?.scrollIntoView({ block: "start" });
@@ -141,17 +195,21 @@ function RequirementDetails({ projectId, irId, zh }: DetailsProps) {
           <Button type="button" variant="ghost" onClick={() => jumpTo(description.current)}>
             {descriptionLabel}
           </Button>
-          <Button type="button" variant="ghost" onClick={() => jumpTo(commentList.current)}>
-            {commentsLabel}
-          </Button>
+          {source.capabilities.canAccessCloudComments && (
+            <Button type="button" variant="ghost" onClick={() => jumpTo(commentList.current)}>
+              {commentsLabel}
+            </Button>
+          )}
         </nav>
         <section ref={description} tabIndex={-1} aria-label={descriptionLabel} className="mb-6">
           <TextSection label={descriptionLabel} body={detail.description} zh={zh} />
         </section>
-        <section ref={commentList} tabIndex={-1} aria-label={commentsLabel} className="space-y-3">
-          <h2 className="text-ui-lg font-semibold">{commentsLabel}</h2>
-          <RequirementComments projectId={projectId} irId={irId} zh={zh} />
-        </section>
+        {source.capabilities.canAccessCloudComments && (
+          <section ref={commentList} tabIndex={-1} aria-label={commentsLabel} className="space-y-3">
+            <h2 className="text-ui-lg font-semibold">{commentsLabel}</h2>
+            <RequirementComments projectId={projectId} irId={irId} zh={zh} />
+          </section>
+        )}
       </div>
       <aside
         aria-label={fieldsLabel}
@@ -167,9 +225,7 @@ function RequirementDetails({ projectId, irId, zh }: DetailsProps) {
               return (
                 <div key={name} className="space-y-0.5 py-2 wrap-anywhere">
                   <dt className="text-ui-caption text-foreground-subtle">{label[zh ? 0 : 1]}</dt>
-                  <dd className="whitespace-pre-wrap">
-                    {value?.trim() && value !== "null" ? value : "—"}
-                  </dd>
+                  <dd className="whitespace-pre-wrap">{businessFieldValue(name, value, zh)}</dd>
                 </div>
               );
             })}
@@ -388,7 +444,7 @@ function RequirementComments({
                     ? `补发剩余 ${document.total - document.sent} 条`
                     : `Send remaining ${document.total - document.sent}`
                   : zh
-                    ? "同步需求文档到云龙评论"
+                    ? "将本需求正文发到云龙评论"
                     : "Post requirements document to CloudDragon"}
               </Button>
             )}

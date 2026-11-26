@@ -40,6 +40,8 @@ function bootstrap(revision = 1): AIReqRemoteBootstrap {
     backend: { id: "backend-a" },
     capabilities: {
       workflowCommands: ["addProjectRoleMember"],
+      canSendToRedZone: true,
+      canAccessCloudComments: true,
     },
     initialProjectId: "project-a",
     models: { choices: [], settings: { defaultModel: `model-${revision}`, agents: [] }, revision },

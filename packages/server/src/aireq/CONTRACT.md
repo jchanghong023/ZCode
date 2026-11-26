@@ -4,7 +4,7 @@
 
 项目与 IR 业务字段来自云龙，Release 由当前目录中 IR 的 PI 归组，IR 可以不属于任何 Release。AIReq 不创建项目、Release 或需求，也不删除需求；IR 从云龙目录消失时保留本地工作流记录。工作流持有项目角色、当前材料、已确认快照和文档评审记录；首次载入 IR 时绑定独立的需求和方案会话。所有有效工号可以读取文档和进入需求会话。项目的开发或测试可进入方案会话、读取方案评审及确认版本。管理员沿用全项目角色。角色校验适用于业务命令、原生会话读取与再次执行、目录和附件访问。
 
-纯对话无文件变化时保留原版本。尚无材料的 IR 没有文档版本，首次写入文件生成 V1。未确认的同版可反复修改。`validateDocumentVersion` 只读检查完整性及格式并返回 `snapshot`。确认先核对提交的快照仍匹配未定版的版本及全部文件，再按当前规则复核，成功则固定文件、SR、确认人工号和时间。文件漂移、版本变更或已定版时 RPC 拒绝；快照匹配但复核未通过时结果含失败的 `receipt` 与同级 `documentValidation`，报告问题路径和原因。版本号在确认时保持不变，确认后的首次文件变化把固定快照移入历史并开启下一版。删除文件不重置版本计数或删除已确认历史。
+纯对话无文件变化时保留原版本。尚无材料的 IR 没有文档版本，首次写入文件生成 V1。未确认的同版可反复修改。`validateDocumentVersion` 只读检查完整性及格式并返回需求／方案范围、文件清单和 `snapshot`。确认先核对提交的快照仍匹配未定版的版本及全部文件，再按当前规则复核，成功则固定文件、SR、确认人工号和时间。文件漂移、版本变更或已定版时 RPC 拒绝；快照匹配但复核未通过时结果含失败的 `receipt` 与同级 `documentValidation`，报告问题路径和原因。版本号在确认时保持不变，确认后的首次文件变化把固定快照移入历史并开启下一版。删除文件不重置版本计数或删除已确认历史。
 
 `projects.saveRepository` 只更新当前页快照中已登记且仍有效的云龙项目。请求必填 `projectId`、`repositoryUrl`、`defaultBranch`、`workDirectory`、`expectedRevision`、`operationId`，不接受 `name`。配置保存保留项目级 CAS 与按连接身份、操作编号的幂等裁决。仓库地址与默认分支仅配置只读代码入口。设置提交前准备服务端共享文档目录并检查材料基线；工作流在提交材料变更前发布该 IR 的完整最新版，确认快照独立保留。详见[项目工作目录](../../../../docs/specs/aireq/contract-design.md#项目工作目录)。
 
@@ -20,7 +20,7 @@
 
 ## 调用与回执
 
-公开 `MockAIReqService` 由 `@zcode/services/aireq` 的接口与 descriptor 注册，bootstrap 契约版本为 `38`。普通调用绑定合法工号和 clientId，原生命令还要求原有 v4 握手及 HTTP 固定连接身份一致。业务写操作使用各自的校验与签名。普通 `command` 以第三参工作流 revision 做 CAS；`confirmDocumentVersion` 用预检快照而非该修订号，`reviewDocuments` 直接捕获接纳时最新已保存材料。命令按实际连接身份及 operationId 去重；同 ID 同内容显式重试返回原结果，复用 ID 但改内容则拒绝。原型回执保存在进程内。重连只恢复订阅和重读。
+公开 `MockAIReqService` 由 `@zcode/services/aireq` 的接口与 descriptor 注册，bootstrap 契约版本为 `39`。普通调用绑定合法工号和 clientId，原生命令还要求原有 v4 握手及 HTTP 固定连接身份一致。业务写操作使用各自的校验与签名。普通 `command` 以第三参工作流 revision 做 CAS；`confirmDocumentVersion` 用预检快照而非该修订号，`reviewDocuments` 直接捕获接纳时最新已保存材料。命令按实际连接身份及 operationId 去重；同 ID 同内容显式重试返回原结果，复用 ID 但改内容则拒绝。原型回执保存在进程内。重连只恢复订阅和重读。
 
 服务端为每条连接绑定云龙目录快照；可选的 WebSocket `pageId` 与工号、clientId 一起支持在最后一个连接断开后 30 分钟内恢复快照。普通读取复用该页已绑定目录，叠加当前本地状态。首次读取允许部分项目失败；刷新仅在完整目录成功后替换快照，普通读取在此之前仍取旧目录。`readWorkflow`、`retrySession` 使用同源的页面目录和当前本地工作流，按项目、IR 和 Agent 定位会话；恢复不得绕过该页目录。命令目标只接受项目和 IR；这些目标均不接受 SR。`readRequirementDetails` 按项目组和 IR 业务号读取页面快照中的云龙字段。项目目录允许包含多个需求域，`requirementComments.*` 按页面快照内的项目、该条 IR 的需求域和业务号调用云龙。
 

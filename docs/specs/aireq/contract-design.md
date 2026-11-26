@@ -108,7 +108,7 @@ readonly onDidChange: Event<AIReqRemoteEvent>;
 
 `bootstrap` 无业务创建副作用，返回 `contractVersion`、opaque `backend.id`、`capabilities.workflowCommands`、可选 `initialProjectId`、模型 `choices/settings/revision`、提示词 `saved/revision`、`projects.workspaces` 和可选 Skill 存储目标。`projects.workspaces` 以项目 ID 为键，与同项目的 `readWorkflow.workspace` 同源，包含 `identity`、`kind` 及可选 `path`、`error`。初始化和元数据失效只读一次 bootstrap；浏览器不拼接身份、不用旧值覆盖不可用结果，也不猜测省略的默认项目。显式分享链接优先。响应不返回导航、私人草稿、服务注册清单或后端配置；刷新不覆盖未保存的提示词草稿。
 
-AIReq bootstrap 业务契约版本为 `38`，退役原有静态创建／删除能力，并收窄仓库配置写入参数。共享类型、浏览器调用与服务端 wire 校验同批切换，不接受历史参数作为兼容格式。该版本与原生 Agent 的 Protocol v4 独立。工作流修订号用于适用 CAS 的写入，文档版本号由该需求的材料与确认事实决定。
+AIReq bootstrap 业务契约版本为 `39`，预检返回签字范围及对应文件清单。bootstrap 能力中的 `canSendToRedZone` 和 `canAccessCloudComments` 分别决定全量交接和云龙评论入口。共享类型、浏览器调用与服务端 wire 校验同批切换，不接受历史参数作为兼容格式。该版本与原生 Agent 的 Protocol v4 独立。工作流修订号用于适用 CAS 的写入，文档版本号由该需求的材料与确认事实决定。
 
 `models.settings.agents` 是模型与追加指令页签的有序角色目录，包含 `requirements`、`requirements-review`、`solution` 和 `solution-review`。
 
@@ -244,7 +244,7 @@ Agent 讨论的完成回调核验项目、IR、会话、写权限及原生执行
 
 `retryMaterial` 仅重试当前文件，目标、路径和内容摘要必须匹配当前材料。历史正文由所选的已确认版本提供。
 
-`validateDocumentVersion` 按项目与 IR 只读检查最新版并校验开发或测试权限，返回可选版本号、文件数、当前版本与文件的不可解析 `snapshot` 标识，以及按路径标记的 missing／invalid 问题。检查无问题时客户端可将 `snapshot` 原样交回 `confirmDocumentVersion`。快照仍匹配但复核不通过时，结果包含 `receipt.status: "failed"` 及与 `receipt` 同级的 `documentValidation`；快照变化或版本已确认则 RPC 拒绝。失败不改工作流或版本。
+`validateDocumentVersion` 按项目与 IR 只读检查最新版并校验开发或测试权限，返回检查对象类型（需求或方案）、可选版本号、文件数、文件清单（路径、大小、摘要）、当前版本与文件的不可解析 `snapshot` 标识，以及按路径标记的 missing／invalid 问题。检查无问题时客户端可将 `snapshot` 原样交回 `confirmDocumentVersion`。快照仍匹配但复核不通过时，结果包含 `receipt.status: "failed"` 及与 `receipt` 同级的 `documentValidation`；快照变化或版本已确认则 RPC 拒绝。失败不改工作流或版本。
 
 Web 文件接口只接收一个请求对象；搜索、读取属性、批量存在检查、媒体预览和分段读取均在访问文件前拒绝额外实参或对象字段。分段读取的请求对象只包含 `path`、`offset` 和 `length`。
 

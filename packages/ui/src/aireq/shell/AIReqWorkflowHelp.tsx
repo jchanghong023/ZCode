@@ -13,27 +13,36 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 
 const steps = [
   {
-    title: "查看需求",
-    titleEn: "Open a requirement",
-    description: "从「所有项目」选择云龙项目，再打开要澄清的需求。",
+    title: "黄区澄清需求",
+    titleEn: "Clarify requirements in the yellow zone",
+    description:
+      "从「所有项目」打开项目或版本，选择 IR 进入「讨论需求」。用一次实际操作说明输入和预期结果，在右侧对照云龙原文与业务需求。",
     descriptionEn:
-      "Choose a CloudDragon project from All projects, then open a requirement to clarify it.",
+      "Open a project or release in All projects, then discuss an IR. Describe an input and expected result and compare the draft with the original IR on the right.",
   },
   {
-    title: "与 Agent 协作",
-    titleEn: "Work with the Agents",
+    title: "将需求交接到红区",
+    titleEn: "Hand requirements to the red zone",
     description:
-      "所有人可进入需求 Agent，项目开发和测试可进入方案 Agent。在对应聊天中修改文档，或随时让独立子代理评审当前文件。意见回到聊天。",
+      "黄区定时单向交接全部项目的 IR 和最新已保存需求，也可点击「同步全部项目到红区」。交接可以包含草稿。IR 详情中的评论发送只在云龙该条需求下追加正文。",
     descriptionEn:
-      "Everyone can open the Requirements Agent. Project developers and testers can open the Solution Agent. Edit documents in chat or request an independent review of the latest files. Feedback appears in chat.",
+      "All projects’ IRs and saved requirements, including drafts, are handed off in one direction on a schedule or with Sync to red zone. Posting a document in IR details adds a comment to that IR in CloudDragon.",
   },
   {
-    title: "查看和确认版本",
-    titleEn: "View and confirm versions",
+    title: "红区讨论方案",
+    titleEn: "Develop the solution in the red zone",
     description:
-      "文档区默认显示最新版。首次生成文件时创建 V1，开发或测试确认后固定该版全部文件，记录工号和时间。确认后的首次文件变更开启下一版。已确认的旧版随时可查。",
+      "项目开发和测试进入「讨论方案」，结合代码拆分 SR，在右侧查阅设计和测试方案。可从输入框邀请独立评审，意见回到讨论。",
     descriptionEn:
-      "Documents opens on the latest version. The first files start V1. One developer or tester confirms the entire version, recording their employee ID and the time. The next file change starts a new version. Older confirmed versions remain available.",
+      "Developers and testers discuss the solution, split the IR into SRs, and read their designs and test plans on the right. Request an independent review from the composer.",
+  },
+  {
+    title: "在本区核对并定版",
+    titleEn: "Check and confirm the version",
+    description:
+      "开发或测试在右侧检查定版条件。黄区核对需求正文，红区核对需求依据和各 SR 材料。确认后记录工号和时间；后续修改开启下一版。",
+    descriptionEn:
+      "Check the documents on the right. The yellow zone confirms requirements and the red zone confirms their basis and SR deliverables. Confirmation records who signed and when. Later edits start a new version.",
   },
 ];
 
@@ -74,16 +83,6 @@ export function AIReqWorkflowHelp({
           tabIndex={0}
           aria-label={zh ? "完整业务流程" : "Complete workflow"}
         >
-          <p className="mb-4 text-ui-sm leading-6 text-foreground-subtle">
-            {zh
-              ? "「所有项目」汇总各个项目。「需求共创」按侧栏所选项目展示。"
-              : "All projects shows the project overview. Co-creation follows the project selected in the sidebar."}
-          </p>
-          <p className="mb-4 text-ui-sm leading-6 text-foreground-subtle">
-            {zh
-              ? "设置分为外观、项目配置、AI 配置和文档格式；AI 配置包含模型和共享 Agent 指令。离开未保存表单时可保存、丢弃或取消，取消保留当前输入；往返设置保留未发送的讨论与附件。"
-              : "Settings includes Appearance, Project configuration, AI configuration and Document formats. AI configuration includes models and shared Agent instructions. Save, discard or cancel when leaving an unsaved form; cancel keeps your input. Returning from settings preserves unsent discussion text and attachments."}
-          </p>
           <ol className="space-y-3">
             {steps.map((step) => (
               <li key={step.title} className="space-y-1">

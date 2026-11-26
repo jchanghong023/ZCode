@@ -232,6 +232,10 @@ describe("co-creation document versions through the public API", () => {
           await expectBusinessRejection(business.command(action, selection));
           expect(await tester.call("validateDocumentVersion", [selection])).toEqual({
             snapshot: action.snapshot,
+            scope: "solution",
+            files: expect.arrayContaining(
+              files.map(({ path, sha256, size }) => ({ path, sha256, size })),
+            ),
             version: 1,
             fileCount: files.length,
             issues: [],

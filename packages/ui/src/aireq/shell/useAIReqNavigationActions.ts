@@ -38,6 +38,7 @@ export function useAIReqNavigationActions({
       )
         return;
       select({ projectId, releaseId }, true, "proposals");
+      return true;
     },
     [select, viewRef],
   );

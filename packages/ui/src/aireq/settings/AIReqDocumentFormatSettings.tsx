@@ -15,6 +15,7 @@ import {
   type AIReqWorkflowView,
 } from "../contract.js";
 import { useAIReqDataSource } from "../data-source.js";
+import { materialName } from "../documents/materialName.js";
 import { AIReqDiscardDraftButton } from "./AIReqDiscardDraftButton.js";
 
 const files = Object.keys(AIREQ_DOCUMENT_PATHS) as AIReqDocumentName[];
@@ -239,7 +240,7 @@ export function AIReqDocumentFormatSettings({
                 <SettingsRow
                   key={name}
                   searchId={`aireq.documentFormats.${name}`}
-                  label={<span className="font-mono">{name}</span>}
+                  label={materialName(name, zh)}
                   description={
                     <code className="break-all font-mono text-ui-caption">
                       {AIREQ_DOCUMENT_PATHS[name]}
@@ -251,7 +252,11 @@ export function AIReqDocumentFormatSettings({
                       <SettingsFormTextarea
                         ref={name === "requirements.md" ? firstHeadingField : undefined}
                         rows={2}
-                        aria-label={zh ? `${name} 必需章节` : `${name} required headings`}
+                        aria-label={
+                          zh
+                            ? `${materialName(name, zh)}（${name}）必需章节`
+                            : `${materialName(name, zh)} (${name}) required headings`
+                        }
                         aria-describedby={
                           headingErrors[name] === undefined
                             ? "aireq-required-headings-help"

@@ -28,6 +28,7 @@ import type {
   AIReqAction,
   AIReqDataSource,
   AIReqSelection,
+  AIReqRequirementListSyncReceipt,
   AIReqWorkflowView,
 } from "./contract.js";
 
@@ -44,9 +45,13 @@ import {
 
 const AIReqContext = createContext<AIReqContextValue | null>(null);
 type PageActionState = { status: "pending" | "succeeded" } | { status: "failed"; cause: unknown };
+type SyncState =
+  | { status: "pending" }
+  | { status: "failed"; cause: unknown }
+  | { status: "succeeded"; receipt: AIReqRequirementListSyncReceipt };
 const ProposalPageActionsContext = createContext<{
   projectRefresh?: PageActionState;
-  redSync?: PageActionState;
+  redSync?: SyncState;
   syncRequirementList(): Promise<void>;
 } | null>(null);
 export const useAIReqProposalPageActions = () => useContext(ProposalPageActionsContext);
@@ -165,7 +170,7 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
   const [pending, setPending] = useState(true);
   const requestRevision = useRef(0);
   const [projectRefresh, setProjectRefresh] = useState<PageActionState>();
-  const [redSync, setRedSync] = useState<PageActionState>();
+  const [redSync, setRedSync] = useState<SyncState>();
   const projectRefreshFlight = useRef<Promise<void> | undefined>(undefined);
   const redSyncInFlight = useRef(false);
   const draftGuardRef = useRef<((navigate: () => void) => void) | null>(null);
@@ -288,8 +293,8 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
     // 列表按项目重挂载，但全量同步的忙态与失败属于同一登录页。
     setRedSync({ status: "pending" });
     try {
-      await source.syncRequirementList();
-      setRedSync(undefined);
+      const receipt = await source.syncRequirementList();
+      setRedSync({ status: "succeeded", receipt });
     } catch (cause) {
       setRedSync({ status: "failed", cause });
     } finally {
@@ -572,7 +577,11 @@ export function AIReqProvider({ children }: { children: ReactNode }) {
           : undefined,
         clearLinkError: () => setLinkError(undefined),
         switchProject,
-        openProject: (projectId, releaseId) => navigate(() => openProject(projectId, releaseId)),
+        openProject: (projectId, releaseId, query) =>
+          navigate(() => {
+            // 筛选写入已接纳的目标历史槽，取消离开时不能改动原查询。
+            if (openProject(projectId, releaseId) && query) updateProposalQuery(() => query);
+          }),
         select: (value) =>
           navigate(() => {
             const current = selectionRef.current;

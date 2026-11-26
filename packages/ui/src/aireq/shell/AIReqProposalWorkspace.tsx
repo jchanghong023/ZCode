@@ -16,7 +16,7 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
   const { locale } = useZCodeIntl();
   const zh = locale === "zh-CN";
   const source = useAIReqDataSource();
-  const { activeTab, isOpen, open, expand } = useAIReqSidePane();
+  const { activeTab, tabs, isOpen, open, activate, expand } = useAIReqSidePane();
   const { projectId, irId, srId, discussionPhase: agent = "requirements" } = ai.selection;
   const group = ai.view?.requirements.find(
     (item) => item.projectId === projectId && item.id === irId,
@@ -59,23 +59,40 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
     });
   }, [selectionReady, canEnter, projectId, irId, srId, releaseId, title, agent, open]);
   const currentDocumentsSelected =
-    !!activeTab && activeTab.selection.projectId === projectId && activeTab.selection.irId === irId;
+    !!activeTab &&
+    activeTab.kind !== "original" &&
+    activeTab.selection.projectId === projectId &&
+    activeTab.selection.irId === irId;
   const currentDocumentsOpen = isOpen && currentDocumentsSelected;
   useLayoutEffect(() => {
-    if (!currentDocumentsOpen || !focusOpenedDocuments.current) return;
+    if (!isOpen || !focusOpenedDocuments.current) return;
     focusOpenedDocuments.current = false;
     document
       .querySelector<HTMLElement>("#aireq-document-workspace [role='tab'][aria-selected='true']")
       ?.focus();
-  }, [currentDocumentsOpen]);
-  const openDocuments = () => {
+  }, [activeTab, isOpen]);
+  const openDocuments = (kind?: "original") => {
     if (!group) return;
     focusOpenedDocuments.current = true;
-    if (currentDocumentsSelected) {
+    const existing = tabs.find(
+      (tab) =>
+        tab.kind === kind &&
+        tab.selection.projectId === group.projectId &&
+        tab.selection.irId === group.id &&
+        tab.releaseId === group.releaseId &&
+        tab.selection.srId === srId,
+    );
+    if (existing) {
+      activate(existing.id);
       expand();
+      if (isOpen && existing.id === activeTab?.id) {
+        focusOpenedDocuments.current = false;
+        document.getElementById(`aireq-tab-${existing.id}`)?.focus();
+      }
       return;
     }
     open({
+      kind,
       selection: { projectId: group.projectId, irId: group.id, srId, discussionPhase: agent },
       releaseId: group.releaseId,
       title: group.title,
@@ -184,6 +201,11 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
         </div>
         {selectionReady && group && (
           <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1">
+            {canEnter && (
+              <Button variant="ghost" size="sm" onClick={() => openDocuments("original")}>
+                {zh ? "查看云龙原文" : "View original IR"}
+              </Button>
+            )}
             {switchAgentButton}
             {canEnter && !currentDocumentsOpen && (
               <Button
@@ -192,7 +214,7 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
                 variant="outline"
                 aria-expanded={false}
                 aria-controls="aireq-document-workspace"
-                onClick={openDocuments}
+                onClick={() => openDocuments()}
                 data-aireq-open-agent-documents=""
               >
                 <PanelRightOpen className="size-4" aria-hidden="true" />
@@ -276,6 +298,11 @@ export function AIReqProposalWorkspace({ active }: { active: boolean }) {
                     <blockquote className="max-h-40 overflow-auto overscroll-contain rounded-lg border border-border bg-card px-3 py-2 whitespace-pre-wrap wrap-anywhere">
                       {group.originalText}
                     </blockquote>
+                    <p className="text-foreground-subtle">
+                      {zh
+                        ? "请举一次实际操作，说明输入是什么、预期得到什么结果。"
+                        : "Describe one real example. What is the input and what result do you expect?"}
+                    </p>
                   </div>
                 ) : (
                   <p

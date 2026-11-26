@@ -1881,7 +1881,7 @@ const zhCN: Record<string, string> = {
   "chat.contextOptimization.completed": "已优化对话",
   "settings.themeMode": "界面主题",
   // 动效主题与原主题共用选择器，说明同步列全实际可选项。
-  "settings.themeModeDescription": "选择工作台主题，或跟随系统。",
+  "settings.themeModeDescription": "仅对本次打开的工作台生效。刷新后恢复钴蓝日间。",
   "settings.themeMode.light": "浅色",
   "settings.themeMode.dark": "深色",
   "settings.themeMode.zai-light": "浅色",

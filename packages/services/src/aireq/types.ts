@@ -274,6 +274,8 @@ export type AIReqAction = AIReqIntent & { operationId?: string; expectedRevision
 export type AIReqCommand = AIReqIntent & { operationId: string };
 
 export interface AIReqDocumentValidation {
+  scope: AIReqDiscussionAgent;
+  files: AIReqFileVersion[];
   version?: number;
   snapshot: string;
   fileCount: number;

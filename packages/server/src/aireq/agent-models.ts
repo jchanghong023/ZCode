@@ -49,7 +49,7 @@ const prototypeModels: AgentModelChoice[] = [
 
 const roleDefaults: Record<AIReqAgentRole, Omit<AIReqAgentModel, "id">> = {
   requirements: {
-    name: "业务需求 Agent",
+    name: "需求 Agent",
     nameEn: "Requirements Agent",
     description: "在需求澄清会话中整理业务目标、范围和验收条件，生成 IR 需求文档。",
     descriptionEn:

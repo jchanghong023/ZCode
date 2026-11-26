@@ -34,6 +34,8 @@ const pinnedIdentity =
 export function AIReqProposalRow({
   item,
   columns,
+  showIdInTitle,
+  showOwnerInTitle,
   releaseTitle,
   search,
   now,
@@ -41,6 +43,8 @@ export function AIReqProposalRow({
 }: {
   item: AIReqRequirementGroup;
   columns: ProposalColumn[];
+  showIdInTitle: boolean;
+  showOwnerInTitle: boolean;
   releaseTitle: string;
   search: string;
   now: number;
@@ -102,6 +106,16 @@ export function AIReqProposalRow({
             className={`min-w-0 px-3 py-2.5 font-normal first:pl-4 ${pinnedIdentity}`}
           >
             <AIReqProposalText item={item} search={search} zh={zh} />
+            {showIdInTitle && (
+              <p className="mt-1 wrap-anywhere font-mono text-ui-sm text-foreground-subtle">
+                {item.id}
+              </p>
+            )}
+            {showOwnerInTitle && (
+              <p className="mt-1 wrap-anywhere text-ui-sm text-foreground-subtle">
+                {zh ? "当前责任人" : "Current owner"} · {proposalPerson(item, "owner") || "—"}
+              </p>
+            )}
           </th>
         ) : (
           <td
@@ -194,6 +208,22 @@ export function AIReqProposalRow({
                 if (actionTrigger.current) openDocuments(actionTrigger.current);
               }}
             >
+              {hasAlternateSolution && (
+                <Button
+                  type="button"
+                  size="lg"
+                  variant="ghost"
+                  aria-label={`${solutionLabel} · ${item.title}`}
+                  className="w-full justify-start gap-2"
+                  onClick={() => {
+                    setActionsOpen(false);
+                    ai.select({ ...selection, discussionPhase: "solution" });
+                  }}
+                >
+                  <MessagesSquare aria-hidden="true" />
+                  {solutionLabel}
+                </Button>
+              )}
               {primaryAgent && (
                 <Button
                   type="button"
@@ -233,22 +263,6 @@ export function AIReqProposalRow({
                   {detailsLabel}
                 </Button>
               </AIReqProposalDetails>
-              {hasAlternateSolution && (
-                <Button
-                  type="button"
-                  size="lg"
-                  variant="ghost"
-                  aria-label={`${solutionLabel} · ${item.title}`}
-                  className="w-full justify-start gap-2"
-                  onClick={() => {
-                    setActionsOpen(false);
-                    ai.select({ ...selection, discussionPhase: "solution" });
-                  }}
-                >
-                  <MessagesSquare aria-hidden="true" />
-                  {solutionLabel}
-                </Button>
-              )}
               <AIReqCopyDocumentLinkButton
                 workDirectory={
                   ai.view?.projects.find((project) => project.id === item.projectId)?.workDirectory

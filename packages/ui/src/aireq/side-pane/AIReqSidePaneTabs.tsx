@@ -121,13 +121,18 @@ export function AIReqSidePaneTabs({
                   strategy={horizontalListSortingStrategy}
                 >
                   {pane.tabs.map((tab, tabIndex) => {
-                    const accessibleTitle = `${tab.title} · ${documentLabel}`;
+                    const kindLabel =
+                      tab.kind === "original" ? (zh ? "云龙原文" : "Original IR") : documentLabel;
+                    const accessibleTitle = `${tab.title} · ${kindLabel}`;
                     return (
                       <SortableSidePaneTabPresentation
                         key={tab.id}
                         id={tab.id}
                         triggerId={`aireq-tab-${tab.id}`}
                         panelId={`aireq-content-${tab.id}`}
+                        titlePrefix={
+                          tab.kind === "original" ? (zh ? "原文" : "IR") : zh ? "文档" : "Docs"
+                        }
                         title={tab.title}
                         accessibleTitle={accessibleTitle}
                         icon={<Files className="size-3.5" aria-hidden="true" />}
@@ -232,7 +237,7 @@ function AIReqTabOverview({
         searchFields: buildSearchFields(
           tab.title,
           `${tab.selection.irId ?? ""} ${tab.selection.srId ?? ""}`,
-          zh ? "文档" : "Documents",
+          tab.kind === "original" ? (zh ? "云龙原文" : "Original IR") : zh ? "文档" : "Documents",
         ),
       })),
       normalizeSearchQuery(query),
@@ -261,6 +266,7 @@ function AIReqTabOverview({
             >
               <Files className="size-3.5 shrink-0 text-foreground-subtle" aria-hidden="true" />
               <span className="min-w-0 flex-1 whitespace-normal break-words [overflow-wrap:anywhere]">
+                {tab.kind === "original" ? (zh ? "原文" : "IR") : zh ? "文档" : "Docs"} ·{" "}
                 {tab.title}
               </span>
             </CommandItem>

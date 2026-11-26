@@ -134,7 +134,9 @@ export function AIReqRolesPage() {
             <h1 className={AIREQ_PAGE_TITLE_CLASSNAME}>{zh ? "角色管理" : "Role management"}</h1>
             {!administrator && (
               <p className="text-ui-sm text-foreground-subtle">
-                {zh ? "名单由管理员维护。" : "Only administrators can edit the lists."}
+                {zh
+                  ? "申请项目权限时，请向项目负责人提供工号和所需角色，由 AIReq 管理员添加。"
+                  : "To request access, give the project lead your employee ID and the role you need. An AIReq administrator maintains these lists."}
               </p>
             )}
           </div>

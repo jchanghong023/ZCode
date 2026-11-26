@@ -41,6 +41,10 @@ export function AIReqProjectDocumentsPage({
             const counts = ai.view?.projectRequirementCounts?.[project.id];
             // 刷新失败时 Shell 报错且保留原快照；只有快照内读取失败的项目不显示统计。
             const showCounts = !releaseReadFailed;
+            const unassigned = counts
+              ? counts.requirementCount -
+                releases.reduce((sum, release) => sum + release.requirementCount, 0)
+              : 0;
             return (
               <Card key={project.id} className="min-w-0 gap-3 p-4">
                 <div className="flex min-w-0 flex-wrap items-center gap-3">
@@ -79,6 +83,26 @@ export function AIReqProjectDocumentsPage({
                   </p>
                 )}
                 {showCounts && counts && <RequirementCounts counts={counts} zh={zh} />}
+                {showCounts && unassigned > 0 && (
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="w-fit"
+                    aria-label={
+                      zh
+                        ? `${project.name} · 未分配版本 ${unassigned}`
+                        : `${project.name} · Unassigned release · ${unassigned}`
+                    }
+                    onClick={() =>
+                      ai.openProject(project.id, undefined, {
+                        query: "",
+                        filters: { release: [""] },
+                      })
+                    }
+                  >
+                    {zh ? `未分配版本 ${unassigned}` : `Unassigned release · ${unassigned}`}
+                  </Button>
+                )}
                 {releases.length > 0 && (
                   <ul
                     className="divide-y divide-border border-t border-border"

@@ -25,7 +25,7 @@ export interface AIReqContextValue {
   linkError?: string;
   clearLinkError(): void;
   switchProject(projectId: string): void;
-  openProject(projectId: string, releaseId?: string): void;
+  openProject(projectId: string, releaseId?: string, query?: AIReqProposalQuery): void;
   select(value: AIReqSelection): void;
   refresh(throwOnError?: boolean): Promise<void>;
   refreshProjects(throwOnError?: boolean): Promise<void>;

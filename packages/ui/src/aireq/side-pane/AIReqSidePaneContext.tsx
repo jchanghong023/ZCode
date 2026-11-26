@@ -43,7 +43,7 @@ export function useAIReqSidePane(): AIReqSidePaneController {
 }
 function sidePaneTargetKey(target: AIReqSidePaneRequest): string {
   const s = target.selection;
-  return JSON.stringify([s.projectId, target.releaseId, s.irId, s.srId]);
+  return JSON.stringify([s.projectId, target.releaseId, s.irId, s.srId, target.kind]);
 }
 const targetScope = (target: AIReqSidePaneRequest) => target.selection.projectId ?? "";
 export function AIReqSidePaneProvider({ children }: { children: ReactNode }) {

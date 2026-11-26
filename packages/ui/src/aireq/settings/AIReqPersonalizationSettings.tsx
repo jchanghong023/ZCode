@@ -227,9 +227,7 @@ function PersonalizationContent({
           value={draft[selected] ?? ""}
           readOnly={saving}
           placeholder={
-            zh
-              ? "输入你希望追加给该 Agent 的指令。留空则仅使用原有指令。"
-              : "Enter instructions you want to append for this Agent. Leave empty to use existing instructions only."
+            zh ? "输入追加给当前 Agent 的指令。" : "Enter additional instructions for this Agent."
           }
           aria-describedby={
             currentOverage > 0

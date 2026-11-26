@@ -19,10 +19,12 @@ export function validateDocumentVersion(
   requirement: RequirementGroup,
   expectedSnapshot?: string,
 ): AIReqDocumentValidation {
+  const scope = production?.zone === "yellow" ? "requirements" : "solution";
   const version = requirement.documentVersion?.number;
   const materials = confirmationMaterialsFor(state, requirement);
   // 版本号不会随同版编辑变化；快照还须绑定需求和实际文件清单。
   const snapshot = digestValue([
+    scope,
     requirement.projectId,
     requirement.id,
     version,
@@ -36,7 +38,7 @@ export function validateDocumentVersion(
     materials.find((file) => file.kind === "ir" && file.path.endsWith("/imports/requirements.md"))
       ?.path ?? requirement.documentPath;
   required.set(basisPath, { name: "requirements.md" });
-  for (const srId of production?.zone === "yellow" ? [] : requirement.srIds) {
+  for (const srId of scope === "requirements" ? [] : requirement.srIds) {
     for (const [name, template] of Object.entries(AIREQ_DOCUMENT_PATHS)) {
       if (name === "requirements.md") continue;
       required.set(
@@ -52,7 +54,7 @@ export function validateDocumentVersion(
   const files = new Map(materials.map((file) => [file.path, readPrototypeMaterial(file)]));
   const issues: AIReqDocumentValidation["issues"] = [];
   const expectedPaths = [...required.keys()];
-  if (production?.zone !== "yellow") expectedPaths.push(dependencyPath);
+  if (scope === "solution") expectedPaths.push(dependencyPath);
   for (const path of expectedPaths) {
     if (!files.has(path)) {
       issues.push({
@@ -94,5 +96,13 @@ export function validateDocumentVersion(
     if (reason) issues.push({ kind: "invalid", path, reason });
   }
 
-  return { version, snapshot, fileCount: files.size, issues };
+  // 返回参与此次签字的文件，而非客户端当前正在阅读的文件。
+  return {
+    scope,
+    version,
+    snapshot,
+    fileCount: files.size,
+    files: materials.map(({ path, sha256, size }) => ({ path, sha256, size })),
+    issues,
+  };
 }
