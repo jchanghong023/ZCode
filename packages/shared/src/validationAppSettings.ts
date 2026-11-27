@@ -1,6 +1,6 @@
 /* oxlint-disable eslint(max-lines) -- AppSettings schema 聚合历史迁移、默认值和 patch 校验，拆分会削弱设置迁移的单一入口。 */
 import { z } from "zod";
-import { APP_THEMES } from "./appearance-theme.js";
+import { APP_THEMES, DEFAULT_AIREQ_THEME } from "./appearance-theme.js";
 import {
   appToolSearchModeSchema,
   DEFAULT_APP_TOOL_SEARCH_MODE,
@@ -486,7 +486,14 @@ function migrateLegacyWorkspaceSession(value: unknown): unknown {
 }
 
 const appSettingsObjectSchema = z.object({
-  theme: appThemeSchema.default("zai-motion"),
+  // 读取已删除主题的旧设置时只替换主题字段，避免其它偏好随整份校验失败。
+  theme: z.preprocess(
+    (theme) =>
+      theme === "aireq-slate" || theme === "aireq-violet" || theme === "aireq-aurora"
+        ? DEFAULT_AIREQ_THEME
+        : theme,
+    appThemeSchema.default("zai-motion"),
+  ),
   uiFontSizePx: appUiFontSizeSchema.default(14),
   recentProjects: z.array(z.string()).default([]),
   locale: localeSchema.default("zh-CN"),

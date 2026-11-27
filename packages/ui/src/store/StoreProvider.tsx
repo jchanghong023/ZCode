@@ -25,11 +25,13 @@ export function StoreProvider({
   broadcastService,
   initialUser = null,
   initialTheme,
+  allowedThemes,
   children,
 }: {
   broadcastService: WebBroadcastService;
   initialUser?: UserInfo | null;
   initialTheme?: Theme;
+  allowedThemes?: readonly Theme[];
   children: ReactNode;
 }) {
   // Store 保持稳定；连接重建只替换广播绑定，避免继续调用已释放的 ChannelClient。
@@ -38,6 +40,7 @@ export function StoreProvider({
     storeRef.current = createZCodeStore(broadcastService, {
       initialUser,
       initialTheme,
+      allowedThemes,
     });
   }
   const store = storeRef.current;

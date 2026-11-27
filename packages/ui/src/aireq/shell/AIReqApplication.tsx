@@ -1,4 +1,4 @@
-import { DEFAULT_AIREQ_THEME } from "@/useTheme.js";
+import { AIREQ_THEMES, DEFAULT_AIREQ_THEME } from "@/useTheme.js";
 import { formatUserFacingError } from "@/lib/errorMessage.js";
 import { useEffect, useState } from "react";
 import { LucideProvider } from "lucide-react";
@@ -71,6 +71,7 @@ export function AIReqApplication(props: AIReqApplicationProps) {
               <PlatformProvider platform={props.platform}>
                 <StoreProvider
                   initialTheme={DEFAULT_AIREQ_THEME}
+                  allowedThemes={AIREQ_THEMES}
                   broadcastService={props.services.broadcastService}
                   initialUser={{
                     id: identity.employeeId,

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Monitor, Moon, Sun, WandSparkles } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 import { AIREQ_THEMES, resolveTheme, type Theme } from "@/useTheme.js";
 import { Card, CardContent } from "@/components/ui/card.js";
 import { Input } from "@/components/ui/input.js";
@@ -22,13 +22,10 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { CodePreviewSettings } from "@/store/index.js";
 import { MAX_UI_FONT_SIZE_PX, MIN_UI_FONT_SIZE_PX } from "@/lib/uiFontSize.js";
 
-const THEME_MODES: Array<{ mode: Theme; icon: typeof Sun }> = [
-  ...AIREQ_THEMES.map((mode) => ({ mode, icon: WandSparkles })),
-  { mode: "zai-motion", icon: WandSparkles },
-  { mode: "system", icon: Monitor },
-  { mode: "zai-dark", icon: Moon },
-  { mode: "zai-light", icon: Sun },
-];
+const THEME_ICONS = {
+  "aireq-cobalt": Sun,
+  "zai-motion": Moon,
+} satisfies Record<(typeof AIREQ_THEMES)[number], typeof Sun>;
 
 function FontSizeInput({
   value,
@@ -135,14 +132,17 @@ export function AppearanceSectionContent({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {THEME_MODES.map(({ mode, icon: Icon }) => (
-                      <SelectItem key={mode} value={mode}>
-                        <div className="flex items-center gap-2">
-                          <Icon className="size-4" />
-                          {intl.formatMessage({ id: `settings.themeMode.${mode}` })}
-                        </div>
-                      </SelectItem>
-                    ))}
+                    {AIREQ_THEMES.map((mode) => {
+                      const Icon = THEME_ICONS[mode];
+                      return (
+                        <SelectItem key={mode} value={mode}>
+                          <div className="flex items-center gap-2">
+                            <Icon aria-hidden="true" className="size-4" />
+                            {intl.formatMessage({ id: `settings.themeMode.${mode}` })}
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               }

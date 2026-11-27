@@ -8,23 +8,18 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
-import { Maximize, Palette, Settings, User, ZoomIn, ZoomOut } from "lucide-react";
+import { Maximize, Settings, User, ZoomIn, ZoomOut } from "lucide-react";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { formatCommandShortcutLabel } from "@/lib/keyboardShortcuts.js";
-import { AIREQ_THEMES, type Theme } from "@/useTheme.js";
 
 interface WorkspaceSidebarFooterProps {
-  theme: Theme;
-  onThemeChange: (value: string) => void;
   onSettingsButtonClick?: () => void;
   settingsButtonMode?: "settings" | "back";
   className?: string;
@@ -33,51 +28,6 @@ interface WorkspaceSidebarFooterProps {
   profileDescription?: ReactNode;
   profileAriaLabel: string;
   compact?: boolean;
-}
-
-function WorkspaceSidebarFooterThemeMenu({
-  theme,
-  onThemeChange,
-}: {
-  theme: Theme;
-  onThemeChange: (value: string) => void;
-}) {
-  const { intl } = useZCodeIntl();
-  return (
-    <DropdownMenuSub>
-      <DropdownMenuSubTrigger>
-        <Palette className="size-4" />
-        {intl.formatMessage({ id: "settings.themeMode" })}
-      </DropdownMenuSubTrigger>
-      <DropdownMenuSubContent className="w-48">
-        <DropdownMenuRadioGroup value={theme} onValueChange={onThemeChange}>
-          {AIREQ_THEMES.map((mode) => (
-            <DropdownMenuRadioItem key={mode} value={mode}>
-              {intl.formatMessage({ id: `settings.themeMode.${mode}` })}
-            </DropdownMenuRadioItem>
-          ))}
-          <DropdownMenuRadioItem value="zai-motion">
-            {intl.formatMessage({ id: "sidebar.settings.theme.zai-motion" })}
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="system">
-            {intl.formatMessage({
-              id: "sidebar.settings.systemDefault",
-            })}
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="zai-dark">
-            {intl.formatMessage({
-              id: "sidebar.settings.theme.zai-dark",
-            })}
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="zai-light">
-            {intl.formatMessage({
-              id: "sidebar.settings.theme.zai-light",
-            })}
-          </DropdownMenuRadioItem>
-        </DropdownMenuRadioGroup>
-      </DropdownMenuSubContent>
-    </DropdownMenuSub>
-  );
 }
 
 function WorkspaceSidebarFooterZoomMenu() {
@@ -111,8 +61,6 @@ function WorkspaceSidebarFooterZoomMenu() {
 }
 
 export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterComponent({
-  theme,
-  onThemeChange,
   onSettingsButtonClick,
   settingsButtonMode = "settings",
   className,
@@ -193,7 +141,6 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
             forceMount
           >
             {customMenuContent}
-            <WorkspaceSidebarFooterThemeMenu theme={theme} onThemeChange={onThemeChange} />
             <WorkspaceSidebarFooterZoomMenu />
           </DropdownMenuContent>
         </DropdownMenu>

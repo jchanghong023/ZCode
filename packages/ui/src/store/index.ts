@@ -117,6 +117,7 @@ export function createZCodeStore(
   options: {
     initialUser?: UserInfo | null;
     initialTheme?: Theme;
+    allowedThemes?: readonly Theme[];
   } = {},
 ) {
   /** 标记：正在应用来自广播的更新，此时不再重复广播（防止循环） */
@@ -141,6 +142,7 @@ export function createZCodeStore(
     theme: options.initialTheme ?? DEFAULT_THEME,
     setTheme: (theme: Theme) => {
       const normalizedTheme = normalizeThemePreference(theme);
+      if (options.allowedThemes && !options.allowedThemes.includes(normalizedTheme)) return;
       if (!applyingBroadcast) {
         localThemeChoice = normalizedTheme;
       }

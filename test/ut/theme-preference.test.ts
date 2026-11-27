@@ -1,10 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AIREQ_THEMES, DEFAULT_AIREQ_THEME } from "@zcode/shared";
+import { AIREQ_THEMES, appSettingsPatchSchema, appSettingsSchema, DEFAULT_AIREQ_THEME } from "@zcode/shared";
 import type { WebBroadcastMessage, WebBroadcastService } from "@zcode/services";
 import { createZCodeStore } from "../../packages/ui/src/store/index.js";
 
 // AIReq 网页入口显式传入钴蓝日间，不使用通用 store 的默认动效主题。
-const AIREQ_STORE_OPTIONS = { initialTheme: DEFAULT_AIREQ_THEME };
+const AIREQ_STORE_OPTIONS = {
+  initialTheme: DEFAULT_AIREQ_THEME,
+  allowedThemes: AIREQ_THEMES,
+};
 
 function openBrowser(saved: string | null = null) {
   const localStorage = {
@@ -65,7 +68,7 @@ function expectCobaltDay(
   browser: ReturnType<typeof openBrowser>,
 ) {
   expect(store.getState().theme).toBe("aireq-cobalt");
-  expectRootTheme(browser, "light", "theme-aireq-cobalt", "theme-aireq-color");
+  expectRootTheme(browser, "light", "theme-aireq-cobalt");
 }
 
 function connection() {
@@ -96,9 +99,8 @@ describe("browser theme preference", () => {
       expect(store.getState().theme).toBe(theme);
       expectRootTheme(
         browser,
-        theme === "aireq-aurora" ? "dark" : "light",
+        theme === "zai-motion" ? "dark" : "light",
         `theme-${theme}`,
-        "theme-aireq-color",
       );
     }
     expectCobaltDay(createZCodeStore(connection().service, AIREQ_STORE_OPTIONS), browser);
@@ -120,46 +122,70 @@ describe("browser theme preference", () => {
     const store = createZCodeStore(client.service, AIREQ_STORE_OPTIONS);
     expectCobaltDay(store, browser);
     const disconnect = store.connectBroadcastService(client.service);
-    client.receiveTheme("light");
-    expect(store.getState().theme).toBe("zai-light");
-    expectRootTheme(browser, "light");
+    client.receiveTheme("zai-motion");
+    expect(store.getState().theme).toBe("zai-motion");
+    expectRootTheme(browser, "dark", "theme-zai-motion");
     expect(browser.localStorage.setItem).not.toHaveBeenCalledWith("zcode-theme", expect.anything());
     expect(client.service.send).not.toHaveBeenCalled();
     disconnect();
     expectCobaltDay(createZCodeStore(connection().service, AIREQ_STORE_OPTIONS), browser);
   });
 
+  it("ignores themes outside AIReq in local updates and incoming broadcasts", () => {
+    const browser = openBrowser();
+    const client = connection();
+    const store = createZCodeStore(client.service, AIREQ_STORE_OPTIONS);
+    const disconnect = store.connectBroadcastService(client.service);
+
+    store.getState().setTheme("zai-dark");
+    for (const theme of ["light", "system", "aireq-aurora"]) client.receiveTheme(theme);
+
+    expectCobaltDay(store, browser);
+    expect(client.service.send).not.toHaveBeenCalled();
+    disconnect();
+  });
+
+  it.each(["aireq-slate", "aireq-violet", "aireq-aurora"])(
+    "restores other settings when the saved theme %s has been removed",
+    (theme) => {
+      expect(appSettingsSchema.parse({ theme, uiFontSizePx: 18 })).toMatchObject({
+        theme: DEFAULT_AIREQ_THEME,
+        uiFontSizePx: 18,
+      });
+      expect(appSettingsPatchSchema.safeParse({ theme }).success).toBe(false);
+    },
+  );
+
   it.each([
-    ["zai-light", "light"],
-    ["zai-dark", "dark"],
-    ["system", "light"],
-    ["aireq-aurora", "dark", ["theme-aireq-aurora", "theme-aireq-color"]],
+    ["zai-motion", "dark", "aireq-cobalt", "light"],
+    ["aireq-cobalt", "light", "zai-motion", "dark"],
   ] as const)(
     "keeps AIReq's %s choice on reconnect and resets on a new load",
-    (theme, scheme, themeClasses: readonly string[] = []) => {
+    (theme, scheme, otherTheme, otherScheme) => {
       const browser = openBrowser("light");
       const initial = connection();
       const store = createZCodeStore(initial.service, AIREQ_STORE_OPTIONS);
       expectCobaltDay(store, browser);
       const disconnect = store.connectBroadcastService(initial.service);
+      initial.receiveTheme(otherTheme);
       store.getState().setTheme(theme);
       expect(store.getState().theme).toBe(theme);
-      expectRootTheme(browser, scheme, ...themeClasses);
+      expectRootTheme(browser, scheme, `theme-${theme}`);
       expect(initial.service.send.mock.calls).toEqual([
         [{ channel: "state:theme", payload: theme }],
       ]);
       disconnect();
       const reconnected = connection();
       const disconnectReconnected = store.connectBroadcastService(reconnected.service);
-      reconnected.receiveTheme("zai-motion");
+      reconnected.receiveTheme(otherTheme);
       expect(store.getState().theme).toBe(theme);
-      expectRootTheme(browser, scheme, ...themeClasses);
+      expectRootTheme(browser, scheme, `theme-${theme}`);
       expect(reconnected.service.send).not.toHaveBeenCalled();
-      store.getState().setTheme("aireq-violet");
-      expect(store.getState().theme).toBe("aireq-violet");
-      expectRootTheme(browser, "light", "theme-aireq-violet", "theme-aireq-color");
+      store.getState().setTheme(otherTheme);
+      expect(store.getState().theme).toBe(otherTheme);
+      expectRootTheme(browser, otherScheme, `theme-${otherTheme}`);
       expect(reconnected.service.send.mock.calls).toEqual([
-        [{ channel: "state:theme", payload: "aireq-violet" }],
+        [{ channel: "state:theme", payload: otherTheme }],
       ]);
       expect(initial.service.send).toHaveBeenCalledTimes(1);
       expect(browser.localStorage.setItem).not.toHaveBeenCalledWith(

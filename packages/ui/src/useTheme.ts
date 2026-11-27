@@ -1,10 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
-import { AIREQ_THEMES, APP_THEMES, type AppTheme } from "@zcode/shared";
+import { APP_THEMES, DEFAULT_AIREQ_THEME, type AppTheme } from "@zcode/shared";
 
 export type Theme = AppTheme;
 export { AIREQ_THEMES, DEFAULT_AIREQ_THEME } from "@zcode/shared";
 const appThemes = new Set<string>(APP_THEMES);
-const aireqThemes = new Set<Theme>(AIREQ_THEMES);
 export type ResolvedTheme = "light" | "dark";
 export const DEFAULT_THEME = "zai-motion";
 
@@ -19,10 +18,7 @@ export function resolveTheme(theme: Theme): ResolvedTheme {
     return getSystemTheme();
   }
 
-  return theme === "dark" ||
-    theme === "zai-dark" ||
-    theme === "zai-motion" ||
-    theme === "aireq-aurora"
+  return theme === "dark" || theme === "zai-dark" || theme === "zai-motion"
     ? "dark"
     : "light";
 }
@@ -73,23 +69,18 @@ export function applyTheme(theme: Theme) {
         : "zai-light"
       : normalizeThemePreference(theme);
   document.documentElement.classList.toggle("dark", resolved === "dark");
-  const custom = isAIReqTheme(appliedTheme);
   document.documentElement.classList.toggle("theme-zai-light", resolved === "light");
   document.documentElement.classList.toggle("theme-zai-dark", resolved === "dark");
   document.documentElement.classList.toggle("theme-zai-motion", appliedTheme === "zai-motion");
-  for (const variant of AIREQ_THEMES) {
-    document.documentElement.classList.toggle(`theme-${variant}`, appliedTheme === variant);
-  }
-  document.documentElement.classList.toggle("theme-aireq-color", custom);
+  document.documentElement.classList.toggle(
+    "theme-aireq-cobalt",
+    appliedTheme === DEFAULT_AIREQ_THEME,
+  );
   syncBrowserThemeSurface(resolved);
 }
 
 export function isTheme(value: unknown): value is Theme {
   return typeof value === "string" && appThemes.has(value);
-}
-
-export function isAIReqTheme(theme: Theme): boolean {
-  return aireqThemes.has(theme);
 }
 
 export function useTheme(initialTheme: Theme = DEFAULT_THEME) {
